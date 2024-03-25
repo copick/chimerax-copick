@@ -8,6 +8,8 @@ Shared data is organized as follows:
 ```
 [copick_root]/
 |-- copick_config.json (spec: src/io/copick_models.py:CopickConfig)
+|-- ObjectMrcs/
+|   |-- [mrc_path].mrc (index: src/io/copick_models.py:CopickConfig.pickable_objects.mrc_path)
 |-- ExperimentRuns
     |-- [run_name]/ (index: src/io/copick_models.py:CopickPicks.runs)
     |   |-- Tomograms/
