@@ -13,7 +13,7 @@ Shared data is organized as follows:
 |-- ExperimentRuns
     |-- [run_name]/ (index: src/io/copick_models.py:CopickPicks.runs)
     |   |-- Tomograms/
-    |   |   |-- VoxelSpacing[xx.yyy] (index: src/io/copick_models.py:CopickPicks.runs)
+    |   |   |-- VoxelSpacing[xx.yyy] (index: src/io/copick_models.py:CopickPicks.voxel_spacings)
     |   |   |   |-- CanonicalTomogram
     |   |   |   |   |-- [run_name].zarr/
     |   |   |   |   |   |-- [subdirectories according to OME-NGFF spec at 100%, 50% and 25% scale]
