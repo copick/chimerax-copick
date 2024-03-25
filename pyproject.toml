@@ -9,6 +9,7 @@ dependencies = [
     "ChimeraX-Core~=1.7.1",
     "ChimeraX-ArtiaX",
     "ChimeraX-OME-Zarr",
+    "pydantic",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz.ermel@czii.org"},
