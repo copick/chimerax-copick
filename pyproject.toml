@@ -63,6 +63,8 @@ select = [
     "SIM",  # simplify
 ]
 ignore = [
+    "N802",  # Function name should be lowercase
+    "N999",  # Invalid module name
     "E501",  # line too long
     "C408",  # rewrite empty built-ins as literals
     "T201",  # print statements.
