@@ -10,9 +10,10 @@ dependencies = [
     "ChimeraX-ArtiaX",
     "ChimeraX-OME-Zarr",
     "pydantic",
+    "git+https://github.com/uermel/copick.git"
 ]
 authors = [
-  {name = "Utz H. Ermel", email = "utz.ermel@czii.org"},
+  {name = "Utz H. Ermel", email = "utz@ermel.me"},
 ]
 description = "ChimeraX extension for collaborative annotation of cryo-electron tomograms."
 readme = "README.md"
@@ -38,7 +39,7 @@ min-session-version="1"
 max-session-version="1"
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "License :: Freeware"
+    "License :: OSI Approved :: MIT License"
 ]
 
 
