@@ -10,7 +10,8 @@ dependencies = [
     "ChimeraX-ArtiaX",
     "ChimeraX-OME-Zarr",
     "pydantic",
-    "git+https://github.com/uermel/copick.git"
+    "hatchling",
+    "copick @ git+https://github.com/uermel/copick.git",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
@@ -39,9 +40,17 @@ min-session-version="1"
 max-session-version="1"
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "License :: OSI Approved :: MIT License"
+    "License :: OSI Approved :: MIT License",
 ]
 
+[chimerax.tool."Copick"]
+tool_name = "Copick"
+category = "General"
+synopsis = "Collaborative annotation of cryo-electron tomograms."
+
+[chimerax.command."copick start"]
+category = "General"
+synopsis = "Start a copick session or load a new config file."
 
 [tool.black]
 line-length = 120
@@ -65,6 +74,8 @@ select = [
 ]
 ignore = [
     "N802",  # Function name should be lowercase
+    "N806",  # Variable in function should be lowercase
+    "B008",  # Do not perform calls in argument defaults
     "N999",  # Invalid module name
     "E501",  # line too long
     "C408",  # rewrite empty built-ins as literals
