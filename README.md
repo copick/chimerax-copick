@@ -5,7 +5,7 @@ A collaborative cryo-ET annotation plugin for ChimeraX.
 
 - [ChimeraX](https://www.cgl.ucsf.edu/chimerax/download.html)
 - [ChimeraX-OME-Zarr](https://github.com/uermel/chimerax-ome-zarr)
-- [ChimeraX-ArtiaX](https://github.com/FrangakisLab/ArtiaX)
+- [ArtiaX](https://github.com/FrangakisLab/ArtiaX)
 - [copick](https://github.com/uermel/copick)
 
 ## Data Spec
