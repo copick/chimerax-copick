@@ -1,4 +1,4 @@
-from typing import Callable, Union
+from typing import Callable, Tuple, Union
 
 from copick.models import (
     CopickPicks,
@@ -27,6 +27,9 @@ class TablePicks:
             return self.picks.user_id
         elif column == 1:
             return self.picks.pickable_object_name
+
+    def color(self) -> Tuple[int, int, int, int]:
+        return tuple(self.picks.color)
 
     def columnCount(self) -> int:
         return 2

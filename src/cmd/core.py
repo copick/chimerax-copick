@@ -7,9 +7,13 @@ def get_singleton(session, create=True):
     if not session.ui.is_gui:
         return None
 
+    from chimerax.artiax.cmd import get_singleton
     from chimerax.core import tools
 
     from ..tool import CopickTool
+
+    a = get_singleton(session)
+    a.tool_window.shown = False
 
     t = tools.get_singleton(session, CopickTool, "Copick", create=create)
     return t

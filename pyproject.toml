@@ -11,7 +11,7 @@ dependencies = [
     "ChimeraX-OME-Zarr",
     "pydantic",
     "hatchling",
-    "copick @ git+https://github.com/uermel/copick.git",
+    "copick @ git+https://github.com/uermel/copick.git@uermel/segmentations",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
@@ -52,6 +52,299 @@ synopsis = "Collaborative annotation of cryo-electron tomograms."
 category = "General"
 synopsis = "Start a copick session or load a new config file."
 
+
+[chimerax.package-data]
+"src/icons/" = ["*.png"]
+
+### TOOLBAR ###
+# Copick tab, Visualization
+[chimerax.provider."Tilted Slab"]
+manager = "toolbar"
+tab = "Copick"
+section = "Visualization"
+display_name = "Slab"
+icon = "slab.png"
+
+[chimerax.provider."Volume Rendering"]
+manager = "toolbar"
+tab = "Copick"
+section = "Visualization"
+display_name = "Volume"
+icon = "fullvolume.png"
+
+[chimerax.provider."Orthoplanes"]
+manager = "toolbar"
+tab = "Copick"
+section = "Visualization"
+display_name = "Orthoplanes"
+icon = "orthoplanes.png"
+
+[chimerax.provider."Surface"]
+manager = "toolbar"
+tab = "Copick"
+section = "Visualization"
+display_name = "Surface"
+icon = "view_surface.png"
+
+# Copick tab, Resolution
+[chimerax.provider."1x"]
+manager = "toolbar"
+tab = "Copick"
+section = "Resolution"
+display_name = "1x"
+icon = "step_1.png"
+
+[chimerax.provider."0.5x"]
+manager = "toolbar"
+tab = "Copick"
+section = "Resolution"
+display_name = "0.5x"
+icon = "step_2.png"
+
+[chimerax.provider."0.25x"]
+manager = "toolbar"
+tab = "Copick"
+section = "Resolution"
+display_name = "0.25x"
+icon = "step_4.png"
+
+# Copick tab, Markers
+[chimerax.provider."layout-markers"]
+manager = "toolbar"
+tab="Copick"
+section="Markers"
+compact="true"
+
+[chimerax.provider."Show Markers"]
+manager = "toolbar"
+tab = "Copick"
+section = "Markers"
+display_name= "Show"
+icon="show_markers.png"
+description= "Show particles as spheres."
+
+[chimerax.provider."Hide Markers"]
+manager = "toolbar"
+tab="Copick"
+section="Markers"
+display_name="Hide"
+icon="hide_markers.png"
+description="Hide spheres."
+
+# Copick tab, Axes
+[chimerax.provider."Show Axes"]
+manager = "toolbar"
+tab = "Copick"
+section = "Axes"
+display_name = "Show"
+icon = "show_axes.png"
+description = "Show principle axes of particles."
+
+[chimerax.provider."Hide Axes"]
+manager = "toolbar"
+tab = "Copick"
+section = "Axes"
+display_name = "Hide"
+icon = "hide_axes.png"
+description = "Hide axes."
+
+[chimerax.provider."layout-axes"]
+manager = "toolbar"
+tab = "Copick"
+section = "Axes"
+compact = true
+
+# Copick tab, Surfaces
+[chimerax.provider."Show Surfaces"]
+manager = "toolbar"
+tab = "Copick"
+section = "Surfaces"
+display_name = "Show"
+icon = "show_surfaces.png"
+description = "Show particle surfaces."
+
+[chimerax.provider."Hide Surfaces"]
+manager = "toolbar"
+tab = "Copick"
+section = "Surfaces"
+display_name = "Hide"
+icon = "hide_surfaces.png"
+description = "Hide surfaces."
+
+[chimerax.provider."layout-surfaces"]
+manager = "toolbar"
+tab = "Copick"
+section = "Surfaces"
+compact = true
+
+# Copick tab, View
+[chimerax.provider."XY"]
+manager = "toolbar"
+tab = "Copick"
+section = "View"
+icon = "view_xy.png"
+description = "Set viewing direction to XY planes."
+
+[chimerax.provider."XZ"]
+manager = "toolbar"
+tab = "Copick"
+section = "View"
+icon = "view_xz.png"
+description = "Set viewing direction to XZ planes."
+
+[chimerax.provider."YZ"]
+manager = "toolbar"
+tab = "Copick"
+section = "View"
+icon = "view_yz.png"
+description = "Set viewing direction to YZ planes."
+
+
+[chimerax.provider."Clip"]
+manager = "toolbar"
+tab = "Copick"
+section = "View"
+icon = "clip.png"
+description = "Turn slab-clipping on or off for all tomograms."
+
+# Copick tab, Standard Mouse Modes
+#[chimerax.provider."Rotate"]
+#manager = "toolbar"
+#tab = "Copick"
+#section = "Movement"
+#mouse_mode = "rotate"
+#display_name = "Rotate"
+##icon = "rotate.png"
+#description = "Rotate models."
+
+#[chimerax.provider."Translate"]
+#manager = "toolbar"
+#tab = "Copick"
+#section = "Movement"
+#mouse_mode = "translate"
+#display_name = "Translate"
+##icon = "translate.png"
+#description = "Translate models."
+
+#[chimerax.provider."Pivot"]
+#manager = "toolbar"
+#tab = "Copick"
+#section = "Movement"
+#mouse_mode = "pivot"
+#display_name = "Center On"
+##icon = "crosshairs.png"
+#description = "Set center of rotation on particle."
+
+# Copick tab, Place Markers mirrored
+[chimerax.provider."mark maximum"]
+manager = "toolbar"
+tab = "Copick"
+section = "Place Particles"
+mouse_mode = "mark maximum"
+display_name = "Maximum"
+icon = "maximum.png"
+description = "Mark maximum."
+
+[chimerax.provider."mark plane"]
+manager = "toolbar"
+tab = "Copick"
+section = "Place Particles"
+mouse_mode = "mark plane"
+display_name = "Plane"
+icon = "plane.png"
+description = "Mark volume plane."
+
+[chimerax.provider."mark surface"]
+manager = "toolbar"
+tab = "Copick"
+section = "Place Particles"
+mouse_mode = "mark surface"
+display_name = "Surface"
+icon = "surface.png"
+description = "Mark surface."
+
+[chimerax.provider."mark center"]
+manager = "toolbar"
+tab = "Copick"
+section = "Place Particles"
+mouse_mode = "mark center"
+display_name = "Center"
+icon = "center.png"
+description = "Mark center."
+
+[chimerax.provider."mark point"]
+manager = "toolbar"
+tab = "Copick"
+section = "Place Particles"
+mouse_mode = "mark point"
+display_name = "Point"
+icon = "point.png"
+description = "Mark point."
+
+# Copick tab, Manipulate Particles
+[chimerax.provider."Select"]
+manager = "toolbar"
+tab = "Copick"
+section = "Manipulate Particles"
+mouse_mode = "select"
+display_name = "Select"
+icon = "select.png"
+description = "Select models."
+
+[chimerax.provider."Translate Selected Particles"]
+manager = "toolbar"
+tab = "Copick"
+section = "Manipulate Particles"
+mouse_mode = "translate selected particles"
+display_name = "Translate Selected"
+icon = "translate_selected.png"
+description = "Shift selected particles (hold SHIFT to rotate)."
+
+[chimerax.provider."Rotate Selected Particles"]
+manager = "toolbar"
+tab = "Copick"
+section = "Manipulate Particles"
+mouse_mode = "rotate selected particles"
+display_name = "Rotate Selected"
+icon = "rotate_selected.png"
+description = "Rotate selected particles (hold SHIFT to translate)."
+
+[chimerax.provider."Translate Picked Particle"]
+manager = "toolbar"
+tab = "Copick"
+section = "Manipulate Particles"
+mouse_mode = "translate picked particle"
+display_name = "Translate Picked"
+icon = "translate_picked.png"
+description = "Shift picked particle (hold SHIFT to rotate)."
+
+[chimerax.provider."Rotate Picked Particle"]
+manager = "toolbar"
+tab = "Copick"
+section = "Manipulate Particles"
+mouse_mode = "rotate picked particle"
+display_name = "Rotate Picked"
+icon = "rotate_picked.png"
+description = "Rotate picked particle (hold SHIFT to translate)."
+
+# Copick tab, Delete Particles
+[chimerax.provider."Delete Selected Particles"]
+manager = "toolbar"
+tab = "Copick"
+section = "Delete Particles"
+display_name = "Delete Selected"
+icon = "delete_selected.png"
+description = "Delete picked particle."
+
+[chimerax.provider."Delete Picked Particle"]
+manager = "toolbar"
+tab = "Copick"
+section = "Delete Particles"
+mouse_mode = "delete picked particle"
+display_name = "Delete Picked"
+icon = "delete.png"
+description = "Delete picked particle."
+
 [tool.black]
 line-length = 120
 target_version = ['py311']
@@ -73,6 +366,7 @@ select = [
     "SIM",  # simplify
 ]
 ignore = [
+    "N815",  # Variable in class scope should not be mixedCase
     "N802",  # Function name should be lowercase
     "N806",  # Variable in function should be lowercase
     "B008",  # Do not perform calls in argument defaults

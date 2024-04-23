@@ -35,8 +35,8 @@ class MainWidget(QWidget):
         self.setLayout(self._layout)
 
         self._object_tabs = QTabWidget()
-        self._picks_list = QDoubleTable("picks")
-        self._object_tabs.addTab(self._picks_list, "Picks")
+        self._picks_table = QDoubleTable("picks")
+        self._object_tabs.addTab(self._picks_table, "Picks")
         self._object_tabs.addTab(QDoubleTable("meshes"), "Meshes")
         self._object_tabs.addTab(QDoubleTable("segmentations"), "Segmentations")
 
@@ -51,8 +51,11 @@ class MainWidget(QWidget):
 
     def set_root(self, root: CopickRootFSSpec):
         self._model = QCoPickTreeModel(root)
-
         self._tree_view.setModel(self._model)
 
     def _connect(self):
         self._tree_view.doubleClicked.connect(self._copick.switch_volume)
+        self._picks_table._tool_table.doubleClicked.connect(self._copick.show_particles)
+        self._picks_table._user_table.doubleClicked.connect(self._copick.show_particles)
+        self._picks_table._user_table.clicked.connect(self._copick.activate_particles)
+        self._picks_table.takeClicked.connect(self._copick.take_particles)

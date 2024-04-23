@@ -2,6 +2,7 @@ from typing import Any, Literal, Union
 
 from copick.models import CopickRun
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, Qt
+from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QApplication, QFileIconProvider, QStyle
 
 from .table import TableRootPicks  # , ListRootMeshes, ListRootSegmentations
@@ -63,13 +64,16 @@ class QCoPickTableModel(QAbstractItemModel):
 
         item = index.internalPointer()
 
+        if role == Qt.ItemDataRole.BackgroundRole:
+            r, g, b, a = item.color()
+            return QColor(r, g, b, a)
+
         if role == 0:
             return item.data(index.column())
 
         if role == 1 and index.column() == 0:
             if item.is_active:
                 app = QApplication.instance()
-
                 icon = app.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
                 return icon
             else:

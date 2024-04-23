@@ -23,6 +23,13 @@ class _MyAPI(BundleAPI):
 
             register_copick(logger)
 
+    @staticmethod
+    def run_provider(session, name, mgr, **kw):
+        if mgr == session.toolbar:
+            from .toolbar.toolbar import run_provider
+
+            run_provider(session, name)
+
 
 # Create the ``bundle_api`` object that ChimeraX expects.
 bundle_api = _MyAPI()
