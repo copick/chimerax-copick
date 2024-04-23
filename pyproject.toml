@@ -6,7 +6,7 @@ name = "ChimeraX-copick"
 version = "0.1.0"
 dynamic = ["classifiers", "requires-python"]
 dependencies = [
-    "ChimeraX-Core~=1.7.1",
+    "ChimeraX-Core>=1.7",
     "ChimeraX-ArtiaX",
     "ChimeraX-OME-Zarr",
     "pydantic",
