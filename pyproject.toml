@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 
 [project]
 name = "ChimeraX-copick"
-version = "0.1.0"
+version = "0.1.1"
 dynamic = ["classifiers", "requires-python"]
 dependencies = [
     "ChimeraX-Core>=1.7",
@@ -11,7 +11,7 @@ dependencies = [
     "ChimeraX-OME-Zarr",
     "pydantic",
     "hatchling",
-    "copick @ git+https://github.com/uermel/copick.git@uermel/segmentations",
+    "copick @ git+https://github.com/uermel/copick.git",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
