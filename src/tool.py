@@ -96,13 +96,6 @@ class CopickTool(ToolInstance):
         self.root = CopickRootFSSpec.from_file(config_file)
         self._mw.set_root(self.root)
 
-        # Find the first run that has a tomogram
-        for _run in self.root.runs:
-            for vs in _run.voxel_spacings:
-                if vs.tomograms:
-                    vs.tomograms[0]
-                    break
-
     def close_all(self):
         for _p, pl in self.list_map.items():
             pl.delete()
@@ -260,7 +253,8 @@ class CopickTool(ToolInstance):
 
         run(self.session, "artiax cap true", log=False)
 
-        partlist.selected_particles[:] = False
+        if partlist.selected_particles is not None:
+            partlist.selected_particles[:] = False
 
     def activate_particles(self, index: QModelIndex):
         # Only on valid indices
