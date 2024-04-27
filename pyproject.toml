@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 
 [project]
 name = "ChimeraX-copick"
-version = "0.1.5"
+version = "0.1.6"
 dynamic = ["classifiers", "requires-python"]
 dependencies = [
     "ChimeraX-Core>=1.7",
@@ -12,7 +12,7 @@ dependencies = [
     "pydantic",
     "hatchling",
     "s3fs>=2024.3.1",
-    "copick @ git+https://github.com/uermel/copick.git@31d4f0a",
+    "copick",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
@@ -35,7 +35,7 @@ dev = [
 ]
 
 [chimerax]
-category = "General"
+categories = ["Volume Data", "General"]
 package = "chimerax.copick"
 min-session-version="1"
 max-session-version="1"
@@ -46,7 +46,7 @@ classifiers = [
 
 [chimerax.tool."Copick"]
 tool_name = "Copick"
-category = "General"
+category = ["Volume Data", "General"]
 synopsis = "Collaborative annotation of cryo-electron tomograms."
 
 [chimerax.command."copick start"]
