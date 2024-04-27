@@ -243,6 +243,7 @@ class CopickTool(ToolInstance):
 
         if not picks.trust_orientation:
             partlist.hide_surfaces()
+            partlist.show_markers()
 
         if picks.trust_orientation:
             partlist.hide_markers()
