@@ -237,6 +237,9 @@ class CopickTool(ToolInstance):
             partlist.radius = pick_obj.radius
 
         if volume is not None:
+            reg = volume.region
+            reg = (reg[0], reg[1], (1, 1, 1))
+            volume.region = reg
             partlist.attach_display_model(volume)
             if pick_obj.map_threshold is not None:
                 partlist.surface_level = pick_obj.map_threshold
