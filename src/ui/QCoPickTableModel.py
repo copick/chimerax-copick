@@ -119,5 +119,5 @@ class QCoPickTableModel(QAbstractItemModel):
             self.dataChanged.emit(self.item_index(item), self.item_index(item))
 
     def update_all(self):
-        self.dataChanged.emit(self.index(0, 0), self.index(self.rowCount() - 1, self.columnCount() - 1))
         self.layoutChanged.emit()
+        self.dataChanged.emit(self.index(0, 0), self.index(self.rowCount() - 1, self.columnCount() - 1))
