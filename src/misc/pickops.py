@@ -8,6 +8,10 @@ def append_no_duplicates(inp: CopickPicks, out: CopickPicks) -> CopickPicks:
         out.points = inp.points if inp.points is not None else []
         return out
 
+    if inp.points is None:
+        out.points = []
+        return out
+
     if len(inp.points) == 0:
         return out
 
