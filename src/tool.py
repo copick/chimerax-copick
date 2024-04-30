@@ -493,7 +493,7 @@ class CopickTool(ToolInstance):
             self.list_map[np].delete()
             self.list_map.pop(np)
 
-        # self._mw._picks_table.set_view(req_run)
+        self._mw._picks_table.set_view(req_run)
         self.show_particles_from_picks(np)
         self._mw.set_picks_active(np, True)
 
