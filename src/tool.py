@@ -302,6 +302,7 @@ class CopickTool(ToolInstance):
             np = append_no_duplicates(item.picks, np)
         else:
             np = req_run.new_picks(user_id=user_id, object_name=req_name, session_id="19")
+            np.meta.trust_orientation = item.picks.trust_orientation
             np.points = deepcopy(item.picks.points)
 
         np.store()
