@@ -372,12 +372,12 @@ class CopickTool(ToolInstance):
             return
 
         # Try incrementing
-        next_part = 0 if self.active_particle is None else self.active_particle + 1
+        next_part = 0 if self.active_particle is None else min(self.active_particle + 1, len(self.stepper_list) - 1)
 
         # Try to find the next particle that still exists
         if self.stepper_list[next_part] not in pl.data:
             part_found = False
-            while next_part < len(self.stepper_list):
+            while next_part < len(self.stepper_list) - 1:
                 next_part += 1
                 if self.stepper_list[next_part] in pl.data:
                     part_found = True
@@ -402,7 +402,7 @@ class CopickTool(ToolInstance):
             return
 
         # Try incrementing
-        next_part = 0 if self.active_particle is None else self.active_particle - 1
+        next_part = 0 if self.active_particle is None else max(self.active_particle - 1, 0)
 
         # Try to find the next particle that still exists
         if self.stepper_list[next_part] not in pl.data:
