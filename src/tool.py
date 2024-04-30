@@ -311,7 +311,6 @@ class CopickTool(ToolInstance):
         self.stepper_list = list(partlist.data.particle_ids)
         self._mw.picks_stepper(self.stepper_list)
         self._active_particle = None
-        print(self.stepper_list)
 
     def _set_active_particle(self, idx: int):
         self.active_particle = idx
