@@ -55,8 +55,10 @@ class QDoubleTable(QWidget):
         self._user_table.setModel(self._user_model)
 
     def set_picks_active(self, picks: CopickPicks, active: bool):
-        self._tool_model.set_picks_active(picks, active)
-        self._user_model.set_picks_active(picks, active)
+        if picks.from_tool:
+            self._tool_model.set_picks_active(picks, active)
+        else:
+            self._user_model.set_picks_active(picks, active)
 
     def update(self):
         self._tool_model.update_all()
