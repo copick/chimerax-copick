@@ -70,3 +70,9 @@ class TableRootPicks:
 
     def columnCount(self) -> int:
         return 2
+
+    def get_item(self, picks: CopickPicks) -> TablePicks:
+        for child in self.children:
+            if child.picks == picks:
+                return child
+        return None

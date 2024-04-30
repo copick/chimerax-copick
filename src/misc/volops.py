@@ -22,7 +22,10 @@ def switch_to_slab(session: Session) -> None:
     vol = _valid_vol(session)
 
     if vol:
+        step = vol.region[2]
         vol.integer_slab_position = vol.slab_count // 2 + 1
+        reg = vol.region
+        vol.region = (reg[0], reg[1], step)
 
 
 def switch_to_volren(session: Session) -> None:

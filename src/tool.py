@@ -1,12 +1,13 @@
 # Python
 from copy import deepcopy
 from sys import platform
+from typing import Any, Tuple
 
 import numpy as np
 from chimerax.artiax.io.formats import get_formats
 
 # ArtiaX
-from chimerax.artiax.particle.ParticleList import ParticleList, lock_particlelist
+from chimerax.artiax.particle.ParticleList import PARTLIST_CHANGED, ParticleList, lock_particlelist
 from chimerax.core.commands import run
 
 # ChimeraX
@@ -78,6 +79,22 @@ class CopickTool(ToolInstance):
         run(self.session, "ui mousemode shift wheel 'move copick planes'")
         self.session.triggers.add_handler("app quit", self._store)
 
+        # Info label
+        self.session.triggers.add_handler("set mouse mode", self._update_info_label)
+        self._show_info_label = True
+        self._update_info_label()
+
+        # Shortcuts
+        from .shortcuts.shortcuts import register_shortcuts
+
+        register_shortcuts(self.session)
+        run(session, "ks")
+
+        # Stepper
+        self.stepper_list = []
+        self._mw.picks_stepper(self.stepper_list)
+        self._active_particle = None
+
     def _build_ui(self):
         tw = self.tool_window
 
@@ -100,6 +117,7 @@ class CopickTool(ToolInstance):
         for _p, pl in self.list_map.items():
             pl.delete()
         self.list_map = {}
+        self.update_stepper(None)
 
     def _store(self, *args, **kwargs):
         self.store()
@@ -195,10 +213,12 @@ class CopickTool(ToolInstance):
         if item.picks in self.list_map:
             particles = self.list_map[item.picks]
             particles.display = not particles.display
-            return
+            self._mw.set_picks_active(item.picks, particles.display)
+            self.update_stepper(particles)
         else:
             picks = item.picks
             self.show_particles_from_picks(picks)
+            self._mw.set_picks_active(picks, True)
 
     def show_particles_from_picks(self, picks: CopickPicks):
         from chimerax.geometry import Place, translation
@@ -258,7 +278,9 @@ class CopickTool(ToolInstance):
         run(self.session, "artiax cap true", log=False)
 
         if partlist.selected_particles is not None:
-            partlist.selected_particles[:] = False
+            partlist.selected_particles = False
+
+        self.update_stepper(partlist)
 
     def activate_particles(self, index: QModelIndex):
         # Only on valid indices
@@ -274,8 +296,164 @@ class CopickTool(ToolInstance):
         if item.picks not in self.list_map:
             return
 
-        self.session.ArtiaX.selected_partlist = self.list_map[item.picks]
-        self.session.ArtiaX.options_partlist = self.list_map[item.picks]
+        self.session.ArtiaX.selected_partlist = self.list_map[item.picks].id
+        self.session.ArtiaX.options_partlist = self.list_map[item.picks].id
+
+        self.update_stepper(self.list_map[item.picks])
+
+    def update_stepper(self, partlist: ParticleList):
+        if partlist is None:
+            self.stepper_list = []
+            self._mw.picks_stepper(self.stepper_list)
+            self._active_particle = None
+            return
+
+        self.stepper_list = list(partlist.data.particle_ids)
+        self._mw.picks_stepper(self.stepper_list)
+        self._active_particle = None
+        print(self.stepper_list)
+
+    def _set_active_particle(self, idx: int):
+        self.active_particle = idx
+
+    @property
+    def active_particle(self):
+        if self._active_particle is None:
+            return None
+
+        idx = self.stepper_list.index(self._active_particle) if self._active_particle in self.stepper_list else None
+
+        return idx
+
+    @active_particle.setter
+    def active_particle(self, value):
+        if value is None:
+            self._active_particle = None
+            self._mw.set_stepper_state(len(self.stepper_list), 0)
+            return
+
+        if not self.stepper_list:
+            self._active_particle = None
+            return
+
+        if value < 0:
+            value = 0
+        if value >= len(self.stepper_list):
+            value = len(self.stepper_list) - 1
+
+        artia = self.session.ArtiaX
+        ap = self.stepper_list[value]
+        pl = artia.partlists.get(artia.options_partlist)
+
+        if pl:
+            try:
+                pl.data[ap]
+            except KeyError:
+                self._active_particle = None
+                self._mw.set_stepper_state(len(self.stepper_list), 0)
+                return
+
+            if pl.selected_particles is not None:
+                pl.selected_particles = pl.particle_ids == ap
+                pl.displayed_particles = pl.particle_ids == ap
+
+            self._active_particle = ap
+            self._mw.set_stepper_state(len(self.stepper_list), value)
+            self.focus_particle()
+
+    def next_particle(self):
+        # No current list
+        if not self.stepper_list:
+            return
+
+        artia = self.session.ArtiaX
+        pl = artia.partlists.get(artia.options_partlist)
+        if pl is None:
+            return
+
+        # Try incrementing
+        next_part = 0 if self.active_particle is None else self.active_particle + 1
+
+        # Try to find the next particle that still exists
+        if self.stepper_list[next_part] not in pl.data:
+            part_found = False
+            while next_part < len(self.stepper_list):
+                next_part += 1
+                if self.stepper_list[next_part] in pl.data:
+                    part_found = True
+                    break
+            if not part_found:
+                return
+
+        ap = self.stepper_list[next_part]
+        pl.selected_particles = pl.particle_ids == ap
+        pl.displayed_particles = pl.particle_ids == ap
+
+        self.active_particle = next_part
+
+    def prev_particle(self):
+        # No current list
+        if not self.stepper_list:
+            return
+
+        artia = self.session.ArtiaX
+        pl = artia.partlists.get(artia.options_partlist)
+        if pl is None:
+            return
+
+        # Try incrementing
+        next_part = 0 if self.active_particle is None else self.active_particle - 1
+
+        # Try to find the next particle that still exists
+        if self.stepper_list[next_part] not in pl.data:
+            part_found = False
+            while next_part > 0:
+                next_part -= 1
+                if self.stepper_list[next_part] in pl.data:
+                    part_found = True
+                    break
+            if not part_found:
+                return
+
+        ap = self.stepper_list[next_part]
+        pl.selected_particles = pl.particle_ids == ap
+        pl.displayed_particles = pl.particle_ids == ap
+
+        self.active_particle = next_part
+
+    def focus_particle(self):
+        artia = self.session.ArtiaX
+        pl = artia.partlists.get(artia.options_partlist)
+        if pl is None:
+            return
+
+        ap = self._active_particle
+        if ap is None:
+            return
+
+        part = pl.data[ap]
+        r = pl.radius
+        self.active_volume.normal = [0, 0, 1]
+        self.active_volume.slab_position = part["pos_z"]
+        run(
+            self.session,
+            f"view matrix camera 1,0,0,{part['pos_x']},0,1,0,{part['pos_y']},0,0,1,{part['pos_z'] + 100 * r}",
+        )
+
+    def remove_particle(self):
+        artia = self.session.ArtiaX
+        pl = artia.partlists.get(artia.options_partlist)
+        if pl is None:
+            return
+
+        ap = self._active_particle
+        if ap is None:
+            return
+
+        pl.triggers.manual_block(PARTLIST_CHANGED)
+        pl.delete_data([self._active_particle])
+        pl.selected_particles = np.zeros((pl.size,), dtype=bool)
+        pl.displayed_particles = np.zeros((pl.size,), dtype=bool)
 
     def take_particles(self, index: QModelIndex):
         # Only on valid indices
@@ -304,19 +482,58 @@ class CopickTool(ToolInstance):
             np = req_run.new_picks(user_id=user_id, object_name=req_name, session_id="19")
             np.meta.trust_orientation = item.picks.trust_orientation
             np.points = deepcopy(item.picks.points)
+            self._mw.update_picks_table()
 
         np.store()
 
         if item.picks in self.list_map:
             self.list_map[item.picks].display = False
+            item.is_active = False
 
         if np in self.list_map:
             self.list_map[np].delete()
             self.list_map.pop(np)
 
-        self._mw._picks_table.set_view(req_run)
+        # self._mw._picks_table.set_view(req_run)
         self.show_particles_from_picks(np)
+        self._mw.set_picks_active(np, True)
 
     def delete(self):
         self.store()
         super().delete()
+
+    @property
+    def show_info(self):
+        return self._show_info_label
+
+    @show_info.setter
+    def show_info(self, value: bool):
+        self._show_info_label = value
+        self.info_label.display = value
+
+    @property
+    def info_label(self):
+        from .misc.labelops import get_label_model
+
+        return get_label_model(self.session, "copick_info")
+
+    def _update_info_label(self, name: str = None, data: Tuple[Any] = None):
+        if name is None and data is None:
+            mb = self.session.ui.mouse_modes.bindings
+            right_mode = [b.mode for b in mb if b.button == "right" and not b.modifiers]
+            mode = right_mode[0].name if right_mode else ""
+            run(
+                self.session,
+                f"2dlabel create copick_info text 'Press ? for help | right mouse: {mode}'"
+                f" bold true xpos 0.05 ypos 0.95",
+                log=False,
+            )
+
+        if name == "set mouse mode":
+            button, _, mode = data
+            if button == "right":
+                run(
+                    self.session,
+                    f"2dlabel copick_info text 'Press ? for help | right mouse: {mode.name}' visibility {self._show_info_label}",
+                    log=False,
+                )

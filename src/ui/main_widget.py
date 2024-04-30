@@ -1,9 +1,11 @@
-from typing import Optional
+from typing import List, Optional
 
 from chimerax.core.tools import ToolInstance
 from copick.impl.filesystem import CopickRootFSSpec
+from copick.models import CopickPicks
 from Qt.QtCore import QObject
 from Qt.QtWidgets import (
+    QSizePolicy,
     QTabWidget,
     QTreeView,
     QVBoxLayout,
@@ -11,6 +13,7 @@ from Qt.QtWidgets import (
 )
 
 from ..ui.QCoPickTreeModel import QCoPickTreeModel
+from ..ui.step_widget import StepWidget
 from .QDoubleTable import QDoubleTable
 
 
@@ -34,9 +37,20 @@ class MainWidget(QWidget):
         self._layout = QVBoxLayout()
         self.setLayout(self._layout)
 
-        self._object_tabs = QTabWidget()
+        # Picks widget
+        picks_layout = QVBoxLayout()
+        picks_widget = QWidget()
+        picks_widget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
         self._picks_table = QDoubleTable("picks")
-        self._object_tabs.addTab(self._picks_table, "Picks")
+        self._picks_stepper = StepWidget(0, 0)
+        self._picks_table.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
+        self._picks_stepper.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
+        picks_layout.addWidget(self._picks_table)
+        picks_layout.addWidget(self._picks_stepper)
+        picks_widget.setLayout(picks_layout)
+
+        self._object_tabs = QTabWidget()
+        self._object_tabs.addTab(picks_widget, "Picks")
         self._object_tabs.addTab(QDoubleTable("meshes"), "Meshes")
         self._object_tabs.addTab(QDoubleTable("segmentations"), "Segmentations")
 
@@ -58,4 +72,19 @@ class MainWidget(QWidget):
         self._picks_table._tool_table.doubleClicked.connect(self._copick.show_particles)
         self._picks_table._user_table.doubleClicked.connect(self._copick.show_particles)
         self._picks_table._user_table.clicked.connect(self._copick.activate_particles)
+        self._picks_table._tool_table.clicked.connect(self._copick.activate_particles)
         self._picks_table.takeClicked.connect(self._copick.take_particles)
+
+        self._picks_stepper.stateChanged.connect(self._copick._set_active_particle)
+
+    def set_picks_active(self, picks: CopickPicks, active: bool):
+        self._picks_table.set_picks_active(picks, active)
+
+    def update_picks_table(self):
+        self._picks_table.update()
+
+    def picks_stepper(self, pick_list: List[str]):
+        self._picks_stepper.set(len(pick_list), 0)
+
+    def set_stepper_state(self, max: int, state: int = 0):
+        self._picks_stepper.set(max, state)

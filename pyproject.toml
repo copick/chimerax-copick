@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 
 [project]
 name = "ChimeraX-copick"
-version = "0.1.7"
+version = "0.2.0"
 dynamic = ["classifiers", "requires-python"]
 dependencies = [
     "ChimeraX-Core>=1.7",
@@ -91,22 +91,22 @@ icon = "view_surface.png"
 [chimerax.provider."1x"]
 manager = "toolbar"
 tab = "Copick"
-section = "Resolution"
+section = "Binning"
 display_name = "1x"
 icon = "step_1.png"
 
-[chimerax.provider."0.5x"]
+[chimerax.provider."2x"]
 manager = "toolbar"
 tab = "Copick"
-section = "Resolution"
-display_name = "0.5x"
+section = "Binning"
+display_name = "2x"
 icon = "step_2.png"
 
-[chimerax.provider."0.25x"]
+[chimerax.provider."4x"]
 manager = "toolbar"
 tab = "Copick"
-section = "Resolution"
-display_name = "0.25x"
+section = "Binning"
+display_name = "4x"
 icon = "step_4.png"
 
 # Copick tab, Markers
