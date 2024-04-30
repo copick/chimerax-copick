@@ -1,6 +1,6 @@
 from typing import Literal, Union
 
-from copick.models import CopickRun
+from copick.models import CopickPicks, CopickRun
 from qtpy.QtCore import QModelIndex, Signal
 from qtpy.QtWidgets import (
     QPushButton,
@@ -29,6 +29,8 @@ class QDoubleTable(QWidget):
         self._user_table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._tool_table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self._user_table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
+        self._tool_model = None
+        self._user_model = None
 
     def _build(self):
         self._layout = QVBoxLayout()
@@ -47,8 +49,18 @@ class QDoubleTable(QWidget):
         self._take_button.clicked.connect(self._take_item)
 
     def set_view(self, run: CopickRun):
-        self._tool_table.setModel(QCoPickTableModel(run, self.item_type, "tool"))
-        self._user_table.setModel(QCoPickTableModel(run, self.item_type, "user"))
+        self._tool_model = QCoPickTableModel(run, self.item_type, "tool")
+        self._user_model = QCoPickTableModel(run, self.item_type, "user")
+        self._tool_table.setModel(self._tool_model)
+        self._user_table.setModel(self._user_model)
+
+    def set_picks_active(self, picks: CopickPicks, active: bool):
+        self._tool_model.set_picks_active(picks, active)
+        self._user_model.set_picks_active(picks, active)
+
+    def update(self):
+        self._tool_model.update_all()
+        self._user_model.update_all()
 
     def _take_item(self) -> None:
         indexes = self._tool_table.selectedIndexes()
