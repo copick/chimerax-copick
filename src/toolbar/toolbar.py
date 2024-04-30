@@ -30,8 +30,8 @@ _providers = {
     "Orthoplanes": switch_to_ortho,
     "Surface": switch_to_surf,
     "1x": partial(set_step, (1, 1, 1)),
-    "0.5x": partial(set_step, (2, 2, 2)),
-    "0.25x": partial(set_step, (4, 4, 4)),
+    "2x": partial(set_step, (2, 2, 2)),
+    "4x": partial(set_step, (4, 4, 4)),
 }
 
 
