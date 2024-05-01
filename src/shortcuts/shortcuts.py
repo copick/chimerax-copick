@@ -2,6 +2,7 @@ from functools import partial
 from typing import Any, List, Tuple
 
 import numpy as np
+from chimerax.artiax.ArtiaX import OPTIONS_PARTLIST_CHANGED
 from chimerax.artiax.particle.ParticleList import delete_selected_particles
 from chimerax.core.session import Session
 from chimerax.log.tool import Log
@@ -94,6 +95,7 @@ def change_particle_display(session: Session):
         return
 
     session.ArtiaX.partlists.display = not session.ArtiaX.partlists.display
+    session.copick._update_object_info_label(OPTIONS_PARTLIST_CHANGED, ())
 
 
 def previous_particle(session: Session):

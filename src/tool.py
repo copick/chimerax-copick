@@ -4,10 +4,15 @@ from sys import platform
 from typing import Any, Tuple
 
 import numpy as np
+from chimerax.artiax.ArtiaX import OPTIONS_PARTLIST_CHANGED
 from chimerax.artiax.io.formats import get_formats
 
 # ArtiaX
-from chimerax.artiax.particle.ParticleList import PARTLIST_CHANGED, ParticleList, lock_particlelist
+from chimerax.artiax.particle.ParticleList import (
+    PARTLIST_CHANGED,
+    ParticleList,
+    lock_particlelist,
+)
 from chimerax.core.commands import run
 
 # ChimeraX
@@ -80,9 +85,11 @@ class CopickTool(ToolInstance):
         self.session.triggers.add_handler("app quit", self._store)
 
         # Info label
-        self.session.triggers.add_handler("set mouse mode", self._update_info_label)
+        self.session.triggers.add_handler("set mouse mode", self._update_mouse_info_label)
+        self.session.ArtiaX.triggers.add_handler(OPTIONS_PARTLIST_CHANGED, self._update_object_info_label)
         self._show_info_label = True
-        self._update_info_label()
+        self._update_mouse_info_label()
+        self._update_object_info_label()
 
         # Shortcuts
         from .shortcuts.shortcuts import register_shortcuts
@@ -250,6 +257,9 @@ class CopickTool(ToolInstance):
             model, msg = open_ome_zarr_from_store(self.session, pick_obj.zarr(), name)
             model = model[0]
             volume = model.child_models()[0]
+
+        # Have to call this now to set before OPTIONS_PARTLIST_CHANGED is triggered
+        partlist.editing_locked = picks.from_tool
 
         self.session.ArtiaX.add_particlelist(partlist)
 
@@ -508,22 +518,29 @@ class CopickTool(ToolInstance):
     @show_info.setter
     def show_info(self, value: bool):
         self._show_info_label = value
-        self.info_label.display = value
+        self.mouse_info_label.display = value
+        self.object_info_label.display = value
 
     @property
-    def info_label(self):
+    def mouse_info_label(self):
         from .misc.labelops import get_label_model
 
-        return get_label_model(self.session, "copick_info")
+        return get_label_model(self.session, "mouse_info")
 
-    def _update_info_label(self, name: str = None, data: Tuple[Any] = None):
+    @property
+    def object_info_label(self):
+        from .misc.labelops import get_label_model
+
+        return get_label_model(self.session, "object_info")
+
+    def _update_mouse_info_label(self, name: str = None, data: Tuple[Any] = None):
         if name is None and data is None:
             mb = self.session.ui.mouse_modes.bindings
             right_mode = [b.mode for b in mb if b.button == "right" and not b.modifiers]
             mode = right_mode[0].name if right_mode else ""
             run(
                 self.session,
-                f"2dlabel create copick_info text 'Press ? for help | right mouse: {mode}'"
+                f"2dlabel create mouse_info text 'Press ? for help | right mouse: {mode}'"
                 f" bold true xpos 0.05 ypos 0.95",
                 log=False,
             )
@@ -533,6 +550,35 @@ class CopickTool(ToolInstance):
             if button == "right":
                 run(
                     self.session,
-                    f"2dlabel copick_info text 'Press ? for help | right mouse: {mode.name}' visibility {self._show_info_label}",
+                    f"2dlabel mouse_info text 'Press ? for help | right mouse: {mode.name}' visibility {self._show_info_label}",
                     log=False,
                 )
+
+    def _update_object_info_label(self, name: str = None, data: Tuple[Any] = None):
+        if name is None and data is None:
+            run(
+                self.session,
+                "2dlabel create object_info text 'Particles shown | Current Object: None | Editable: No' "
+                "bold true xpos 0.05 ypos 0.02 size 14",
+                log=False,
+            )
+
+        if name == OPTIONS_PARTLIST_CHANGED:
+            artia = self.session.ArtiaX
+
+            visibility = "shown" if artia.partlists.display else "hidden"
+
+            if artia.options_partlist is not None:
+                pl = artia.partlists.get(artia.options_partlist)
+                obj_name = pl.name
+                editable = "Yes" if not pl.editing_locked else "No"
+            else:
+                obj_name = "None"
+                editable = "No"
+
+            run(
+                self.session,
+                f"2dlabel object_info text 'Particles {visibility} | Current Object: {obj_name} | "
+                f"Editable: {editable}' bold true xpos 0.05 ypos 0.02 size 14",
+                log=False,
+            )
