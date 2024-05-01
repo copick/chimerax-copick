@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 
 [project]
 name = "ChimeraX-copick"
-version = "0.2.5"
+version = "0.2.6"
 dynamic = ["classifiers", "requires-python"]
 dependencies = [
     "ChimeraX-Core>=1.7",
