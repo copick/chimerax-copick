@@ -442,8 +442,27 @@ class CopickTool(ToolInstance):
 
         part = pl.data[ap]
         r = pl.radius
-        self.active_volume.normal = [0, 0, 1]
-        self.active_volume.slab_position = part["pos_z"]
+        vol = self.active_volume
+        image_mode = vol.rendering_options.image_mode
+
+        if image_mode == "orthoplanes":
+            step = vol.region[2]
+            vs = vol.data.step
+            pp = (
+                int(round(part["pos_x"] / vs[0])),
+                int(round(part["pos_y"] / vs[1])),
+                int(round(part["pos_z"] / vs[2])),
+            )
+            run(
+                self.session,
+                f"volume #{vol.id_string} colorMode l8 orthoplanes xyz positionPlanes {pp[0]},{pp[1]},{pp[2]} "
+                f"imageMode orthoplanes step {step[0]},{step[1]},{step[2]}",
+                log=False,
+            )
+        else:
+            self.active_volume.normal = [0, 0, 1]
+            self.active_volume.slab_position = part["pos_z"]
+
         run(
             self.session,
             f"view matrix camera 1,0,0,{part['pos_x']},0,1,0,{part['pos_y']},0,0,1,{part['pos_z'] + 100 * r}",
