@@ -447,7 +447,9 @@ class CopickTool(ToolInstance):
         run(
             self.session,
             f"view matrix camera 1,0,0,{part['pos_x']},0,1,0,{part['pos_y']},0,0,1,{part['pos_z'] + 100 * r}",
+            log=False,
         )
+        run(self.session, f"cofr {part['pos_x']},{part['pos_y']},{part['pos_z']}", log=False)
 
     def remove_particle(self):
         artia = self.session.ArtiaX
