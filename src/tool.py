@@ -593,6 +593,7 @@ class CopickTool(ToolInstance):
 
         # ArtiaX creates a new volume object, so we need to use that one instead of the zarr model
         seg_vol = self.session.ArtiaX.import_tomogram(vol)
+        self.session.ArtiaX.options_tomogram = self.active_volume.id
         self.seg_map[seg] = seg_vol
 
         # Make appear as surface with correct colormap

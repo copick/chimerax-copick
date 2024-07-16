@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 
 [project]
 name = "ChimeraX-copick"
-version = "0.3.2"
+version = "0.3.3"
 dynamic = ["classifiers", "requires-python"]
 dependencies = [
     "ChimeraX-Core>=1.7",
@@ -12,7 +12,7 @@ dependencies = [
     "pydantic",
     "hatchling",
     "s3fs>=2024.3.1",
-    "copick[all]>=0.5.1",
+    "copick[all]>=0.5.2",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
@@ -23,8 +23,8 @@ license = {file = "LICENSE"}
 keywords = ["cryoet", "cryo-et", "tomography", "annotation", "segmentation", "collaborative", "copick"]
 
 [project.urls]
-Repository = "https://github.com/uermel/chimerax-copick.git"
-Issues = "https://github.com/uermel/chimerax-copick/issues"
+Repository = "https://github.com/copick/chimerax-copick.git"
+Issues = "https://github.com/copick/chimerax-copick/issues"
 
 [project.optional-dependencies]
 dev = [
