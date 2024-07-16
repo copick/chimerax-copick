@@ -12,7 +12,7 @@ dependencies = [
     "pydantic",
     "hatchling",
     "s3fs>=2024.3.1",
-    "copick>=0.5.1",
+    "copick[all]>=0.5.1",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
