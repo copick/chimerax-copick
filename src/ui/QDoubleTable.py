@@ -1,6 +1,6 @@
 from typing import Literal, Union
 
-from copick.models import CopickPicks, CopickRun
+from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
 from qtpy.QtCore import QModelIndex, Signal
 from qtpy.QtWidgets import (
     QPushButton,
@@ -54,11 +54,11 @@ class QDoubleTable(QWidget):
         self._tool_table.setModel(self._tool_model)
         self._user_table.setModel(self._user_model)
 
-    def set_picks_active(self, picks: CopickPicks, active: bool):
-        if picks.from_tool:
-            self._tool_model.set_picks_active(picks, active)
+    def set_entity_active(self, entity: Union[CopickMesh, CopickPicks, CopickSegmentation], active: bool):
+        if entity.from_tool:
+            self._tool_model.set_entity_active(entity, active)
         else:
-            self._user_model.set_picks_active(picks, active)
+            self._user_model.set_entity_active(entity, active)
 
     def update(self):
         self._tool_model.update_all()

@@ -3,6 +3,8 @@ from copy import deepcopy
 from sys import platform
 from typing import Any, Tuple
 
+# Copick
+import copick
 import numpy as np
 from chimerax.artiax.ArtiaX import OPTIONS_PARTLIST_CHANGED
 from chimerax.artiax.io.formats import get_formats
@@ -14,6 +16,7 @@ from chimerax.artiax.particle.ParticleList import (
     lock_particlelist,
 )
 from chimerax.core.commands import run
+from chimerax.core.models import Surface
 
 # ChimeraX
 from chimerax.core.tools import ToolInstance
@@ -21,21 +24,23 @@ from chimerax.core.tools import ToolInstance
 # OME-Zarr
 from chimerax.ome_zarr.open import open_ome_zarr_from_store
 from chimerax.ui import MainToolWindow
-
-# Copick
-from copick.impl.filesystem import CopickRootFSSpec, CopickTomogramFSSpec
-from copick.models import CopickLocation, CopickPicks, CopickPoint
+from copick.impl.filesystem import CopickTomogramFSSpec
+from copick.models import CopickLocation, CopickMesh, CopickPicks, CopickPoint, CopickSegmentation
 
 # Qt
 from Qt.QtCore import QModelIndex
 from Qt.QtGui import QFont
 from Qt.QtWidgets import QVBoxLayout
 
+from .misc.colorops import palette_from_root
+from .misc.meshops import ensure_mesh
 from .misc.pickops import append_no_duplicates
+
+# from .ui.pickstable import TablePicks
+from .ui.EntityTable import TableMesh, TablePicks, TableSegmentation
 
 # This tool
 from .ui.main_widget import MainWidget
-from .ui.table import TablePicks
 from .ui.tree import TreeTomogram
 
 
@@ -44,8 +49,8 @@ class CopickTool(ToolInstance):
     SESSION_ENDURING = False
     # We do save/restore in sessions
     SESSION_SAVE = True
-    # Let ChimeraX know about our help page
 
+    # Let ChimeraX know about our help page
     def __init__(self, session, tool_name):
         # Initialize base class
         super().__init__(session, tool_name)
@@ -70,11 +75,16 @@ class CopickTool(ToolInstance):
 
         # UI
         self.tool_window = MainToolWindow(self, close_destroys=False)
+        # self.tool_window.create_child_window("ABC")
         self._build_ui()
 
         self.root = None
-        self.list_map = {}
+        self.picks_map = {}
         """Map picks to particle lists."""
+        self.seg_map = {}
+        """Map segmentations to volumes."""
+        self.mesh_map = {}
+        """Map meshes to surface objects."""
 
         # Mouse Modes
         from .mouse.mousemodes import WheelMovePlanesMode
@@ -102,6 +112,9 @@ class CopickTool(ToolInstance):
         self._mw.picks_stepper(self.stepper_list)
         self._active_particle = None
 
+        # Colors
+        self.palette_command = ""
+
     def _build_ui(self):
         tw = self.tool_window
 
@@ -117,20 +130,29 @@ class CopickTool(ToolInstance):
             self.store()
             self.close_all()
 
-        self.root = CopickRootFSSpec.from_file(config_file)
+        self.root = copick.from_file(config_file)
         self._mw.set_root(self.root)
+        self.palette_command = palette_from_root(self.root)
 
     def close_all(self):
-        for _p, pl in self.list_map.items():
+        for _p, pl in self.picks_map.items():
             pl.delete()
-        self.list_map = {}
+        self.picks_map = {}
         self.update_stepper(None)
+
+        for _s, vol in self.seg_map.items():
+            vol.delete()
+        self.seg_map = {}
+
+        for _m, surf in self.mesh_map.items():
+            surf.delete()
+        self.mesh_map = {}
 
     def _store(self, *args, **kwargs):
         self.store()
 
     def store(self):
-        for pick, pl in self.list_map.items():
+        for pick, pl in self.picks_map.items():
             if pick.from_tool:
                 continue
 
@@ -200,6 +222,8 @@ class CopickTool(ToolInstance):
         if close_all:
             self.close_all()
             self._mw._picks_table.set_view(tomo.voxel_spacing.run)
+            self._mw._meshes_table.set_view(tomo.voxel_spacing.run)
+            self._mw._segmentations_table.set_view(tomo.voxel_spacing.run)
 
         # Open the new volume
         self.load_tomo(tomo)
@@ -217,15 +241,15 @@ class CopickTool(ToolInstance):
         # Store all the picks
         self.store()
 
-        if item.picks in self.list_map:
-            particles = self.list_map[item.picks]
+        if item.entity in self.picks_map:
+            particles = self.picks_map[item.entity]
             particles.display = not particles.display
-            self._mw.set_picks_active(item.picks, particles.display)
+            self._mw.set_entity_active(item.entity, particles.display)
             self.update_stepper(particles)
         else:
-            picks = item.picks
+            picks = item.entity
             self.show_particles_from_picks(picks)
-            self._mw.set_picks_active(picks, True)
+            self._mw.set_entity_active(picks, True)
 
     def show_particles_from_picks(self, picks: CopickPicks):
         from chimerax.geometry import Place, translation
@@ -238,7 +262,7 @@ class CopickTool(ToolInstance):
 
         data = formats["Copick Picks file"].particle_data(self.session, file_name=None, oripix=1, trapix=1)
         partlist = ParticleList(name, self.session, data)
-        self.list_map[picks] = partlist
+        self.picks_map[picks] = partlist
 
         points = picks.points if picks.points is not None else []
         for p in points:
@@ -254,9 +278,12 @@ class CopickTool(ToolInstance):
         if pick_obj is not None:
             partlist.color = np.array(pick_obj.color)
 
-            model, msg = open_ome_zarr_from_store(self.session, pick_obj.zarr(), name)
-            model = model[0]
-            volume = model.child_models()[0]
+            if pick_obj.zarr() is not None:
+                model, msg = open_ome_zarr_from_store(self.session, pick_obj.zarr(), name)
+                model = model[0]
+                volume = model.child_models()[0]
+            else:
+                volume = None
 
         # Have to call this now to set before OPTIONS_PARTLIST_CHANGED is triggered
         partlist.editing_locked = picks.from_tool
@@ -278,7 +305,11 @@ class CopickTool(ToolInstance):
             partlist.hide_surfaces()
             partlist.show_markers()
 
-        if picks.trust_orientation:
+        if picks.trust_orientation and volume is None:
+            partlist.show_axes()
+            partlist.show_markers()
+
+        if picks.trust_orientation and volume is not None:
             partlist.hide_markers()
             partlist.hide_axes()
 
@@ -303,13 +334,13 @@ class CopickTool(ToolInstance):
             return
 
         # Only if particle list exists
-        if item.picks not in self.list_map:
+        if item.entity not in self.picks_map:
             return
 
-        self.session.ArtiaX.selected_partlist = self.list_map[item.picks].id
-        self.session.ArtiaX.options_partlist = self.list_map[item.picks].id
+        self.session.ArtiaX.selected_partlist = self.picks_map[item.entity].id
+        self.session.ArtiaX.options_partlist = self.picks_map[item.entity].id
 
-        self.update_stepper(self.list_map[item.picks])
+        self.update_stepper(self.picks_map[item.entity])
 
     def update_stepper(self, partlist: ParticleList):
         if partlist is None:
@@ -500,33 +531,128 @@ class CopickTool(ToolInstance):
         user_id = self.root.user_id if self.root.user_id is not None else "ArtiaX"
 
         # Requested object and run
-        req_name = item.picks.pickable_object_name
-        req_run = item.picks.run
+        req_name = item.entity.pickable_object_name
+        req_run = item.entity.run
 
         # Test if present
         cur_picks = req_run.get_picks(user_id=user_id, object_name=req_name)
         if len(cur_picks) > 0:
             np = cur_picks[0]
-            np = append_no_duplicates(item.picks, np)
+            np = append_no_duplicates(item.entity, np)
         else:
             np = req_run.new_picks(user_id=user_id, object_name=req_name, session_id="19")
-            np.meta.trust_orientation = item.picks.trust_orientation
-            np.points = deepcopy(item.picks.points)
+            np.meta.trust_orientation = item.entity.trust_orientation
+            np.points = deepcopy(item.entity.points)
             self._mw.update_picks_table()
 
         np.store()
 
-        if item.picks in self.list_map:
-            self.list_map[item.picks].display = False
+        if item.entity in self.picks_map:
+            self.picks_map[item.entity].display = False
             item.is_active = False
 
-        if np in self.list_map:
-            self.list_map[np].delete()
-            self.list_map.pop(np)
+        if np in self.picks_map:
+            self.picks_map[np].delete()
+            self.picks_map.pop(np)
 
         self._mw._picks_table.set_view(req_run)
         self.show_particles_from_picks(np)
-        self._mw.set_picks_active(np, True)
+        self._mw.set_entity_active(np, True)
+
+    ########################
+    # Segmentation actions #
+    ########################
+    def show_segmentation(self, index: QModelIndex):
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Only on segmentations
+        item = index.internalPointer()
+        if not isinstance(item, TableSegmentation):
+            return
+
+        if item.entity in self.seg_map:
+            volume = self.seg_map[item.entity]
+            volume.display = not volume.display
+            self._mw.set_entity_active(item.entity, volume.display)
+        else:
+            seg = item.entity
+            self.show_volume_from_segmentation(seg)
+            self._mw.set_entity_active(seg, True)
+
+    def show_volume_from_segmentation(self, seg: CopickSegmentation):
+        root = seg.run.root
+        name = seg.name
+
+        model, msg = open_ome_zarr_from_store(self.session, seg.zarr(), name)
+        model = model[0]
+
+        vol = model.child_models()[0]
+        self.session.models.add([vol])
+
+        # ArtiaX creates a new volume object, so we need to use that one instead of the zarr model
+        seg_vol = self.session.ArtiaX.import_tomogram(vol)
+        self.seg_map[seg] = seg_vol
+
+        # Make appear as surface with correct colormap
+        run(self.session, f"volume #{seg_vol.id_string} style surface", log=False)
+        run(self.session, f"volume #{seg_vol.id_string} level 0.5", log=False)
+        run(self.session, f"volume #{seg_vol.id_string} step 1", log=False)
+
+        if seg.is_multilabel:
+            offset = seg_vol.data.step[1] * -2.0
+            run(
+                self.session,
+                f"color sample #{seg_vol.id_string} map #{seg_vol.id_string} palette {self.palette_command} offset {offset}",
+                log=True,
+            )
+        else:
+            obj_name = seg.name
+            pick_obj = root.get_object(obj_name)
+            seg_vol.color = np.array(pick_obj.color)
+
+    ################
+    # Mesh actions #
+    ################
+    def show_mesh(self, index: QModelIndex):
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Only on meshes
+        item = index.internalPointer()
+        if not isinstance(item, TableMesh):
+            return
+
+        print(self.mesh_map)
+        print(item.entity)
+        if item.entity in self.mesh_map:
+            surf = self.mesh_map[item.entity]
+            surf.display = not surf.display
+            self._mw.set_entity_active(item.entity, surf.display)
+        else:
+            mesh = item.entity
+            self.show_surf_from_mesh(mesh)
+            self._mw.set_entity_active(mesh, True)
+
+    def show_surf_from_mesh(self, mesh: CopickMesh):
+        root = mesh.run.root
+        obj_name = mesh.pickable_object_name
+
+        tm_mesh = ensure_mesh(mesh.load())
+        surf = Surface(obj_name, self.session)
+        surf.set_geometry(
+            vertices=tm_mesh.vertices.copy(),
+            normals=tm_mesh.vertex_normals.copy(),
+            triangles=tm_mesh.faces.astype(np.int32),
+        )
+        self.session.models.add([surf])
+        self.mesh_map[mesh] = surf
+
+        pick_obj = root.get_object(obj_name)
+        col = np.array(pick_obj.color)
+        surf.color = col
 
     def delete(self):
         self.store()

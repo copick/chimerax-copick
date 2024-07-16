@@ -1,8 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from chimerax.core.tools import ToolInstance
 from copick.impl.filesystem import CopickRootFSSpec
-from copick.models import CopickPicks
+from copick.models import CopickMesh, CopickPicks, CopickSegmentation
 from Qt.QtCore import QObject
 from Qt.QtWidgets import (
     QSizePolicy,
@@ -49,10 +49,30 @@ class MainWidget(QWidget):
         picks_layout.addWidget(self._picks_stepper)
         picks_widget.setLayout(picks_layout)
 
+        # Mesh widget
+        meshes_layout = QVBoxLayout()
+        meshes_widget = QWidget()
+        meshes_widget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
+        self._meshes_table = QDoubleTable("meshes")
+        self._meshes_table.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
+        meshes_layout.addWidget(self._meshes_table)
+        meshes_widget.setLayout(meshes_layout)
+
+        # Segmentation widget
+        segmentations_layout = QVBoxLayout()
+        segmentations_widget = QWidget()
+        segmentations_widget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
+        self._segmentations_table = QDoubleTable("segmentations")
+        self._segmentations_table.setSizePolicy(
+            QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum),
+        )
+        segmentations_layout.addWidget(self._segmentations_table)
+        segmentations_widget.setLayout(segmentations_layout)
+
         self._object_tabs = QTabWidget()
         self._object_tabs.addTab(picks_widget, "Picks")
-        self._object_tabs.addTab(QDoubleTable("meshes"), "Meshes")
-        self._object_tabs.addTab(QDoubleTable("segmentations"), "Segmentations")
+        self._object_tabs.addTab(meshes_widget, "Meshes")
+        self._object_tabs.addTab(segmentations_widget, "Segmentations")
 
         # Tree View
         self._tree_view = QTreeView(parent=self)
@@ -68,17 +88,33 @@ class MainWidget(QWidget):
         self._tree_view.setModel(self._model)
 
     def _connect(self):
+        # Tree actions
         self._tree_view.doubleClicked.connect(self._copick.switch_volume)
+
+        # Picks actions
         self._picks_table._tool_table.doubleClicked.connect(self._copick.show_particles)
         self._picks_table._user_table.doubleClicked.connect(self._copick.show_particles)
         self._picks_table._user_table.clicked.connect(self._copick.activate_particles)
         self._picks_table._tool_table.clicked.connect(self._copick.activate_particles)
         self._picks_table.takeClicked.connect(self._copick.take_particles)
 
+        # Meshes actions
+        self._meshes_table._tool_table.doubleClicked.connect(self._copick.show_mesh)
+        self._meshes_table._user_table.doubleClicked.connect(self._copick.show_mesh)
+
+        # Segmentations actions
+        self._segmentations_table._tool_table.doubleClicked.connect(self._copick.show_segmentation)
+        self._segmentations_table._user_table.doubleClicked.connect(self._copick.show_segmentation)
+
         self._picks_stepper.stateChanged.connect(self._copick._set_active_particle)
 
-    def set_picks_active(self, picks: CopickPicks, active: bool):
-        self._picks_table.set_picks_active(picks, active)
+    def set_entity_active(self, picks: Union[CopickMesh, CopickPicks, CopickSegmentation], active: bool):
+        if isinstance(picks, CopickPicks):
+            self._picks_table.set_entity_active(picks, active)
+        elif isinstance(picks, CopickMesh):
+            self._meshes_table.set_entity_active(picks, active)
+        elif isinstance(picks, CopickSegmentation):
+            self._segmentations_table.set_entity_active(picks, active)
 
     def update_picks_table(self):
         self._picks_table.update()
