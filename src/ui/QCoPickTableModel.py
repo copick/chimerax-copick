@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Any, Literal, Union
 
-from copick.models import CopickPicks, CopickRun
+from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, Qt
 from qtpy.QtGui import QColor, QIcon
 from qtpy.QtWidgets import QFileIconProvider
 
-from .table import TablePicks, TableRootPicks  # , ListRootMeshes, ListRootSegmentations
+# from .pickstable import TablePicks, TableRootPicks  # , ListRootMeshes, ListRootSegmentations
+from .EntityTable import EntityTableRoot, TableMesh, TablePicks, TableSegmentation
 
 
 class QCoPickTableModel(QAbstractItemModel):
@@ -23,11 +24,28 @@ class QCoPickTableModel(QAbstractItemModel):
         self._icon_eye_closed = QIcon(str(icons / "eye_closed.png"))
         self._icon_eye_open = QIcon(str(icons / "eye_open.png"))
 
-        if item_type == "picks":
-            if item_source == "user":
-                self._root = TableRootPicks(run=run, get_picks=run.user_picks)
-            elif item_source == "tool":
-                self._root = TableRootPicks(run=run, get_picks=run.tool_picks)
+        if item_source == "user":
+            if item_type == "picks":
+                entities_callable = run.user_picks
+                entity_clz = TablePicks
+            elif item_type == "meshes":
+                entities_callable = run.user_meshes
+                entity_clz = TableMesh
+            elif item_type == "segmentations":
+                entities_callable = run.user_segmentations
+                entity_clz = TableSegmentation
+        elif item_source == "tool":
+            if item_type == "picks":
+                entities_callable = run.tool_picks
+                entity_clz = TablePicks
+            elif item_type == "meshes":
+                entities_callable = run.tool_meshes
+                entity_clz = TableMesh
+            elif item_type == "segmentations":
+                entities_callable = run.tool_segmentations
+                entity_clz = TableSegmentation
+
+        self._root = EntityTableRoot(run=run, get_entity=entities_callable, entity_clz=entity_clz)
 
     def index(self, row: int, column: int, parent=QModelIndex()) -> Union[QModelIndex, None]:
         if not self.hasIndex(row, column, parent):
@@ -41,7 +59,7 @@ class QCoPickTableModel(QAbstractItemModel):
         else:
             return None
 
-    def item_index(self, item: Union[TablePicks]) -> QModelIndex:
+    def item_index(self, item: Union[TablePicks, TableMesh]) -> QModelIndex:
         childItem = item
         parentItem = childItem.parent
 
@@ -111,8 +129,15 @@ class QCoPickTableModel(QAbstractItemModel):
         index.internalPointer()
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
-    def set_picks_active(self, picks: CopickPicks, active: bool):
-        item = self._root.get_item(picks)
+    # def set_picks_active(self, picks: CopickPicks, active: bool):
+    #     item = self._root.get_item(picks)
+    #
+    #     if item:
+    #         item.is_active = active
+    #         self.dataChanged.emit(self.item_index(item), self.item_index(item))
+
+    def set_entity_active(self, entity: Union[CopickPicks, CopickMesh, CopickSegmentation], active: bool):
+        item = self._root.get_item(entity)
 
         if item:
             item.is_active = active
