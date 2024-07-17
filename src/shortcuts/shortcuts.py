@@ -32,6 +32,7 @@ def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
         ("yy", "artiax view yz", "View YZ orientation.", "Visualization", {}, "Copick"),
         ("zz", "artiax view xz", "View XZ orientation.", "Visualization", {}, "Copick"),
         ("ff", "ui mousemode right 'move planes'", "Move planes mouse mode.", "Visualization", {}, "Copick"),
+        ("rr", "ui mousemode right 'rotate slab'", "Rotate slab mouse mode.", "Visualization", {}, "Copick"),
         (
             "00",
             partial(set_transparency, 0),
