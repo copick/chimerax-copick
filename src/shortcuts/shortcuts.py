@@ -57,6 +57,7 @@ def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
             {},
             "Copick",
         ),
+        ("..", "artiax invert", "Invert tomogram contrast", "Visualization", {}, "Copick"),
         # Info
         ("il", toggle_info_label, "Toggle Info Label.", "Info", {}, "Copick"),
         ("?", show_help, "Show Shortcuts in Log.", "Info", {}, "Copick"),

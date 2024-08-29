@@ -9,6 +9,7 @@ _providers = {
     "XZ": "artiax view xz",
     "YZ": "artiax view yz",
     "Clip": "artiax clip toggle",
+    "Invert Contrast": "artiax invert",
     "Select": "ui mousemode right select",
     "Rotate": "ui mousemode right rotate",
     "Translate": "ui mousemode right translate",
