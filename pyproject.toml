@@ -3,11 +3,11 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 
 [project]
 name = "ChimeraX-copick"
-version = "0.3.4"
+version = "0.3.6"
 dynamic = ["classifiers", "requires-python"]
 dependencies = [
     "ChimeraX-Core>=1.7",
-    "ChimeraX-ArtiaX>=0.4.7",
+    "ChimeraX-ArtiaX>=0.4.9",
     "ChimeraX-OME-Zarr>=0.5.4",
     "pydantic",
     "hatchling",
@@ -207,6 +207,13 @@ tab = "Copick"
 section = "View"
 icon = "clip.png"
 description = "Turn slab-clipping on or off for all tomograms."
+
+[chimerax.provider."Invert Contrast"]
+manager = "toolbar"
+tab = "Copick"
+section = "View"
+icon = "invert_contrast.png"
+description = "Invert the contrast of displayed tomogram."
 
 # Copick tab, Standard Mouse Modes
 #[chimerax.provider."Rotate"]
