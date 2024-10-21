@@ -6,7 +6,11 @@ from chimerax.artiax.ArtiaX import OPTIONS_PARTLIST_CHANGED
 from chimerax.artiax.particle.ParticleList import delete_selected_particles
 from chimerax.core.session import Session
 from chimerax.log.tool import Log
-from chimerax.shortcuts.shortcuts import Shortcut, keyboard_shortcuts, list_keyboard_shortcuts
+from chimerax.shortcuts.shortcuts import (
+    Keyboard_Shortcuts,
+    Shortcut,
+    shortcut_descriptions,
+)
 
 from ..misc.volops import switch_to_ortho, switch_to_slab
 
@@ -75,8 +79,15 @@ def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
     return csc, catcols
 
 
+def copick_keyboard_shortcuts(session: Session) -> Keyboard_Shortcuts:
+    ks = getattr(session, "copick_shortcuts", None)
+    if ks is None:
+        session.copick_shortcuts = ks = Keyboard_Shortcuts(session)
+    return ks
+
+
 def register_shortcuts(session: Session):
-    ksc = keyboard_shortcuts(session)
+    ksc = copick_keyboard_shortcuts(session)
     ksc.shortcuts.clear()
 
     scs, catcols = copick_shortcuts()
@@ -145,6 +156,11 @@ def toggle_info_label(session: Session):
     session.copick.show_info = not session.copick.show_info
 
 
+def list_copick_shortcuts(session: Session):
+    t = shortcut_descriptions(session.copick_shortcuts, html=True)
+    session.logger.info(t, is_html=True)
+
+
 def show_help(session: Session):
-    list_keyboard_shortcuts(session)
+    list_copick_shortcuts(session)
     session.tools.find_by_class(Log)[0].tool_window.shown = True

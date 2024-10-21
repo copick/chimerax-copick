@@ -48,7 +48,7 @@ class CopickTool(ToolInstance):
     # Does this instance persist when session closes
     SESSION_ENDURING = False
     # We do save/restore in sessions
-    SESSION_SAVE = True
+    SESSION_SAVE = False
 
     # Let ChimeraX know about our help page
     def __init__(self, session, tool_name):
@@ -105,7 +105,7 @@ class CopickTool(ToolInstance):
         from .shortcuts.shortcuts import register_shortcuts
 
         register_shortcuts(self.session)
-        run(session, "ks")
+        run(session, "cks")
 
         # Stepper
         self.stepper_list = []
