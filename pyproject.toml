@@ -3,16 +3,16 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 
 [project]
 name = "ChimeraX-copick"
-version = "0.3.6"
+version = "0.5.0"
 dynamic = ["classifiers", "requires-python"]
 dependencies = [
     "ChimeraX-Core>=1.7",
-    "ChimeraX-ArtiaX>=0.4.9",
+    "ChimeraX-ArtiaX>=0.5.0",
     "ChimeraX-OME-Zarr>=0.5.4",
     "pydantic",
     "hatchling",
     "s3fs>=2024.3.1",
-    "copick[all]>=0.5.2",
+    "copick[all]>=0.6.0",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
