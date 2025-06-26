@@ -93,12 +93,3 @@ class QCoPickTreeModel(QAbstractItemModel):
 
         index.internalPointer()
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-
-        # if item.is_dir:
-        #     return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        #
-        # if item.is_file:
-        #     if item.extension in self._openable_types:
-        #         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        #     else:
-        #         return Qt.ItemFlag.ItemIsSelectable
