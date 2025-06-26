@@ -121,6 +121,8 @@ class QCoPickTableModel(QAbstractItemModel):
                 return "User/Tool"
             elif section == 1:
                 return "Object"
+            elif section == 2:
+                return "Session"
 
     def flags(self, index: QModelIndex) -> Union[Qt.ItemFlag, None]:
         if not index.isValid():
