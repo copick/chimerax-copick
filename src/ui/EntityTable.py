@@ -29,12 +29,14 @@ class TableEntity:
                 return self.entity.pickable_object_name
             elif isinstance(self.entity, CopickSegmentation):
                 return self.entity.name
+        elif column == 2:
+            return self.entity.session_id
 
     def color(self) -> Tuple[int, ...]:
         return tuple(self.entity.color)
 
     def columnCount(self) -> int:
-        return 2
+        return 3
 
 
 class TablePicks(TableEntity):
@@ -84,7 +86,7 @@ class EntityTableRoot:
             return ""
 
     def columnCount(self) -> int:
-        return 2
+        return 3
 
     def get_item(self, entity: Union[CopickPicks, CopickMesh, CopickSegmentation]) -> Union[None, TableEntity]:
         for child in self.children:
