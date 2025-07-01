@@ -104,8 +104,18 @@ class MainWidget(QWidget):
         self._picks_table = QUnifiedTable("picks")
         self._picks_stepper = StepWidget(0, 0)
         self._picks_stepper.setMaximumHeight(45)  # Appropriate height for buttons and text
+        
+        # Create horizontal layout to center the stepper widget
+        stepper_layout = QHBoxLayout()
+        stepper_layout.addStretch()  # Left stretch
+        stepper_layout.addWidget(self._picks_stepper)
+        stepper_layout.addStretch()  # Right stretch
+        stepper_layout.setContentsMargins(0, 0, 0, 0)  # No margins
+        stepper_container = QWidget()
+        stepper_container.setLayout(stepper_layout)
+        
         picks_layout.addWidget(self._picks_table)
-        picks_layout.addWidget(self._picks_stepper)
+        picks_layout.addWidget(stepper_container)
         picks_widget.setLayout(picks_layout)
 
         # Mesh widget with tight layout
@@ -376,6 +386,25 @@ class MainWidget(QWidget):
 
     def update_picks_table(self):
         self._picks_table.update()
+
+    def clear_all_tables(self):
+        """Clear all table models by setting them to None"""
+        self._picks_table._table.setModel(None)
+        self._meshes_table._table.setModel(None)
+        self._segmentations_table._table.setModel(None)
+        
+        # Reset internal state
+        self._picks_table._run = None
+        self._picks_table._source_model = None
+        self._picks_table._filter_model = None
+        
+        self._meshes_table._run = None
+        self._meshes_table._source_model = None
+        self._meshes_table._filter_model = None
+        
+        self._segmentations_table._run = None
+        self._segmentations_table._source_model = None
+        self._segmentations_table._filter_model = None
 
     def picks_stepper(self, pick_list: List[str]):
         self._picks_stepper.set(len(pick_list), 0)
