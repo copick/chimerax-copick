@@ -14,6 +14,9 @@ from Qt.QtWidgets import (
 
 from .NewPickDialog import NewPickDialog
 from .QUnifiedTableModel import QUnifiedTableModel
+from .DuplicateSettingsOverlay import DuplicateSettingsOverlay
+from .DuplicateDialog import DuplicateDialog
+from .validation import generate_smart_copy_name
 
 
 class TableFilterProxyModel(QSortFilterProxyModel):
@@ -56,6 +59,7 @@ class QUnifiedTable(QWidget):
         self._run = None
         self._source_model = None
         self._filter_model = None
+        self._duplicate_mode = "ask"  # Default duplicate behavior
         self._setup_ui()
         self._connect_signals()
         
@@ -178,7 +182,31 @@ class QUnifiedTable(QWidget):
         button_layout.addStretch()  # Left stretch
         button_layout.addWidget(self._duplicate_button)
         button_layout.addWidget(self._new_button)
+        
+        # Settings button for duplicate behavior
+        self._settings_button = QPushButton("⚙")
+        self._settings_button.setMaximumSize(24, 24)
+        self._settings_button.setToolTip("Duplicate settings")
+        self._settings_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(240, 240, 240, 180);
+                border: 1px solid #ccc;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: bold;
+                color: #666;
+            }
+            QPushButton:hover {
+                background-color: rgba(220, 220, 220, 200);
+                color: #333;
+            }
+        """)
+        button_layout.addWidget(self._settings_button)
         button_layout.addStretch()  # Right stretch
+        
+        # Create settings overlay (hidden initially)
+        self._settings_overlay = DuplicateSettingsOverlay(table_container)
+        self._settings_overlay.hide()
         
         # Add to main layout with tight spacing
         layout.setContentsMargins(0, 0, 0, 0)  # Remove default margins
@@ -197,6 +225,10 @@ class QUnifiedTable(QWidget):
         self._search_toggle.clicked.connect(self._toggle_search)
         self._search_input.textChanged.connect(self._filter_table)
         self._clear_button.clicked.connect(self._clear_and_close_search)
+        
+        # Settings functionality
+        self._settings_button.clicked.connect(self._toggle_settings)
+        self._settings_overlay.settingsChanged.connect(self._on_settings_changed)
         
         # Note: selection model connection will be done in set_view() when model is set
         
@@ -236,16 +268,62 @@ class QUnifiedTable(QWidget):
         self._duplicate_button.setEnabled(has_selection)
         
     def _on_duplicate_clicked(self):
-        """Handle duplicate button click"""
+        """Handle duplicate button click with settings-based behavior"""
         selected_rows = self._table.selectionModel().selectedRows()
-        if selected_rows:
-            proxy_index = selected_rows[0]  # Get first selected row
-            # Map proxy index to source index
-            if self._filter_model:
-                source_index = self._filter_model.mapToSource(proxy_index)
-                self.duplicateClicked.emit(source_index)
-            else:
-                self.duplicateClicked.emit(proxy_index)
+        if not selected_rows:
+            return
+            
+        proxy_index = selected_rows[0]
+        # Map proxy index to source index
+        if self._filter_model:
+            source_index = self._filter_model.mapToSource(proxy_index)
+        else:
+            source_index = proxy_index
+            
+        # Get the entity to determine current session ID
+        entity = self._source_model.get_entity(source_index) if self._source_model else None
+        if not entity:
+            return
+            
+        original_session_id = getattr(entity, 'session_id', 'session')
+        
+        if self._duplicate_mode == "ask":
+            # Show dialog for session ID input
+            suggested_name = f"{original_session_id}-copy1"
+            dialog = DuplicateDialog(original_session_id, suggested_name, self)
+            if dialog.exec_() == DuplicateDialog.Accepted:
+                new_session_id = dialog.get_session_id()
+                self._emit_duplicate_with_session_id(source_index, new_session_id)
+                
+        elif self._duplicate_mode == "auto_increment":
+            # Generate smart auto-increment name
+            existing_names = self._get_existing_session_ids()
+            new_session_id = generate_smart_copy_name(original_session_id, existing_names)
+            self._emit_duplicate_with_session_id(source_index, new_session_id)
+            
+        elif self._duplicate_mode == "simple_copy":
+            # Simple -copy suffix
+            new_session_id = f"{original_session_id}-copy"
+            self._emit_duplicate_with_session_id(source_index, new_session_id)
+            
+    def _emit_duplicate_with_session_id(self, source_index, session_id):
+        """Emit duplicate signal with custom session ID"""
+        # For now, emit the original signal - this will need to be enhanced
+        # to pass the custom session ID to the handler
+        self.duplicateClicked.emit(source_index)
+        
+    def _get_existing_session_ids(self) -> list:
+        """Get list of existing session IDs for smart naming"""
+        if not self._source_model:
+            return []
+            
+        session_ids = []
+        for row in range(self._source_model.rowCount()):
+            index = self._source_model.index(row, 2)  # Session ID column
+            session_id = self._source_model.data(index, Qt.ItemDataRole.DisplayRole)
+            if session_id:
+                session_ids.append(str(session_id))
+        return session_ids
             
     def _on_new_clicked(self):
         """Handle new button click - show dialog for new entity creation"""
@@ -345,6 +423,12 @@ class QUnifiedTable(QWidget):
                 if not self._search_overlay.isVisible():
                     self._search_toggle.hide()
         return super().eventFilter(obj, event)
+    
+    def resizeEvent(self, event):
+        """Handle resize events to reposition overlays"""
+        super().resizeEvent(event)
+        if hasattr(self, '_settings_overlay') and self._settings_overlay.isVisible():
+            self._position_settings_overlay()
 
     def _filter_table(self, text: str):
         """Filter the table view based on search text"""
@@ -361,3 +445,52 @@ class QUnifiedTable(QWidget):
         """Clear the search input, reset the filter, and close the overlay"""
         self._clear_search()
         self._search_overlay.hide()
+        
+    def _toggle_settings(self):
+        """Toggle the visibility of the settings overlay"""
+        if self._settings_overlay.isVisible():
+            self._settings_overlay.hide()
+        else:
+            self._position_settings_overlay()
+            self._settings_overlay.show_at_position(
+                self._settings_overlay.x(), 
+                self._settings_overlay.y()
+            )
+            
+    def _position_settings_overlay(self):
+        """Position the settings overlay near the settings button"""
+        if hasattr(self, '_settings_overlay') and hasattr(self, '_settings_button'):
+            # Get settings button position
+            button_pos = self._settings_button.pos()
+            button_size = self._settings_button.size()
+            
+            # Position overlay below and to the right of the button
+            x = button_pos.x() - 100  # Offset to center under button
+            y = button_pos.y() + button_size.height() + 5
+            
+            # Ensure overlay stays within parent bounds
+            parent_width = self.width()
+            overlay_width = 280  # Approximate overlay width
+            if x + overlay_width > parent_width:
+                x = parent_width - overlay_width - 10
+            if x < 10:
+                x = 10
+                
+            self._settings_overlay.move(x, y)
+            
+    def _on_settings_changed(self, mode: str):
+        """Handle settings change"""
+        self._duplicate_mode = mode
+        # Update settings button tooltip to show current mode
+        mode_desc = self._settings_overlay.get_mode_description(mode)
+        self._settings_button.setToolTip(f"Duplicate settings\nCurrent: {mode_desc}")
+        
+    def get_duplicate_mode(self) -> str:
+        """Get current duplicate mode"""
+        return self._duplicate_mode
+        
+    def set_duplicate_mode(self, mode: str):
+        """Set duplicate mode"""
+        self._duplicate_mode = mode
+        self._settings_overlay.set_current_mode(mode)
+        self._on_settings_changed(mode)
