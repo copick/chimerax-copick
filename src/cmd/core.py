@@ -15,7 +15,7 @@ def get_singleton(session, create=True):
     a = get_singleton(session)
     a.tool_window.shown = False
 
-    t = tools.get_singleton(session, CopickTool, "Copick", create=create)
+    t = tools.get_singleton(session, CopickTool, "copick", create=create)
     return t
 
 
@@ -24,7 +24,7 @@ def copick_start(session, config_file: str):
     if not session.ui.is_gui:
         session.logger.warning("Copick requires Chimerax GUI.")
 
-    copick = get_singleton(session)
+    copick = get_singleton(session, create=True)
     copick.from_config_file(config_file)
 
 
