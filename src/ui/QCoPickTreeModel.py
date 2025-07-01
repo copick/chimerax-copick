@@ -80,6 +80,20 @@ class QCoPickTreeModel(QAbstractItemModel):
 
         return parentItem.has_children  # parentItem.is_dir
 
+    def canFetchMore(self, parent: QModelIndex = ...):
+        parentItem = self._root if not parent.isValid() else parent.internalPointer()
+
+        if parentItem.childCount() == 0:
+            return True
+
+        return False
+
+    def fetchMore(self, parent: QModelIndex = ...):
+        parentItem = self._root if not parent.isValid() else parent.internalPointer()
+
+        if parentItem.childCount() == 0:
+            parentItem.children  # Trigger loading of children
+
     def headerData(self, section, orientation, role=...):
         if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
             if section == 0:
