@@ -146,25 +146,37 @@ class QUnifiedTable(QWidget):
         self._search_overlay.setLayout(overlay_layout)
         self._search_overlay.hide()
 
+        # Define common dark style for floating buttons (works in light and dark mode)
+        button_style = """
+            QPushButton {
+                background-color: rgba(60, 60, 60, 220);
+                border: 1px solid rgba(80, 80, 80, 180);
+                border-radius: 15px;
+                font-size: 14px;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: rgba(80, 80, 80, 240);
+                border: 1px solid rgba(100, 100, 100, 200);
+            }
+            QPushButton:disabled {
+                background-color: rgba(40, 40, 40, 150);
+                color: rgba(150, 150, 150, 150);
+                border: 1px solid rgba(60, 60, 60, 120);
+            }
+        """
+
         # Search toggle button (floating at bottom-right corner, hidden initially)
         self._search_toggle = QPushButton("🔍")
         self._search_toggle.setParent(self._table)
         self._search_toggle.setMaximumSize(30, 30)
         self._search_toggle.setToolTip(f"Search {self.item_type}")
-        self._search_toggle.setStyleSheet(
-            """
-            QPushButton {
-                background-color: rgba(240, 240, 240, 200);
-                border: 1px solid #ccc;
-                border-radius: 15px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: rgba(220, 220, 220, 220);
-            }
-        """
-        )
+        self._search_toggle.setStyleSheet(button_style)
         self._search_toggle.hide()
+        
+        # Settings button (will be moved to top bar by parent widget)
+        self._settings_button = QPushButton("⚙")
+        self._settings_button.setToolTip("Table settings")
 
         # Install event filter for hover behavior
         self._table.installEventFilter(self)
@@ -173,37 +185,32 @@ class QUnifiedTable(QWidget):
         # Add table to container
         table_container_layout.addWidget(self._table)
         table_container.setLayout(table_container_layout)
-
-        # Button layout - center aligned with tight spacing
-        button_layout = QHBoxLayout()
-        button_layout.setContentsMargins(0, 2, 0, 2)  # Minimal margins
-        button_layout.setSpacing(8)  # Tight spacing between buttons
-
-        # Copy button (renamed from Duplicate)
-        self._duplicate_button = QPushButton("📝📝 Copy")
+        
+        # Create floating action buttons (overlaid on table)
+        self._new_button = QPushButton("📄")
+        self._new_button.setParent(self._table)
+        self._new_button.setMaximumSize(30, 30)
+        self._new_button.setToolTip("Create a new entity")
+        self._new_button.setStyleSheet(button_style)
+        self._new_button.hide()
+        
+        # Copy button
+        self._duplicate_button = QPushButton("📋")
+        self._duplicate_button.setParent(self._table)
+        self._duplicate_button.setMaximumSize(30, 30)
         self._duplicate_button.setToolTip("Copy the selected entity")
         self._duplicate_button.setEnabled(False)  # Disabled until selection
-
-        # New button
-        self._new_button = QPushButton("⭐ New")
-        self._new_button.setToolTip("Create a new entity")
+        self._duplicate_button.setStyleSheet(button_style)
+        self._duplicate_button.hide()
         
         # Delete button
-        self._delete_button = QPushButton("❌ Delete")
+        self._delete_button = QPushButton("❌")
+        self._delete_button.setParent(self._table)
+        self._delete_button.setMaximumSize(30, 30)
         self._delete_button.setToolTip("Delete the selected entity")
         self._delete_button.setEnabled(False)  # Disabled until selection
-
-        # Center the buttons
-        button_layout.addStretch()  # Left stretch
-        button_layout.addWidget(self._duplicate_button)
-        button_layout.addWidget(self._new_button)
-        button_layout.addWidget(self._delete_button)
-
-        # Settings button for general behavior
-        self._settings_button = QPushButton("⚙")
-        self._settings_button.setToolTip("Table settings")
-        button_layout.addWidget(self._settings_button)
-        button_layout.addStretch()  # Right stretch
+        self._delete_button.setStyleSheet(button_style)
+        self._delete_button.hide()
 
         # Create settings overlay (hidden initially) - use None as parent so it's a top-level window
         self._settings_overlay = DuplicateSettingsOverlay(None)
@@ -213,11 +220,10 @@ class QUnifiedTable(QWidget):
         # Track delete confirmation setting
         self._delete_confirmation = True  # Show confirmation dialog by default
 
-        # Add to main layout with tight spacing
+        # Add to main layout (no button layout needed anymore)
         layout.setContentsMargins(0, 0, 0, 0)  # Remove default margins
-        layout.setSpacing(2)  # Minimal spacing between table and buttons
+        layout.setSpacing(0)  # No spacing needed
         layout.addWidget(table_container)
-        layout.addLayout(button_layout)
 
         self.setLayout(layout)
 
@@ -297,7 +303,30 @@ class QUnifiedTable(QWidget):
         if self._duplicate_mode == "ask":
             # Show dialog for session ID input
             suggested_name = f"{original_session_id}-copy1"
-            dialog = DuplicateDialog(original_session_id, suggested_name, self)
+            
+            # Get object name and color information for the dialog
+            object_name = ""
+            object_color = (128, 128, 128, 255)  # Default gray
+            
+            if hasattr(entity, 'pickable_object_name'):
+                object_name = entity.pickable_object_name
+            elif hasattr(entity, 'name'):
+                object_name = entity.name
+                
+            if hasattr(entity, 'color'):
+                # Convert color to RGBA format with full alpha
+                entity_color = list(entity.color)
+                if len(entity_color) == 3:
+                    entity_color.append(255)  # Add alpha if missing
+                object_color = tuple(entity_color)
+            
+            dialog = DuplicateDialog(
+                original_session_id, 
+                suggested_name, 
+                self, 
+                object_name=object_name, 
+                object_color=object_color
+            )
             if dialog.exec_() == DuplicateDialog.Accepted:
                 new_session_id = dialog.get_session_id()
                 self._emit_duplicate_with_session_id(source_index, new_session_id)
@@ -376,7 +405,15 @@ class QUnifiedTable(QWidget):
         # Show confirmation dialog if enabled
         if self._delete_confirmation:
             entity_type = self.item_type.rstrip('s')  # Remove 's' from 'picks', 'meshes', 'segmentations'
-            entity_info = f"{getattr(entity, 'user_id', 'Unknown')} - {getattr(entity, 'session_id', 'Unknown')}"
+            
+            # Get object type information
+            object_type = ""
+            if hasattr(entity, 'pickable_object_name'):
+                object_type = f" ({entity.pickable_object_name})"
+            elif hasattr(entity, 'name'):
+                object_type = f" ({entity.name})"
+            
+            entity_info = f"{getattr(entity, 'user_id', 'Unknown')} - {getattr(entity, 'session_id', 'Unknown')}{object_type}"
             
             msg_box = QMessageBox(self)
             msg_box.setIcon(QMessageBox.Icon.Warning)
@@ -449,23 +486,64 @@ class QUnifiedTable(QWidget):
             y = table_height - button_size - 15
 
             self._search_toggle.setGeometry(x, y, button_size, button_size)
+    
+    def _position_action_buttons(self):
+        """Position the floating action buttons in a vertical stack above search toggle"""
+        if hasattr(self, "_table"):
+            table_width = self._table.width()
+            table_height = self._table.height()
+            button_size = 30
+            margin = 10
+            spacing = 5  # Space between buttons
+
+            # Position from bottom-right, stacking upward
+            x = table_width - button_size - margin
+            
+            # Start with search toggle position and stack upward
+            search_y = table_height - button_size - 15
+            
+            # Delete button (above search)
+            delete_y = search_y - button_size - spacing
+            self._delete_button.setGeometry(x, delete_y, button_size, button_size)
+            
+            # Copy button (above delete)
+            copy_y = delete_y - button_size - spacing
+            self._duplicate_button.setGeometry(x, copy_y, button_size, button_size)
+            
+            # New button (above copy)
+            new_y = copy_y - button_size - spacing
+            self._new_button.setGeometry(x, new_y, button_size, button_size)
 
     def eventFilter(self, obj, event):
         """Handle resize events to reposition floating elements and mouse hover events"""
         if obj == self._table:
             if event.type() == QEvent.Type.Resize:
                 self._position_search_toggle()
+                self._position_action_buttons()
                 if self._search_overlay.isVisible():
                     self._position_search_overlay()
             elif event.type() == QEvent.Type.Enter:
-                # Show search toggle when mouse enters table view
+                # Show action buttons and search toggle when mouse enters table view
                 if not self._search_overlay.isVisible():
                     self._search_toggle.show()
                     self._position_search_toggle()
+                
+                # Always show action buttons on hover
+                self._new_button.show()
+                self._duplicate_button.show()
+                self._delete_button.show()
+                self._position_action_buttons()
+                
             elif event.type() == QEvent.Type.Leave:
                 # Hide search toggle when mouse leaves table view (unless search is active)
                 if not self._search_overlay.isVisible():
                     self._search_toggle.hide()
+                
+                # Hide action buttons when mouse leaves
+                self._new_button.hide()
+                self._duplicate_button.hide()
+                self._delete_button.hide()
+                
         return super().eventFilter(obj, event)
 
     def resizeEvent(self, event):
@@ -501,27 +579,21 @@ class QUnifiedTable(QWidget):
             self._settings_overlay.activateWindow()
 
     def _position_settings_overlay(self):
-        """Position the settings overlay to the right of the settings button in global coordinates"""
+        """Position the settings overlay to the left of the floating settings button"""
         if hasattr(self, "_settings_overlay") and hasattr(self, "_settings_button"):
             # Get button position in global coordinates
-            button_global_pos = self._settings_button.mapToGlobal(self._settings_button.rect().topRight())
+            button_global_pos = self._settings_button.mapToGlobal(self._settings_button.rect().topLeft())
 
-            # Position overlay to the right of the button, outside the widget
-            x = button_global_pos.x() + 10  # Gap from button
+            # Position overlay to the left of the floating button
+            overlay_width = 280
+            overlay_height = 140
+            x = button_global_pos.x() - overlay_width - 10  # Gap from button
             y = button_global_pos.y()
 
             # Get screen geometry to ensure we stay on screen
             from Qt.QtWidgets import QApplication
 
             screen = QApplication.primaryScreen().geometry()
-            overlay_width = 280
-            overlay_height = 140
-
-            # Only position to the left if there's truly not enough space on the right
-            if x + overlay_width > screen.width() - 20:  # 20px margin from screen edge
-                # Position to the left of the button
-                button_left_pos = self._settings_button.mapToGlobal(self._settings_button.rect().topLeft())
-                x = button_left_pos.x() - overlay_width - 10
 
             # Ensure we don't go off-screen to the left
             if x < screen.left() + 10:
@@ -559,3 +631,7 @@ class QUnifiedTable(QWidget):
     def set_delete_confirmation(self, enabled: bool):
         """Set delete confirmation setting"""
         self._delete_confirmation = enabled
+    
+    def get_settings_button(self) -> QPushButton:
+        """Get the settings button for placement in parent layout"""
+        return self._settings_button

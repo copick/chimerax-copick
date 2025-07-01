@@ -157,6 +157,9 @@ class MainWidget(QWidget):
 
         # Add splitter to main layout
         self._layout.addWidget(self._main_splitter)
+        
+        # Add table settings buttons to top layout (after tables are created)
+        self._add_table_settings_buttons()
 
     def _create_tree_container(self) -> QWidget:
         """Create tree container with overlay search functionality"""
@@ -286,6 +289,9 @@ class MainWidget(QWidget):
         button_layout.addStretch()  # Left stretch
         button_layout.addWidget(self._add_object_button)
         button_layout.addWidget(self._reload_button)
+        
+        # Add settings buttons from tables (will be added later in _build)
+        # Placeholder for table settings buttons
         button_layout.addStretch()  # Right stretch
 
         # Create container widget
@@ -293,8 +299,29 @@ class MainWidget(QWidget):
         button_widget.setLayout(button_layout)
         button_widget.setMaximumHeight(35)
 
+        # Store layout reference for adding settings buttons later
+        self._top_button_layout = button_layout
+
         # Add to main layout
         self._layout.addWidget(button_widget)
+        
+    def _add_table_settings_buttons(self):
+        """Add a single shared settings button to the top button layout"""
+        # Remove the last stretch before adding button
+        item_count = self._top_button_layout.count()
+        if item_count > 0:
+            last_item = self._top_button_layout.itemAt(item_count - 1)
+            if last_item.spacerItem():  # Remove the right stretch
+                self._top_button_layout.removeItem(last_item)
+        
+        # Create single shared settings button
+        self._shared_settings_button = QPushButton("⚙")
+        self._shared_settings_button.setToolTip("Table settings (applies to all tables)")
+        self._shared_settings_button.clicked.connect(self._on_shared_settings_clicked)
+        self._top_button_layout.addWidget(self._shared_settings_button)
+        
+        # Add back the right stretch
+        self._top_button_layout.addStretch()
 
     def set_root(self, root: CopickRootFSSpec):
         self._model = QCoPickTreeModel(root)
@@ -528,3 +555,13 @@ class MainWidget(QWidget):
     def _on_reload(self):
         """Handle Reload button click"""
         self._copick.reload_session()
+
+    def _on_shared_settings_clicked(self):
+        """Handle shared settings button click - show settings for current tab"""
+        current_tab_index = self._object_tabs.currentIndex()
+        if current_tab_index == 0:  # Picks tab
+            self._picks_table._toggle_settings()
+        elif current_tab_index == 1:  # Meshes tab
+            self._meshes_table._toggle_settings()
+        elif current_tab_index == 2:  # Segmentations tab
+            self._segmentations_table._toggle_settings()
