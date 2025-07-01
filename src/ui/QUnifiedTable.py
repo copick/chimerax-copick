@@ -185,27 +185,13 @@ class QUnifiedTable(QWidget):
         
         # Settings button for duplicate behavior
         self._settings_button = QPushButton("⚙")
-        self._settings_button.setMaximumSize(24, 24)
         self._settings_button.setToolTip("Duplicate settings")
-        self._settings_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(240, 240, 240, 180);
-                border: 1px solid #ccc;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: bold;
-                color: #666;
-            }
-            QPushButton:hover {
-                background-color: rgba(220, 220, 220, 200);
-                color: #333;
-            }
-        """)
         button_layout.addWidget(self._settings_button)
         button_layout.addStretch()  # Right stretch
         
-        # Create settings overlay (hidden initially)
-        self._settings_overlay = DuplicateSettingsOverlay(table_container)
+        # Create settings overlay (hidden initially) - use None as parent so it's a top-level window
+        self._settings_overlay = DuplicateSettingsOverlay(None)
+        self._settings_overlay.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self._settings_overlay.hide()
         
         # Add to main layout with tight spacing
@@ -452,30 +438,48 @@ class QUnifiedTable(QWidget):
             self._settings_overlay.hide()
         else:
             self._position_settings_overlay()
-            self._settings_overlay.show_at_position(
-                self._settings_overlay.x(), 
-                self._settings_overlay.y()
-            )
+            self._settings_overlay.show()
+            self._settings_overlay.raise_()
+            self._settings_overlay.activateWindow()
             
     def _position_settings_overlay(self):
-        """Position the settings overlay near the settings button"""
+        """Position the settings overlay to the right of the settings button in global coordinates"""
         if hasattr(self, '_settings_overlay') and hasattr(self, '_settings_button'):
-            # Get settings button position
-            button_pos = self._settings_button.pos()
-            button_size = self._settings_button.size()
+            # Get button position in global coordinates
+            button_global_pos = self._settings_button.mapToGlobal(self._settings_button.rect().topRight())
             
-            # Position overlay below and to the right of the button
-            x = button_pos.x() - 100  # Offset to center under button
-            y = button_pos.y() + button_size.height() + 5
+            # Position overlay to the right of the button, outside the widget
+            x = button_global_pos.x() + 10  # Gap from button
+            y = button_global_pos.y()
             
-            # Ensure overlay stays within parent bounds
-            parent_width = self.width()
-            overlay_width = 280  # Approximate overlay width
-            if x + overlay_width > parent_width:
-                x = parent_width - overlay_width - 10
-            if x < 10:
-                x = 10
+            # Get screen geometry to ensure we stay on screen
+            from Qt.QtWidgets import QApplication
+            screen = QApplication.primaryScreen().geometry()
+            overlay_width = 280
+            overlay_height = 140
+            
+            print(f"Debug: Button global pos: {button_global_pos}, Screen width: {screen.width()}, Overlay will be at x={x}, overlay_width={overlay_width}")
+            
+            # Only position to the left if there's truly not enough space on the right
+            if x + overlay_width > screen.width() - 20:  # 20px margin from screen edge
+                # Position to the left of the button
+                button_left_pos = self._settings_button.mapToGlobal(self._settings_button.rect().topLeft())
+                x = button_left_pos.x() - overlay_width - 10
+                print(f"Debug: Not enough space on right, positioning to left at x={x}")
+            else:
+                print(f"Debug: Enough space on right, keeping position at x={x}")
                 
+            # Ensure we don't go off-screen to the left
+            if x < screen.left() + 10:
+                x = screen.left() + 10
+                
+            # Ensure vertical positioning is within screen bounds
+            if y + overlay_height > screen.bottom() - 10:
+                y = screen.bottom() - overlay_height - 10
+            if y < screen.top() + 10:
+                y = screen.top() + 10
+                
+            print(f"Debug: Final position: ({x}, {y})")
             self._settings_overlay.move(x, y)
             
     def _on_settings_changed(self, mode: str):

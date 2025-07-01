@@ -331,7 +331,8 @@ class MainWidget(QWidget):
         """Position the search overlay at the bottom-left of the tree view"""
         if hasattr(self, '_search_overlay') and hasattr(self, '_tree_view'):
             tree_height = self._tree_view.height()
-            overlay_width = 240  # Fixed width for search overlay
+            tree_width = self._tree_view.width()
+            overlay_width = min(240, tree_width - 60)  # Leave space for search toggle button
             overlay_height = 32  # Fixed height for search overlay
             
             # Position at bottom-left with some margin
