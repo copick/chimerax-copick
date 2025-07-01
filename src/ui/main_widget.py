@@ -3,9 +3,9 @@ from typing import List, Optional, Union
 from chimerax.core.tools import ToolInstance
 from copick.impl.filesystem import CopickRootFSSpec
 from copick.models import CopickMesh, CopickPicks, CopickSegmentation
-from Qt.QtCore import QObject
+from Qt.QtCore import QObject, Qt
 from Qt.QtWidgets import (
-    QSizePolicy,
+    QSplitter,
     QTabWidget,
     QTreeView,
     QVBoxLayout,
@@ -14,7 +14,7 @@ from Qt.QtWidgets import (
 
 from ..ui.QCoPickTreeModel import QCoPickTreeModel
 from ..ui.step_widget import StepWidget
-from .QDoubleTable import QDoubleTable
+from .QUnifiedTable import QUnifiedTable
 
 
 class MainWidget(QWidget):
@@ -35,53 +35,71 @@ class MainWidget(QWidget):
     def _build(self):
         # Top level layout
         self._layout = QVBoxLayout()
+        self._layout.setContentsMargins(5, 5, 5, 5)
         self.setLayout(self._layout)
 
-        # Picks widget
+        # Create main splitter (vertical - tables on top, tree on bottom)
+        self._main_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Create tables container widget
+        tables_widget = QWidget()
+        tables_widget.setMinimumHeight(200)  # Minimum height for tables
+
+        # Picks widget with improved layout
         picks_layout = QVBoxLayout()
+        picks_layout.setContentsMargins(2, 2, 2, 2)
         picks_widget = QWidget()
-        picks_widget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
-        self._picks_table = QDoubleTable("picks")
+        self._picks_table = QUnifiedTable("picks")
         self._picks_stepper = StepWidget(0, 0)
-        self._picks_table.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
-        self._picks_stepper.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
+        self._picks_stepper.setMaximumHeight(40)  # Limit stepper height
         picks_layout.addWidget(self._picks_table)
         picks_layout.addWidget(self._picks_stepper)
         picks_widget.setLayout(picks_layout)
 
-        # Mesh widget
+        # Mesh widget with improved layout
         meshes_layout = QVBoxLayout()
+        meshes_layout.setContentsMargins(2, 2, 2, 2)
         meshes_widget = QWidget()
-        meshes_widget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
-        self._meshes_table = QDoubleTable("meshes")
-        self._meshes_table.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
+        self._meshes_table = QUnifiedTable("meshes")
         meshes_layout.addWidget(self._meshes_table)
         meshes_widget.setLayout(meshes_layout)
 
-        # Segmentation widget
+        # Segmentation widget with improved layout
         segmentations_layout = QVBoxLayout()
+        segmentations_layout.setContentsMargins(2, 2, 2, 2)
         segmentations_widget = QWidget()
-        segmentations_widget.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
-        self._segmentations_table = QDoubleTable("segmentations")
-        self._segmentations_table.setSizePolicy(
-            QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum),
-        )
+        self._segmentations_table = QUnifiedTable("segmentations")
         segmentations_layout.addWidget(self._segmentations_table)
         segmentations_widget.setLayout(segmentations_layout)
 
+        # Create tabbed widget for tables
         self._object_tabs = QTabWidget()
         self._object_tabs.addTab(picks_widget, "Picks")
         self._object_tabs.addTab(meshes_widget, "Meshes")
         self._object_tabs.addTab(segmentations_widget, "Segmentations")
 
-        # Tree View
-        self._tree_view = QTreeView(parent=self)
-        # self._tree_view.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
+        # Set up tables container
+        tables_layout = QVBoxLayout()
+        tables_layout.setContentsMargins(0, 0, 0, 0)
+        tables_layout.addWidget(self._object_tabs)
+        tables_widget.setLayout(tables_layout)
 
-        # Main layout
-        # self._layout.addWidget(self._connectbox)
-        self._layout.addWidget(self._object_tabs)
-        self._layout.addWidget(self._tree_view)
+        # Tree View with minimum size
+        self._tree_view = QTreeView()
+        self._tree_view.setMinimumHeight(150)  # Minimum height for tree view
+        self._tree_view.setHeaderHidden(False)  # Show headers for better usability
+
+        # Add widgets to splitter
+        self._main_splitter.addWidget(tables_widget)
+        self._main_splitter.addWidget(self._tree_view)
+
+        # Set initial splitter sizes (60% tables, 40% tree)
+        self._main_splitter.setSizes([300, 200])
+        self._main_splitter.setStretchFactor(0, 1)  # Tables can stretch
+        self._main_splitter.setStretchFactor(1, 1)  # Tree can stretch
+
+        # Add splitter to main layout
+        self._layout.addWidget(self._main_splitter)
 
     def set_root(self, root: CopickRootFSSpec):
         self._model = QCoPickTreeModel(root)
@@ -92,19 +110,20 @@ class MainWidget(QWidget):
         self._tree_view.doubleClicked.connect(self._copick.switch_volume)
 
         # Picks actions
-        self._picks_table._tool_table.doubleClicked.connect(self._copick.show_particles)
-        self._picks_table._user_table.doubleClicked.connect(self._copick.show_particles)
-        self._picks_table._user_table.clicked.connect(self._copick.activate_particles)
-        self._picks_table._tool_table.clicked.connect(self._copick.activate_particles)
-        self._picks_table.takeClicked.connect(self._copick.take_particles)
+        self._picks_table.get_table_view().doubleClicked.connect(self._copick.show_particles)
+        self._picks_table.get_table_view().clicked.connect(self._copick.activate_particles)
+        self._picks_table.duplicateClicked.connect(self._copick.duplicate_particles)
+        self._picks_table.newClicked.connect(self._copick.new_particles)
 
         # Meshes actions
-        self._meshes_table._tool_table.doubleClicked.connect(self._copick.show_mesh)
-        self._meshes_table._user_table.doubleClicked.connect(self._copick.show_mesh)
+        self._meshes_table.get_table_view().doubleClicked.connect(self._copick.show_mesh)
+        self._meshes_table.duplicateClicked.connect(self._copick.duplicate_mesh)
+        self._meshes_table.newClicked.connect(self._copick.new_mesh)
 
         # Segmentations actions
-        self._segmentations_table._tool_table.doubleClicked.connect(self._copick.show_segmentation)
-        self._segmentations_table._user_table.doubleClicked.connect(self._copick.show_segmentation)
+        self._segmentations_table.get_table_view().doubleClicked.connect(self._copick.show_segmentation)
+        self._segmentations_table.duplicateClicked.connect(self._copick.duplicate_segmentation)
+        self._segmentations_table.newClicked.connect(self._copick.new_segmentation)
 
         self._picks_stepper.stateChanged.connect(self._copick._set_active_particle)
 
