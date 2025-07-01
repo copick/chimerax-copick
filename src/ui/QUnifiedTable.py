@@ -1,9 +1,10 @@
 from typing import Literal, Union
 
 from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
-from Qt.QtCore import QModelIndex, Signal
+from Qt.QtCore import QModelIndex, Signal, QSortFilterProxyModel, Qt, QEvent
 from Qt.QtWidgets import (
     QHBoxLayout,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QTableView,
@@ -13,6 +14,29 @@ from Qt.QtWidgets import (
 
 from .NewPickDialog import NewPickDialog
 from .QUnifiedTableModel import QUnifiedTableModel
+
+
+class TableFilterProxyModel(QSortFilterProxyModel):
+    """Custom proxy model for table search across user, object, and session columns"""
+    
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+        """Override to search across user, object, and session columns"""
+        if not self.filterRegularExpression().pattern():
+            return True
+        
+        source_model = self.sourceModel()
+        if not source_model:
+            return False
+        
+        # Check all three columns (User/Tool, Object, Session)
+        for column in range(3):
+            index = source_model.index(source_row, column, source_parent)
+            if index.isValid():
+                data = source_model.data(index, Qt.ItemDataRole.DisplayRole)
+                if data and self.filterRegularExpression().match(str(data)).hasMatch():
+                    return True
+        
+        return False
 
 
 class QUnifiedTable(QWidget):
@@ -30,7 +54,8 @@ class QUnifiedTable(QWidget):
         super().__init__(parent)
         self.item_type = item_type
         self._run = None
-        self._model = None
+        self._source_model = None
+        self._filter_model = None
         self._setup_ui()
         self._connect_signals()
         
@@ -39,11 +64,101 @@ class QUnifiedTable(QWidget):
         # Main layout
         layout = QVBoxLayout()
         
+        # Create container for table with overlay search
+        table_container = QWidget()
+        table_container_layout = QVBoxLayout()
+        table_container_layout.setContentsMargins(0, 0, 0, 0)
+        table_container_layout.setSpacing(0)
+        
         # Table view
         self._table = QTableView()
         self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self._table.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding))
+        
+        # Create overlay search widget (floating at bottom-left)
+        self._search_overlay = QWidget(self._table)
+        self._search_overlay.setStyleSheet("""
+            QWidget {
+                background-color: rgba(45, 45, 45, 200);
+                border: 1px solid rgba(100, 100, 100, 180);
+                border-radius: 6px;
+            }
+        """)
+        
+        # Search overlay layout
+        overlay_layout = QHBoxLayout()
+        overlay_layout.setContentsMargins(6, 4, 6, 4)
+        overlay_layout.setSpacing(3)
+
+        # Search input
+        self._search_input = QLineEdit()
+        self._search_input.setPlaceholderText(f"Search {self.item_type}...")
+        self._search_input.setMaximumHeight(24)
+        self._search_input.setStyleSheet("""
+            QLineEdit {
+                background-color: rgba(255, 255, 255, 240);
+                border: 1px solid rgba(120, 120, 120, 180);
+                border-radius: 3px;
+                padding: 3px 6px;
+                color: #333;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border: 2px solid rgba(70, 130, 200, 200);
+                background-color: rgba(255, 255, 255, 255);
+            }
+        """)
+
+        # Clear/Close button
+        self._clear_button = QPushButton("✕")
+        self._clear_button.setMaximumSize(22, 22)
+        self._clear_button.setToolTip("Clear search and close")
+        self._clear_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(200, 200, 200, 180);
+                border: none;
+                border-radius: 11px;
+                font-weight: bold;
+                color: #666;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: rgba(220, 220, 220, 200);
+                color: #333;
+            }
+        """)
+
+        overlay_layout.addWidget(self._search_input)
+        overlay_layout.addWidget(self._clear_button)
+        self._search_overlay.setLayout(overlay_layout)
+        self._search_overlay.hide()
+
+        # Search toggle button (floating at bottom-right corner, hidden initially)
+        self._search_toggle = QPushButton("🔍")
+        self._search_toggle.setParent(self._table)
+        self._search_toggle.setMaximumSize(30, 30)
+        self._search_toggle.setToolTip(f"Search {self.item_type}")
+        self._search_toggle.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(240, 240, 240, 200);
+                border: 1px solid #ccc;
+                border-radius: 15px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(220, 220, 220, 220);
+            }
+        """)
+        self._search_toggle.hide()
+        
+        # Install event filter for hover behavior
+        self._table.installEventFilter(self)
+        self._table.setMouseTracking(True)
+        
+        # Add table to container
+        table_container_layout.addWidget(self._table)
+        table_container.setLayout(table_container_layout)
         
         # Button layout - center aligned with tight spacing
         button_layout = QHBoxLayout()
@@ -68,7 +183,7 @@ class QUnifiedTable(QWidget):
         # Add to main layout with tight spacing
         layout.setContentsMargins(0, 0, 0, 0)  # Remove default margins
         layout.setSpacing(2)  # Minimal spacing between table and buttons
-        layout.addWidget(self._table)
+        layout.addWidget(table_container)
         layout.addLayout(button_layout)
         
         self.setLayout(layout)
@@ -77,13 +192,26 @@ class QUnifiedTable(QWidget):
         """Connect widget signals"""
         self._duplicate_button.clicked.connect(self._on_duplicate_clicked)
         self._new_button.clicked.connect(self._on_new_clicked)
+        
+        # Search functionality
+        self._search_toggle.clicked.connect(self._toggle_search)
+        self._search_input.textChanged.connect(self._filter_table)
+        self._clear_button.clicked.connect(self._clear_and_close_search)
+        
         # Note: selection model connection will be done in set_view() when model is set
         
     def set_view(self, run: CopickRun):
         """Set the run data and update the table model"""
         self._run = run
-        self._model = QUnifiedTableModel(run, self.item_type)
-        self._table.setModel(self._model)
+        self._source_model = QUnifiedTableModel(run, self.item_type)
+        
+        # Set up filter proxy model for search functionality
+        self._filter_model = TableFilterProxyModel()
+        self._filter_model.setSourceModel(self._source_model)
+        self._filter_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
+        self._filter_model.setFilterRole(Qt.DisplayRole)
+        
+        self._table.setModel(self._filter_model)
         
         # Connect selection model after model is set
         self._table.selectionModel().selectionChanged.connect(self._on_selection_changed)
@@ -93,13 +221,13 @@ class QUnifiedTable(QWidget):
         
     def set_entity_active(self, entity: Union[CopickMesh, CopickPicks, CopickSegmentation], active: bool):
         """Update the active state of an entity"""
-        if self._model:
-            self._model.set_entity_active(entity, active)
+        if self._source_model:
+            self._source_model.set_entity_active(entity, active)
             
     def update(self):
         """Refresh the table data"""
-        if self._model:
-            self._model.update_all()
+        if self._source_model:
+            self._source_model.update_all()
             self._table.resizeColumnsToContents()
             
     def _on_selection_changed(self, selected, deselected):
@@ -111,8 +239,13 @@ class QUnifiedTable(QWidget):
         """Handle duplicate button click"""
         selected_rows = self._table.selectionModel().selectedRows()
         if selected_rows:
-            index = selected_rows[0]  # Get first selected row
-            self.duplicateClicked.emit(index)
+            proxy_index = selected_rows[0]  # Get first selected row
+            # Map proxy index to source index
+            if self._filter_model:
+                source_index = self._filter_model.mapToSource(proxy_index)
+                self.duplicateClicked.emit(source_index)
+            else:
+                self.duplicateClicked.emit(proxy_index)
             
     def _on_new_clicked(self):
         """Handle new button click - show dialog for new entity creation"""
@@ -140,11 +273,91 @@ class QUnifiedTable(QWidget):
     def get_selected_entity(self) -> Union[CopickMesh, CopickPicks, CopickSegmentation, None]:
         """Get the currently selected entity"""
         selected_rows = self._table.selectionModel().selectedRows()
-        if selected_rows and self._model:
-            index = selected_rows[0]
-            return self._model.get_entity(index)
+        if selected_rows and self._source_model:
+            proxy_index = selected_rows[0]
+            # Map proxy index to source index
+            if self._filter_model:
+                source_index = self._filter_model.mapToSource(proxy_index)
+                return self._source_model.get_entity(source_index)
+            else:
+                return self._source_model.get_entity(proxy_index)
         return None
         
     def get_table_view(self) -> QTableView:
         """Get the underlying table view for direct access if needed"""
         return self._table
+    
+    def _toggle_search(self):
+        """Toggle the visibility of the search overlay"""
+        is_visible = self._search_overlay.isVisible()
+        
+        if not is_visible:
+            # Position and show overlay
+            self._position_search_overlay()
+            self._search_overlay.show()
+            self._search_input.setFocus()
+        else:
+            # Hide overlay and clear search
+            self._search_overlay.hide()
+            self._clear_search()
+    
+    def _position_search_overlay(self):
+        """Position the search overlay at the bottom-left of the table view"""
+        if hasattr(self, '_search_overlay') and hasattr(self, '_table'):
+            table_height = self._table.height()
+            table_width = self._table.width()
+            overlay_width = min(240, table_width - 60)  # Leave space for search toggle button
+            overlay_height = 32  # Fixed height for search overlay
+            
+            # Position at bottom-left with some margin
+            x = 10
+            y = table_height - overlay_height - 15
+            
+            self._search_overlay.setGeometry(x, y, overlay_width, overlay_height)
+    
+    def _position_search_toggle(self):
+        """Position the search toggle button at bottom-right corner"""
+        if hasattr(self, '_search_toggle') and hasattr(self, '_table'):
+            table_width = self._table.width()
+            table_height = self._table.height()
+            button_size = 30
+            
+            # Position at bottom-right corner with margin
+            x = table_width - button_size - 10
+            y = table_height - button_size - 15
+            
+            self._search_toggle.setGeometry(x, y, button_size, button_size)
+    
+    def eventFilter(self, obj, event):
+        """Handle resize events to reposition floating elements and mouse hover events"""
+        if obj == self._table:
+            if event.type() == QEvent.Type.Resize:
+                self._position_search_toggle()
+                if self._search_overlay.isVisible():
+                    self._position_search_overlay()
+            elif event.type() == QEvent.Type.Enter:
+                # Show search toggle when mouse enters table view
+                if not self._search_overlay.isVisible():
+                    self._search_toggle.show()
+                    self._position_search_toggle()
+            elif event.type() == QEvent.Type.Leave:
+                # Hide search toggle when mouse leaves table view (unless search is active)
+                if not self._search_overlay.isVisible():
+                    self._search_toggle.hide()
+        return super().eventFilter(obj, event)
+
+    def _filter_table(self, text: str):
+        """Filter the table view based on search text"""
+        if self._filter_model:
+            self._filter_model.setFilterFixedString(text)
+
+    def _clear_search(self):
+        """Clear the search input and reset the filter"""
+        self._search_input.clear()
+        if self._filter_model:
+            self._filter_model.setFilterFixedString("")
+    
+    def _clear_and_close_search(self):
+        """Clear the search input, reset the filter, and close the overlay"""
+        self._clear_search()
+        self._search_overlay.hide()

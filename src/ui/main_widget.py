@@ -278,19 +278,19 @@ class MainWidget(QWidget):
         self._search_input.textChanged.connect(self._filter_tree)
         self._clear_button.clicked.connect(self._clear_and_close_search)
 
-        # Picks actions
-        self._picks_table.get_table_view().doubleClicked.connect(self._copick.show_particles)
-        self._picks_table.get_table_view().clicked.connect(self._copick.activate_particles)
+        # Picks actions - use wrapper methods to handle proxy model mapping
+        self._picks_table.get_table_view().doubleClicked.connect(self._on_picks_double_click)
+        self._picks_table.get_table_view().clicked.connect(self._on_picks_click)
         self._picks_table.duplicateClicked.connect(self._copick.duplicate_particles)
         self._picks_table.newClicked.connect(self._copick.new_particles)
 
-        # Meshes actions
-        self._meshes_table.get_table_view().doubleClicked.connect(self._copick.show_mesh)
+        # Meshes actions - use wrapper methods to handle proxy model mapping
+        self._meshes_table.get_table_view().doubleClicked.connect(self._on_meshes_double_click)
         self._meshes_table.duplicateClicked.connect(self._copick.duplicate_mesh)
         self._meshes_table.newClicked.connect(self._copick.new_mesh)
 
-        # Segmentations actions
-        self._segmentations_table.get_table_view().doubleClicked.connect(self._copick.show_segmentation)
+        # Segmentations actions - use wrapper methods to handle proxy model mapping
+        self._segmentations_table.get_table_view().doubleClicked.connect(self._on_segmentations_double_click)
         self._segmentations_table.duplicateClicked.connect(self._copick.duplicate_segmentation)
         self._segmentations_table.newClicked.connect(self._copick.new_segmentation)
 
@@ -425,3 +425,51 @@ class MainWidget(QWidget):
         """Clear the search input, reset the filter, and close the overlay"""
         self._clear_search()
         self._search_overlay.hide()
+    
+    def _on_picks_double_click(self, proxy_index: QModelIndex):
+        """Handle double-click on picks table by mapping proxy index to source index"""
+        if not proxy_index.isValid():
+            return
+        
+        # Map proxy index to source index
+        if hasattr(self._picks_table, '_filter_model') and self._picks_table._filter_model:
+            source_index = self._picks_table._filter_model.mapToSource(proxy_index)
+            self._copick.show_particles(source_index)
+        else:
+            self._copick.show_particles(proxy_index)
+    
+    def _on_picks_click(self, proxy_index: QModelIndex):
+        """Handle click on picks table by mapping proxy index to source index"""
+        if not proxy_index.isValid():
+            return
+        
+        # Map proxy index to source index
+        if hasattr(self._picks_table, '_filter_model') and self._picks_table._filter_model:
+            source_index = self._picks_table._filter_model.mapToSource(proxy_index)
+            self._copick.activate_particles(source_index)
+        else:
+            self._copick.activate_particles(proxy_index)
+    
+    def _on_meshes_double_click(self, proxy_index: QModelIndex):
+        """Handle double-click on meshes table by mapping proxy index to source index"""
+        if not proxy_index.isValid():
+            return
+        
+        # Map proxy index to source index
+        if hasattr(self._meshes_table, '_filter_model') and self._meshes_table._filter_model:
+            source_index = self._meshes_table._filter_model.mapToSource(proxy_index)
+            self._copick.show_mesh(source_index)
+        else:
+            self._copick.show_mesh(proxy_index)
+    
+    def _on_segmentations_double_click(self, proxy_index: QModelIndex):
+        """Handle double-click on segmentations table by mapping proxy index to source index"""
+        if not proxy_index.isValid():
+            return
+        
+        # Map proxy index to source index
+        if hasattr(self._segmentations_table, '_filter_model') and self._segmentations_table._filter_model:
+            source_index = self._segmentations_table._filter_model.mapToSource(proxy_index)
+            self._copick.show_segmentation(source_index)
+        else:
+            self._copick.show_segmentation(proxy_index)
