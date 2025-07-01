@@ -5,6 +5,7 @@ from Qt.QtCore import QModelIndex, Signal, QSortFilterProxyModel, Qt, QEvent
 from Qt.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QTableView,
@@ -48,6 +49,7 @@ class QUnifiedTable(QWidget):
     # Signals for button actions
     duplicateClicked = Signal(QModelIndex)
     newClicked = Signal(str, str, str)  # object_name, user_id, session_id
+    deleteClicked = Signal(QModelIndex)
 
     def __init__(
         self,
@@ -177,23 +179,29 @@ class QUnifiedTable(QWidget):
         button_layout.setContentsMargins(0, 2, 0, 2)  # Minimal margins
         button_layout.setSpacing(8)  # Tight spacing between buttons
 
-        # Duplicate button
-        self._duplicate_button = QPushButton("Duplicate")
-        self._duplicate_button.setToolTip("Duplicate the selected entity")
+        # Copy button (renamed from Duplicate)
+        self._duplicate_button = QPushButton("📝📝 Copy")
+        self._duplicate_button.setToolTip("Copy the selected entity")
         self._duplicate_button.setEnabled(False)  # Disabled until selection
 
         # New button
-        self._new_button = QPushButton("New")
+        self._new_button = QPushButton("⭐ New")
         self._new_button.setToolTip("Create a new entity")
+        
+        # Delete button
+        self._delete_button = QPushButton("❌ Delete")
+        self._delete_button.setToolTip("Delete the selected entity")
+        self._delete_button.setEnabled(False)  # Disabled until selection
 
         # Center the buttons
         button_layout.addStretch()  # Left stretch
         button_layout.addWidget(self._duplicate_button)
         button_layout.addWidget(self._new_button)
+        button_layout.addWidget(self._delete_button)
 
-        # Settings button for duplicate behavior
+        # Settings button for general behavior
         self._settings_button = QPushButton("⚙")
-        self._settings_button.setToolTip("Duplicate settings")
+        self._settings_button.setToolTip("Table settings")
         button_layout.addWidget(self._settings_button)
         button_layout.addStretch()  # Right stretch
 
@@ -201,6 +209,9 @@ class QUnifiedTable(QWidget):
         self._settings_overlay = DuplicateSettingsOverlay(None)
         self._settings_overlay.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self._settings_overlay.hide()
+        
+        # Track delete confirmation setting
+        self._delete_confirmation = True  # Show confirmation dialog by default
 
         # Add to main layout with tight spacing
         layout.setContentsMargins(0, 0, 0, 0)  # Remove default margins
@@ -214,6 +225,7 @@ class QUnifiedTable(QWidget):
         """Connect widget signals"""
         self._duplicate_button.clicked.connect(self._on_duplicate_clicked)
         self._new_button.clicked.connect(self._on_new_clicked)
+        self._delete_button.clicked.connect(self._on_delete_clicked)
 
         # Search functionality
         self._search_toggle.clicked.connect(self._toggle_search)
@@ -260,6 +272,7 @@ class QUnifiedTable(QWidget):
         """Handle table selection changes"""
         has_selection = len(self._table.selectionModel().selectedRows()) > 0
         self._duplicate_button.setEnabled(has_selection)
+        self._delete_button.setEnabled(has_selection)
 
     def _on_duplicate_clicked(self):
         """Handle duplicate button click with settings-based behavior"""
@@ -341,6 +354,43 @@ class QUnifiedTable(QWidget):
             # For meshes and segmentations, we could implement similar dialogs
             # For now, emit with default values
             self.newClicked.emit("", "", "")
+    
+    def _on_delete_clicked(self):
+        """Handle delete button click with optional confirmation dialog"""
+        selected_rows = self._table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+
+        proxy_index = selected_rows[0]
+        # Map proxy index to source index
+        if self._filter_model:
+            source_index = self._filter_model.mapToSource(proxy_index)
+        else:
+            source_index = proxy_index
+
+        # Get the entity to show in confirmation dialog
+        entity = self._source_model.get_entity(source_index) if self._source_model else None
+        if not entity:
+            return
+
+        # Show confirmation dialog if enabled
+        if self._delete_confirmation:
+            entity_type = self.item_type.rstrip('s')  # Remove 's' from 'picks', 'meshes', 'segmentations'
+            entity_info = f"{getattr(entity, 'user_id', 'Unknown')} - {getattr(entity, 'session_id', 'Unknown')}"
+            
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Icon.Warning)
+            msg_box.setWindowTitle(f"Delete {entity_type.title()}")
+            msg_box.setText(f"Are you sure you want to delete this {entity_type}?")
+            msg_box.setInformativeText(f"{entity_info}\n\nThis action cannot be undone.")
+            msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+            
+            if msg_box.exec_() != QMessageBox.StandardButton.Yes:
+                return
+        
+        # Emit the delete signal
+        self.deleteClicked.emit(source_index)
 
     def get_selected_entity(self) -> Union[CopickMesh, CopickPicks, CopickSegmentation, None]:
         """Get the currently selected entity"""
@@ -501,3 +551,11 @@ class QUnifiedTable(QWidget):
         self._duplicate_mode = mode
         self._settings_overlay.set_current_mode(mode)
         self._on_settings_changed(mode)
+        
+    def get_delete_confirmation(self) -> bool:
+        """Get current delete confirmation setting"""
+        return self._delete_confirmation
+    
+    def set_delete_confirmation(self, enabled: bool):
+        """Set delete confirmation setting"""
+        self._delete_confirmation = enabled

@@ -618,11 +618,11 @@ class CopickTool(ToolInstance):
 
         # Update UI
         self._mw.update_picks_table()
-        
+
         # Show the particles (this will create the particle list and add it to the picks_map)
         self.show_particles_from_picks(np)
         self._mw.set_entity_active(np, True)
-        
+
         # Set mouse mode to "mark plane" (pick on plane)
         run(self.session, "ui mousemode right 'mark plane'", log=False)
 
@@ -659,6 +659,111 @@ class CopickTool(ToolInstance):
         """Placeholder for new segmentation creation"""
         # TODO: Implement new segmentation creation logic
         pass
+
+    ######################
+    # Delete actions #
+    ######################
+    def delete_particles(self, index: QModelIndex):
+        """Delete selected picks"""
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickPicks):
+            return
+
+        try:
+            # Get the run that contains this picks entity
+            run = entity.run
+
+            # Delete using the copick API
+            run.delete_picks(
+                object_name=entity.pickable_object_name, user_id=entity.user_id, session_id=entity.session_id
+            )
+
+            # Remove from local tracking if it exists
+            if entity in self.picks_map:
+                particle_list = self.picks_map[entity]
+                particle_list.delete()
+                del self.picks_map[entity]
+
+            # Update the UI
+            self._mw.update_picks_table()
+
+        except Exception as e:
+            self.session.logger.error(f"Failed to delete picks: {e}")
+
+    def delete_mesh(self, index: QModelIndex):
+        """Delete selected mesh"""
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickMesh):
+            return
+
+        try:
+            # Get the run that contains this mesh entity
+            run = entity.run
+
+            # Delete using the copick API
+            run.delete_meshes(
+                object_name=entity.pickable_object_name, user_id=entity.user_id, session_id=entity.session_id
+            )
+
+            # Remove from local tracking if it exists
+            if entity in self.mesh_map:
+                surface = self.mesh_map[entity]
+                surface.delete()
+                del self.mesh_map[entity]
+
+            # Update the UI
+            self._mw._meshes_table.update()
+
+        except Exception as e:
+            self.session.logger.error(f"Failed to delete mesh: {e}")
+
+    def delete_segmentation(self, index: QModelIndex):
+        """Delete selected segmentation"""
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickSegmentation):
+            return
+
+        try:
+            # Get the run that contains this segmentation entity
+            run = entity.run
+
+            # Delete using the copick API
+            run.delete_segmentations(
+                user_id=entity.user_id, session_id=entity.session_id, name=entity.name, voxel_size=entity.voxel_size
+            )
+
+            # Remove from local tracking if it exists
+            if entity in self.seg_map:
+                volume = self.seg_map[entity]
+                volume.delete()
+                del self.seg_map[entity]
+
+            # Update the UI
+            self._mw._segmentations_table.update()
+
+        except Exception as e:
+            self.session.logger.error(f"Failed to delete segmentation: {e}")
 
     ########################
     # Segmentation actions #

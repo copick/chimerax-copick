@@ -41,6 +41,7 @@ class QUnifiedTableModel(QAbstractTableModel):
 
         # Sort entities: tool entities first, then user entities
         self._entities.sort(key=lambda x: (not x.entity.from_tool, x.entity.user_id, self._get_object_name(x)))
+    
 
     def _get_object_name(self, table_entity: TableEntity) -> str:
         """Get object name from table entity"""

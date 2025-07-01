@@ -326,16 +326,19 @@ class MainWidget(QWidget):
         self._picks_table.get_table_view().clicked.connect(self._on_picks_click)
         self._picks_table.duplicateClicked.connect(self._copick.duplicate_particles)
         self._picks_table.newClicked.connect(self._copick.new_particles)
+        self._picks_table.deleteClicked.connect(self._copick.delete_particles)
 
         # Meshes actions - use wrapper methods to handle proxy model mapping
         self._meshes_table.get_table_view().doubleClicked.connect(self._on_meshes_double_click)
         self._meshes_table.duplicateClicked.connect(self._copick.duplicate_mesh)
         self._meshes_table.newClicked.connect(self._copick.new_mesh)
+        self._meshes_table.deleteClicked.connect(self._copick.delete_mesh)
 
         # Segmentations actions - use wrapper methods to handle proxy model mapping
         self._segmentations_table.get_table_view().doubleClicked.connect(self._on_segmentations_double_click)
         self._segmentations_table.duplicateClicked.connect(self._copick.duplicate_segmentation)
         self._segmentations_table.newClicked.connect(self._copick.new_segmentation)
+        self._segmentations_table.deleteClicked.connect(self._copick.delete_segmentation)
 
         self._picks_stepper.stateChanged.connect(self._copick._set_active_particle)
 
