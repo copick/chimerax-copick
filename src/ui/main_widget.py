@@ -25,7 +25,7 @@ class FilterProxyModel(QSortFilterProxyModel):
     """Custom proxy model that filters only run names, not their children"""
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
-        """Override to only filter run names, always show children of matching runs"""
+        """Override to only filter run names, completely ignore children to prevent eager loading"""
         if not self.filterRegularExpression().pattern():
             # No filter applied - accept everything
             return True
@@ -34,7 +34,15 @@ class FilterProxyModel(QSortFilterProxyModel):
         if not source_model:
             return False
 
-        # Get the item for this row
+        # PERFORMANCE FIX: Only filter at the root level (runs only)
+        # This completely prevents any interaction with child items during filtering
+        if source_parent.isValid():
+            # This is a child item (voxel spacing or tomogram)
+            # NEVER process children during filtering to avoid any possibility of lazy loading
+            # If the parent run matches, children will be shown automatically by Qt
+            return True
+
+        # Only process root-level items (runs)
         source_index = source_model.index(source_row, 0, source_parent)
         if not source_index.isValid():
             return False
@@ -52,18 +60,7 @@ class FilterProxyModel(QSortFilterProxyModel):
                 return self.filterRegularExpression().match(item_text).hasMatch()
             return False
 
-        # For children of runs (TreeVoxelSpacing, TreeTomogram), check if their ancestor run matches
-        if isinstance(item, (TreeVoxelSpacing, TreeTomogram)):
-            # Find the TreeRun ancestor
-            current_item = item
-            while current_item and not isinstance(current_item, TreeRun):
-                current_item = current_item.parent
-
-            if isinstance(current_item, TreeRun):
-                # Check if the ancestor run matches the filter
-                run_name = current_item.run.name
-                return self.filterRegularExpression().match(run_name).hasMatch()
-
+        # Should never reach here with the new logic, but safety fallback
         return False
 
 
