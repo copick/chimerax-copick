@@ -233,23 +233,21 @@ class CopickTool(ToolInstance):
         if not index.isValid():
             return
 
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickPicks):
+        # Only on picks
+        item = index.internalPointer()
+        if not isinstance(item, TablePicks):
             return
 
         # Store all the picks
         self.store()
 
-        if entity in self.picks_map:
-            particles = self.picks_map[entity]
+        if item.entity in self.picks_map:
+            particles = self.picks_map[item.entity]
             particles.display = not particles.display
-            self._mw.set_entity_active(entity, particles.display)
+            self._mw.set_entity_active(item.entity, particles.display)
             self.update_stepper(particles)
         else:
-            picks = entity
+            picks = item.entity
             self.show_particles_from_picks(picks)
             self._mw.set_entity_active(picks, True)
 
@@ -330,21 +328,19 @@ class CopickTool(ToolInstance):
         if not index.isValid():
             return
 
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickPicks):
+        # Only on picks
+        item = index.internalPointer()
+        if not isinstance(item, TablePicks):
             return
 
         # Only if particle list exists
-        if entity not in self.picks_map:
+        if item.entity not in self.picks_map:
             return
 
-        self.session.ArtiaX.selected_partlist = self.picks_map[entity].id
-        self.session.ArtiaX.options_partlist = self.picks_map[entity].id
+        self.session.ArtiaX.selected_partlist = self.picks_map[item.entity].id
+        self.session.ArtiaX.options_partlist = self.picks_map[item.entity].id
 
-        self.update_stepper(self.picks_map[entity])
+        self.update_stepper(self.picks_map[item.entity])
 
     def update_stepper(self, partlist: ParticleList):
         if partlist is None:
@@ -563,93 +559,6 @@ class CopickTool(ToolInstance):
         self.show_particles_from_picks(np)
         self._mw.set_entity_active(np, True)
 
-    def duplicate_particles(self, index: QModelIndex):
-        """Duplicate a selected pick entity to create a new user pick"""
-        # Only on valid indices
-        if not index.isValid():
-            return
-
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickPicks):
-            return
-
-        # Store all the picks
-        self.store()
-
-        # Get user_id from root or use default
-        user_id = self.root.user_id if self.root.user_id is not None else "ArtiaX"
-
-        # Create new pick with same object and run but different session
-        req_run = entity.run
-        object_name = entity.pickable_object_name
-        session_id = f"{entity.session_id}-copy-1"
-
-        # Create new picks
-        np = req_run.new_picks(user_id=user_id, object_name=object_name, session_id=session_id)
-        np.meta.trust_orientation = entity.trust_orientation
-        np.points = deepcopy(entity.points)
-        np.store()
-
-        # Update UI
-        self._mw.update_picks_table()
-        self.show_particles_from_picks(np)
-        self._mw.set_entity_active(np, True)
-
-    def new_particles(self, object_name: str, user_id: str, session_id: str):
-        """Create a new empty pick entity"""
-        if not self.active_volume:
-            return
-
-        # Get the current run from active volume
-        req_run = self.active_volume.copick_tomo.voxel_spacing.run
-
-        # Create new empty picks
-        np = req_run.new_picks(user_id=user_id, object_name=object_name, session_id=session_id)
-        np.points = []  # Start with empty points
-        np.store()
-
-        # Update UI
-        self._mw.update_picks_table()
-        # Don't show particles yet since it's empty
-        self._mw.set_entity_active(np, False)
-
-    def duplicate_mesh(self, index: QModelIndex):
-        """Placeholder for mesh duplication"""
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickMesh):
-            return
-
-        # TODO: Implement mesh duplication logic
-        pass
-
-    def new_mesh(self, object_name: str, user_id: str, session_id: str):
-        """Placeholder for new mesh creation"""
-        # TODO: Implement new mesh creation logic
-        pass
-
-    def duplicate_segmentation(self, index: QModelIndex):
-        """Placeholder for segmentation duplication"""
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickSegmentation):
-            return
-
-        # TODO: Implement segmentation duplication logic
-        pass
-
-    def new_segmentation(self, object_name: str, user_id: str, session_id: str):
-        """Placeholder for new segmentation creation"""
-        # TODO: Implement new segmentation creation logic
-        pass
-
     ########################
     # Segmentation actions #
     ########################
@@ -658,19 +567,17 @@ class CopickTool(ToolInstance):
         if not index.isValid():
             return
 
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickSegmentation):
+        # Only on segmentations
+        item = index.internalPointer()
+        if not isinstance(item, TableSegmentation):
             return
 
-        if entity in self.seg_map:
-            volume = self.seg_map[entity]
+        if item.entity in self.seg_map:
+            volume = self.seg_map[item.entity]
             volume.display = not volume.display
-            self._mw.set_entity_active(entity, volume.display)
+            self._mw.set_entity_active(item.entity, volume.display)
         else:
-            seg = entity
+            seg = item.entity
             self.show_volume_from_segmentation(seg)
             self._mw.set_entity_active(seg, True)
 
@@ -714,21 +621,19 @@ class CopickTool(ToolInstance):
         if not index.isValid():
             return
 
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickMesh):
+        # Only on meshes
+        item = index.internalPointer()
+        if not isinstance(item, TableMesh):
             return
 
         print(self.mesh_map)
-        print(entity)
-        if entity in self.mesh_map:
-            surf = self.mesh_map[entity]
+        print(item.entity)
+        if item.entity in self.mesh_map:
+            surf = self.mesh_map[item.entity]
             surf.display = not surf.display
-            self._mw.set_entity_active(entity, surf.display)
+            self._mw.set_entity_active(item.entity, surf.display)
         else:
-            mesh = entity
+            mesh = item.entity
             self.show_surf_from_mesh(mesh)
             self._mw.set_entity_active(mesh, True)
 
