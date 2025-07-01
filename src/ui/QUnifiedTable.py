@@ -62,6 +62,7 @@ class QUnifiedTable(QWidget):
         self._source_model = None
         self._filter_model = None
         self._duplicate_mode = "ask"  # Default duplicate behavior
+        self._custom_suffix = "-copy"  # Default custom suffix
         self._setup_ui()
         self._connect_signals()
 
@@ -342,6 +343,11 @@ class QUnifiedTable(QWidget):
             new_session_id = f"{original_session_id}-copy"
             self._emit_duplicate_with_session_id(source_index, new_session_id)
 
+        elif self._duplicate_mode == "custom_suffix":
+            # Custom suffix from settings
+            new_session_id = f"{original_session_id}{self._custom_suffix}"
+            self._emit_duplicate_with_session_id(source_index, new_session_id)
+
     def _emit_duplicate_with_session_id(self, source_index, session_id):
         """Emit duplicate signal with custom session ID"""
         # For now, emit the original signal - this will need to be enhanced
@@ -607,9 +613,10 @@ class QUnifiedTable(QWidget):
 
             self._settings_overlay.move(x, y)
 
-    def _on_settings_changed(self, mode: str):
+    def _on_settings_changed(self, mode: str, custom_suffix: str):
         """Handle settings change"""
         self._duplicate_mode = mode
+        self._custom_suffix = custom_suffix
         # Update settings button tooltip to show current mode
         mode_desc = self._settings_overlay.get_mode_description(mode)
         self._settings_button.setToolTip(f"Duplicate settings\nCurrent: {mode_desc}")
@@ -622,7 +629,8 @@ class QUnifiedTable(QWidget):
         """Set duplicate mode"""
         self._duplicate_mode = mode
         self._settings_overlay.set_current_mode(mode)
-        self._on_settings_changed(mode)
+        custom_suffix = self._settings_overlay.get_custom_suffix()
+        self._on_settings_changed(mode, custom_suffix)
         
     def get_delete_confirmation(self) -> bool:
         """Get current delete confirmation setting"""
