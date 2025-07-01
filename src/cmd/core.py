@@ -126,13 +126,15 @@ def _create_filesystem_config(
         description=description or f"Copick project created from {config_path.name}",
         version="1.6.0",
         pickable_objects=[],
-        overlay_root="",
-        overlay_fs_args={"auto_mkdir": True},
         config_type="filesystem",
     )
 
     # Create CopickConfigFSSpec with the root directory
-    fs_config = CopickConfigFSSpec(**config.model_dump(), overlay_root=str(root_path))
+    fs_config = CopickConfigFSSpec(
+        **config.model_dump(),
+        overlay_root=str(root_path),
+        overlay_fs_args={"auto_mkdir": True},
+    )
 
     # Write configuration to file
     with open(config_path, "w") as f:
