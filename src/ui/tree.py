@@ -13,7 +13,6 @@ class TreeRoot:
         self.root = root
         self.parent = None
         self._children = None
-        self.has_children = True
 
     @property
     def children(self):
@@ -43,13 +42,16 @@ class TreeRoot:
     def columnCount(self) -> int:
         return 1
 
+    @property
+    def has_children(self) -> bool:
+        return len(self.children) > 0
+
 
 class TreeRun:
     def __init__(self, run: CopickRun, parent: TreeRoot):
         self.run = run
         self.parent = parent
         self._children = None
-        self.has_children = True
 
     @property
     def children(self):
@@ -79,13 +81,16 @@ class TreeRun:
     def columnCount(self) -> int:
         return 1
 
+    @property
+    def has_children(self) -> bool:
+        return len(self.children) > 0
+
 
 class TreeVoxelSpacing:
     def __init__(self, voxel_spacing: CopickVoxelSpacing, parent: TreeRun):
         self.voxel_spacing = voxel_spacing
         self.parent = parent
         self._children = None
-        self.has_children = True
 
     @property
     def children(self):
@@ -114,6 +119,10 @@ class TreeVoxelSpacing:
 
     def columnCount(self) -> int:
         return 1
+
+    @property
+    def has_children(self) -> bool:
+        return len(self.children) > 0
 
 
 class TreeTomogram:

@@ -3,8 +3,11 @@ from typing import List, Optional, Union
 from chimerax.core.tools import ToolInstance
 from copick.impl.filesystem import CopickRootFSSpec
 from copick.models import CopickMesh, CopickPicks, CopickSegmentation
-from Qt.QtCore import QObject, Qt
+from Qt.QtCore import QObject, Qt, QSortFilterProxyModel, QModelIndex, QEvent
 from Qt.QtWidgets import (
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
     QSplitter,
     QTabWidget,
     QTreeView,
@@ -15,6 +18,53 @@ from Qt.QtWidgets import (
 from ..ui.QCoPickTreeModel import QCoPickTreeModel
 from ..ui.step_widget import StepWidget
 from .QUnifiedTable import QUnifiedTable
+from ..ui.tree import TreeRoot, TreeRun, TreeVoxelSpacing, TreeTomogram
+
+
+class FilterProxyModel(QSortFilterProxyModel):
+    """Custom proxy model that filters only run names, not their children"""
+    
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+        """Override to only filter run names, always show children of matching runs"""
+        if not self.filterRegularExpression().pattern():
+            # No filter applied - accept everything
+            return True
+        
+        source_model = self.sourceModel()
+        if not source_model:
+            return False
+        
+        # Get the item for this row
+        source_index = source_model.index(source_row, 0, source_parent)
+        if not source_index.isValid():
+            return False
+        
+        item = source_index.internalPointer()
+        
+        # Always accept root
+        if isinstance(item, TreeRoot):
+            return True
+        
+        # For runs (top level), apply the filter to their name
+        if isinstance(item, TreeRun):
+            item_text = source_model.data(source_index, Qt.ItemDataRole.DisplayRole)
+            if item_text:
+                return self.filterRegularExpression().match(item_text).hasMatch()
+            return False
+        
+        # For children of runs (TreeVoxelSpacing, TreeTomogram), check if their ancestor run matches
+        if isinstance(item, (TreeVoxelSpacing, TreeTomogram)):
+            # Find the TreeRun ancestor
+            current_item = item
+            while current_item and not isinstance(current_item, TreeRun):
+                current_item = current_item.parent
+            
+            if isinstance(current_item, TreeRun):
+                # Check if the ancestor run matches the filter
+                run_name = current_item.run.name
+                return self.filterRegularExpression().match(run_name).hasMatch()
+        
+        return False
 
 
 class MainWidget(QWidget):
@@ -84,14 +134,12 @@ class MainWidget(QWidget):
         tables_layout.addWidget(self._object_tabs)
         tables_widget.setLayout(tables_layout)
 
-        # Tree View with minimum size
-        self._tree_view = QTreeView()
-        self._tree_view.setMinimumHeight(150)  # Minimum height for tree view
-        self._tree_view.setHeaderHidden(False)  # Show headers for better usability
+        # Create tree container with search functionality
+        tree_container = self._create_tree_container()
 
         # Add widgets to splitter
         self._main_splitter.addWidget(tables_widget)
-        self._main_splitter.addWidget(self._tree_view)
+        self._main_splitter.addWidget(tree_container)
 
         # Set initial splitter sizes (60% tables, 40% tree)
         self._main_splitter.setSizes([300, 200])
@@ -101,13 +149,106 @@ class MainWidget(QWidget):
         # Add splitter to main layout
         self._layout.addWidget(self._main_splitter)
 
+    def _create_tree_container(self) -> QWidget:
+        """Create tree container with overlay search functionality"""
+        container = QWidget()
+        container.setMinimumHeight(150)
+        layout = QVBoxLayout()
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(0)  # No spacing to maximize tree area
+
+        # Tree view setup - takes full space
+        self._tree_view = QTreeView()
+        self._tree_view.setHeaderHidden(False)
+
+        # Create overlay search widget (floating over tree)
+        self._search_overlay = QWidget(self._tree_view)
+        self._search_overlay.setStyleSheet("""
+            QWidget {
+                background-color: rgba(240, 240, 240, 230);
+                border: 1px solid #ccc;
+                border-radius: 4px;
+            }
+        """)
+        
+        # Search overlay layout
+        overlay_layout = QHBoxLayout()
+        overlay_layout.setContentsMargins(5, 3, 5, 3)
+        overlay_layout.setSpacing(2)
+
+        # Search input
+        self._search_input = QLineEdit()
+        self._search_input.setPlaceholderText("Search runs...")
+        self._search_input.setMaximumHeight(25)
+        self._search_input.setStyleSheet("border: 1px solid #999; border-radius: 2px; padding: 2px;")
+
+        # Clear button
+        self._clear_button = QPushButton("✕")
+        self._clear_button.setMaximumSize(25, 25)
+        self._clear_button.setToolTip("Clear search")
+        self._clear_button.setStyleSheet("border: none; font-weight: bold;")
+
+        # Close search button
+        self._close_search_button = QPushButton("⨯")
+        self._close_search_button.setMaximumSize(25, 25)
+        self._close_search_button.setToolTip("Close search")
+        self._close_search_button.setStyleSheet("border: none; font-weight: bold;")
+
+        overlay_layout.addWidget(self._search_input)
+        overlay_layout.addWidget(self._clear_button)
+        overlay_layout.addWidget(self._close_search_button)
+        self._search_overlay.setLayout(overlay_layout)
+
+        # Position overlay at top-right and hide initially
+        self._search_overlay.hide()
+
+        # Search toggle button (floating at top-right corner)
+        self._search_toggle = QPushButton("🔍")
+        self._search_toggle.setParent(self._tree_view)
+        self._search_toggle.setMaximumSize(30, 30)
+        self._search_toggle.setToolTip("Search runs")
+        self._search_toggle.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(240, 240, 240, 200);
+                border: 1px solid #ccc;
+                border-radius: 15px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(220, 220, 220, 220);
+            }
+        """)
+
+        # Add only tree view to main layout
+        layout.addWidget(self._tree_view)
+        container.setLayout(layout)
+        
+        # Install event filter to handle resizing
+        self._tree_view.installEventFilter(self)
+        
+        return container
+
     def set_root(self, root: CopickRootFSSpec):
         self._model = QCoPickTreeModel(root)
-        self._tree_view.setModel(self._model)
+
+        # Set up filter proxy model for search functionality
+        self._filter_model = FilterProxyModel()
+        self._filter_model.setSourceModel(self._model)
+        self._filter_model.setRecursiveFilteringEnabled(False)  # We handle filtering manually
+        self._filter_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
+        self._filter_model.setFilterRole(Qt.DisplayRole)
+
+        self._tree_view.setModel(self._filter_model)
 
     def _connect(self):
         # Tree actions
-        self._tree_view.doubleClicked.connect(self._copick.switch_volume)
+        self._tree_view.doubleClicked.connect(self._on_tree_double_click)
+
+        # Search functionality
+        self._search_toggle.clicked.connect(self._toggle_search)
+        self._search_input.textChanged.connect(self._filter_tree)
+        self._clear_button.clicked.connect(self._clear_search)
+        self._close_search_button.clicked.connect(self._toggle_search)
 
         # Picks actions
         self._picks_table.get_table_view().doubleClicked.connect(self._copick.show_particles)
@@ -143,3 +284,100 @@ class MainWidget(QWidget):
 
     def set_stepper_state(self, max: int, state: int = 0):
         self._picks_stepper.set(max, state)
+
+    def _toggle_search(self):
+        """Toggle the visibility of the search overlay"""
+        is_visible = self._search_overlay.isVisible()
+        
+        if not is_visible:
+            # Position and show overlay
+            self._position_search_overlay()
+            self._search_overlay.show()
+            self._search_input.setFocus()
+        else:
+            # Hide overlay and clear search
+            self._search_overlay.hide()
+            self._clear_search()
+    
+    def _position_search_overlay(self):
+        """Position the search overlay at the top-right of the tree view"""
+        if hasattr(self, '_search_overlay') and hasattr(self, '_tree_view'):
+            tree_width = self._tree_view.width()
+            overlay_width = 250  # Fixed width for search overlay
+            overlay_height = 35  # Fixed height for search overlay
+            
+            # Position at top-right with some margin
+            x = tree_width - overlay_width - 10
+            y = 10
+            
+            self._search_overlay.setGeometry(x, y, overlay_width, overlay_height)
+    
+    def _position_search_toggle(self):
+        """Position the search toggle button at top-right corner"""
+        if hasattr(self, '_search_toggle') and hasattr(self, '_tree_view'):
+            tree_width = self._tree_view.width()
+            button_size = 30
+            
+            # Position at top-right corner with margin
+            x = tree_width - button_size - 10
+            y = 10
+            
+            self._search_toggle.setGeometry(x, y, button_size, button_size)
+    
+    def eventFilter(self, obj, event):
+        """Handle resize events to reposition floating elements"""
+        if obj == self._tree_view and event.type() == QEvent.Type.Resize:
+            self._position_search_toggle()
+            if self._search_overlay.isVisible():
+                self._position_search_overlay()
+        return super().eventFilter(obj, event)
+
+    def _filter_tree(self, text: str):
+        """Filter the tree view based on search text"""
+        if hasattr(self, "_filter_model"):
+            # Store currently expanded items before filtering
+            expanded_items = []
+            if hasattr(self, "_tree_view") and self._tree_view.model() is not None:
+                model = self._tree_view.model()
+                for row in range(model.rowCount()):
+                    index = model.index(row, 0)
+                    if self._tree_view.isExpanded(index):
+                        expanded_items.append(row)
+
+            # Apply the filter
+            self._filter_model.setFilterFixedString(text)
+
+            if text:
+                # Keep runs collapsed when filtering - don't auto-expand
+                pass
+            else:
+                # When clearing search, restore previous expanded state
+                self._tree_view.collapseAll()
+                # Restore previously expanded items
+                if hasattr(self, "_tree_view") and self._tree_view.model() is not None:
+                    model = self._tree_view.model()
+                    for row in expanded_items:
+                        if row < model.rowCount():
+                            index = model.index(row, 0)
+                            self._tree_view.expand(index)
+
+    def _on_tree_double_click(self, proxy_index: QModelIndex):
+        """Handle double-click events on the tree view by mapping proxy indices to source indices"""
+        if not proxy_index.isValid():
+            return
+
+        # Map proxy model index to source model index
+        if hasattr(self, "_filter_model") and self._filter_model is not None:
+            source_index = self._filter_model.mapToSource(proxy_index)
+            if source_index.isValid():
+                self._copick.switch_volume(source_index)
+        else:
+            # Fallback: if no filter model, pass the index directly
+            self._copick.switch_volume(proxy_index)
+
+    def _clear_search(self):
+        """Clear the search input and reset the filter"""
+        self._search_input.clear()
+        if hasattr(self, "_filter_model"):
+            self._filter_model.setFilterFixedString("")
+            self._tree_view.collapseAll()

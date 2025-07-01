@@ -58,7 +58,7 @@ class QCoPickTreeModel(QAbstractItemModel):
 
         item = index.internalPointer()
 
-        if role == 0:
+        if role == Qt.ItemDataRole.DisplayRole:
             return item.data(index.column())
 
         if role == 1 and index.column() == 0:
