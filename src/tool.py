@@ -941,8 +941,8 @@ class CopickTool(ToolInstance):
                 log=False,
             )
 
-    def add_object_type(self):
-        """Show dialog to add a new PickableObject to the configuration"""
+    def edit_object_types(self):
+        """Show dialog to edit and manage PickableObject types in the configuration"""
         if self.root is None:
             from Qt.QtWidgets import QMessageBox
 
@@ -953,33 +953,41 @@ class CopickTool(ToolInstance):
             )
             return
 
-        from .ui.AddObjectDialog import AddObjectDialog
+        from .ui.EditObjectTypesDialog import EditObjectTypesDialog
 
-        dialog = AddObjectDialog(parent=self.tool_window.ui_area, existing_objects=self.root.config.pickable_objects)
+        dialog = EditObjectTypesDialog(parent=self.tool_window.ui_area, existing_objects=self.root.config.pickable_objects)
 
         if dialog.exec_() == dialog.Accepted:
             try:
-                # Get the new pickable object
-                new_object = dialog.get_pickable_object()
+                # Check if there are any changes
+                if dialog.has_changes():
+                    # Get the updated objects list
+                    updated_objects = dialog.get_objects()
 
-                # Add to config
-                self.root.config.pickable_objects.append(new_object)
+                    # Replace the config objects
+                    self.root.config.pickable_objects = updated_objects
 
-                # Save the updated config
-                self._save_config()
+                    # Save the updated config
+                    self._save_config()
 
-                # Reinitialize the UI
-                self._reinitialize_ui()
+                    # Reinitialize the UI
+                    self._reinitialize_ui()
 
-                self.session.logger.info(f"Added new object type: {new_object.name}")
+                    self.session.logger.info("Object types configuration updated successfully")
+                else:
+                    self.session.logger.info("No changes made to object types")
 
             except Exception as e:
                 from Qt.QtWidgets import QMessageBox
 
                 QMessageBox.critical(
-                    self.tool_window.ui_area, "Error Adding Object", f"Failed to add object type: {str(e)}"
+                    self.tool_window.ui_area, "Error Updating Object Types", f"Failed to update object types: {str(e)}"
                 )
-                self.session.logger.error(f"Error adding object type: {e}")
+                self.session.logger.error(f"Error updating object types: {e}")
+
+    def add_object_type(self):
+        """Legacy method - redirects to edit_object_types for backwards compatibility"""
+        self.edit_object_types()
 
     def reload_session(self):
         """Reload the current copick session from the config file"""

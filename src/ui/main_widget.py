@@ -277,9 +277,9 @@ class MainWidget(QWidget):
         button_layout.setContentsMargins(0, 0, 0, 0)
         button_layout.setSpacing(5)
 
-        # Add Object Type button
-        self._add_object_button = QPushButton("🌟 Add Object Type")
-        self._add_object_button.setToolTip("Add a new pickable object type to the configuration")
+        # Edit Object Types button
+        self._edit_objects_button = QPushButton("✏️ Edit Object Types")
+        self._edit_objects_button.setToolTip("Edit and manage pickable object types")
 
         # Reload button
         self._reload_button = QPushButton("🔄 Reload")
@@ -287,7 +287,7 @@ class MainWidget(QWidget):
 
         # Add buttons to layout with center alignment
         button_layout.addStretch()  # Left stretch
-        button_layout.addWidget(self._add_object_button)
+        button_layout.addWidget(self._edit_objects_button)
         button_layout.addWidget(self._reload_button)
         
         # Add settings buttons from tables (will be added later in _build)
@@ -337,7 +337,7 @@ class MainWidget(QWidget):
 
     def _connect(self):
         # Top button actions
-        self._add_object_button.clicked.connect(self._on_add_object_type)
+        self._edit_objects_button.clicked.connect(self._on_edit_object_types)
         self._reload_button.clicked.connect(self._on_reload)
 
         # Tree actions
@@ -548,9 +548,9 @@ class MainWidget(QWidget):
         else:
             self._copick.show_segmentation(proxy_index)
 
-    def _on_add_object_type(self):
-        """Handle Add Object Type button click"""
-        self._copick.add_object_type()
+    def _on_edit_object_types(self):
+        """Handle Edit Object Types button click"""
+        self._copick.edit_object_types()
 
     def _on_reload(self):
         """Handle Reload button click"""
