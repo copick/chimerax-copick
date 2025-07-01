@@ -1,0 +1,32 @@
+name: Create Release PRs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: release please
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          manifest-file: ".release-please.manifest.json"
+          config-file: "release-please.config.json"
+          target-branch: "main"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+    outputs:
+      paths_released: ${{ steps.release.outputs.paths_released }}
