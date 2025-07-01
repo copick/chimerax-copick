@@ -559,9 +559,63 @@ class MainWidget(QWidget):
     def _on_shared_settings_clicked(self):
         """Handle shared settings button click - show settings for current tab"""
         current_tab_index = self._object_tabs.currentIndex()
+        
+        # Get the current table's settings overlay
+        current_table = None
         if current_tab_index == 0:  # Picks tab
-            self._picks_table._toggle_settings()
+            current_table = self._picks_table
         elif current_tab_index == 1:  # Meshes tab
-            self._meshes_table._toggle_settings()
+            current_table = self._meshes_table
         elif current_tab_index == 2:  # Segmentations tab
-            self._segmentations_table._toggle_settings()
+            current_table = self._segmentations_table
+        
+        if current_table:
+            # Position the overlay relative to the shared settings button
+            self._position_shared_settings_overlay(current_table._settings_overlay)
+            
+            # Show the overlay
+            if current_table._settings_overlay.isVisible():
+                current_table._settings_overlay.hide()
+            else:
+                current_table._settings_overlay.show()
+                current_table._settings_overlay.raise_()
+                current_table._settings_overlay.activateWindow()
+    
+    def _position_shared_settings_overlay(self, overlay):
+        """Position the settings overlay relative to the shared settings button"""
+        if hasattr(self, "_shared_settings_button"):
+            # Get button position in global coordinates
+            button_global_pos = self._shared_settings_button.mapToGlobal(self._shared_settings_button.rect().topLeft())
+            
+            # Position overlay below the button with some offset
+            overlay_width = 280
+            overlay_height = 140
+            x = button_global_pos.x() - overlay_width + self._shared_settings_button.width()  # Align right edge with button
+            y = button_global_pos.y() + self._shared_settings_button.height() + 5  # Below button with gap
+            
+            # Get the screen that contains the button (not just primary screen)
+            from Qt.QtWidgets import QApplication
+            app = QApplication.instance()
+            screen = app.screenAt(button_global_pos)
+            if screen is None:
+                # Fallback to primary screen if we can't determine the current screen
+                screen = app.primaryScreen()
+            screen_geometry = screen.geometry()
+            
+            # Ensure we don't go off-screen to the left
+            if x < screen_geometry.left() + 10:
+                x = screen_geometry.left() + 10
+            
+            # Ensure we don't go off-screen to the right
+            if x + overlay_width > screen_geometry.right() - 10:
+                x = screen_geometry.right() - overlay_width - 10
+            
+            # Ensure vertical positioning is within screen bounds
+            if y + overlay_height > screen_geometry.bottom() - 10:
+                # Position above the button instead
+                y = button_global_pos.y() - overlay_height - 5
+            
+            if y < screen_geometry.top() + 10:
+                y = screen_geometry.top() + 10
+            
+            overlay.move(x, y)
