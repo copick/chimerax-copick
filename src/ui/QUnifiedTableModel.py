@@ -1,8 +1,10 @@
 from typing import Any, Literal, Union
+import os
+from pathlib import Path
 
 from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
 from Qt.QtCore import QAbstractTableModel, QModelIndex, Qt
-from Qt.QtGui import QBrush, QColor, QIcon
+from Qt.QtGui import QBrush, QColor, QIcon, QPixmap
 from Qt.QtWidgets import QApplication, QStyle
 
 from .EntityTable import EntityTableRoot, TableEntity, TablePicks, TableMesh, TableSegmentation
@@ -20,7 +22,24 @@ class QUnifiedTableModel(QAbstractTableModel):
         self._item_type = item_type
         self._root = None
         self._entities = []
+        self._eye_open_icon = None
+        self._eye_closed_icon = None
+        self._load_icons()
         self._build_model()
+
+    def _load_icons(self):
+        """Load the eye icons from the icons directory"""
+        # Get the path to the icons directory relative to this file
+        current_dir = Path(__file__).parent.parent  # Go up to src directory
+        icons_dir = current_dir / "icons"
+        
+        eye_open_path = icons_dir / "eye_open.png"
+        eye_closed_path = icons_dir / "eye_closed.png"
+        
+        if eye_open_path.exists():
+            self._eye_open_icon = QIcon(str(eye_open_path))
+        if eye_closed_path.exists():
+            self._eye_closed_icon = QIcon(str(eye_closed_path))
 
     def _build_model(self):
         """Build unified model combining both tool and user entities"""
@@ -83,11 +102,10 @@ class QUnifiedTableModel(QAbstractTableModel):
 
         elif role == Qt.DecorationRole:
             if column == 1:  # Eye icon for active state in object column
-                style = QApplication.style()
                 if entity.is_active:
-                    return style.standardIcon(QStyle.SP_DialogApplyButton)
+                    return self._eye_open_icon if self._eye_open_icon else QIcon()
                 else:
-                    return style.standardIcon(QStyle.SP_DialogCancelButton)
+                    return self._eye_closed_icon if self._eye_closed_icon else QIcon()
 
         elif role == Qt.ToolTipRole:
             if column == 0:
@@ -96,7 +114,7 @@ class QUnifiedTableModel(QAbstractTableModel):
                 else:
                     return f"User-generated entity (editable): {entity.data(0)}"
             elif column == 1:
-                status = "Active" if entity.is_active else "Inactive"
+                status = "Visible" if entity.is_active else "Hidden"
                 return f"{entity.data(1)} - {status}"
 
         return None

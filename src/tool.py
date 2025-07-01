@@ -133,6 +133,8 @@ class CopickTool(ToolInstance):
         if self.root is not None:
             self.store()
             self.close_all()
+            self.close_active_volume()
+            self._mw.clear_all_tables()
 
         self.config_file = config_file
         self.root = copick.from_file(config_file)
