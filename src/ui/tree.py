@@ -74,7 +74,7 @@ class TreeRun:
         if self._children is None:
             # Don't load children just to count them - return a placeholder count
             # This prevents eager loading while still showing expandable items
-            return 1  # Assume there might be children - will be corrected when expanded
+            return 0  # Assume there might be children - will be corrected when expanded
         return len(self._children)
 
     def childIndex(self) -> Union[int, None]:
@@ -91,11 +91,7 @@ class TreeRun:
 
     @property
     def has_children(self) -> bool:
-        # For lazy loading, assume there might be children without loading them
-        # This will be corrected when the user actually expands the item
-        if self._children is None:
-            return True  # Assume there might be children to show expansion arrow
-        return len(self._children) > 0
+        return True
 
 
 class TreeVoxelSpacing:
@@ -120,7 +116,7 @@ class TreeVoxelSpacing:
     def childCount(self) -> int:
         # For lazy loading, avoid accessing .tomograms unnecessarily
         if self._children is None:
-            return 1  # Assume there might be children - will be corrected when expanded
+            return 0  # Assume there might be children - will be corrected when expanded
         return len(self._children)
 
     def childIndex(self) -> Union[int, None]:
@@ -137,10 +133,7 @@ class TreeVoxelSpacing:
 
     @property
     def has_children(self) -> bool:
-        # For lazy loading, assume there might be children without loading them
-        if self._children is None:
-            return True  # Assume there might be children to show expansion arrow
-        return len(self._children) > 0
+        return True
 
 
 class TreeTomogram:
