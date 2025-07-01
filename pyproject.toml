@@ -55,6 +55,9 @@ synopsis = "Collaborative annotation of cryo-electron tomograms."
 category = "General"
 synopsis = "Start a copick session or load a new config file."
 
+[chimerax.command."copick new"]
+category = "General"
+synopsis = "Create a copick config file and load the session."
 
 [chimerax.package-data]
 "src/icons/" = ["*.png"]

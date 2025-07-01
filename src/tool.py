@@ -2,6 +2,7 @@
 from copy import deepcopy
 from sys import platform
 from typing import Any, Tuple
+import json
 
 # Copick
 import copick
@@ -115,6 +116,9 @@ class CopickTool(ToolInstance):
         # Colors
         self.palette_command = ""
 
+        # Config file location
+        self.config_file = None
+
     def _build_ui(self):
         tw = self.tool_window
 
@@ -130,6 +134,7 @@ class CopickTool(ToolInstance):
             self.store()
             self.close_all()
 
+        self.config_file = config_file
         self.root = copick.from_file(config_file)
         self._mw.set_root(self.root)
         self.palette_command = palette_from_root(self.root)
@@ -233,21 +238,23 @@ class CopickTool(ToolInstance):
         if not index.isValid():
             return
 
-        # Only on picks
-        item = index.internalPointer()
-        if not isinstance(item, TablePicks):
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickPicks):
             return
 
         # Store all the picks
         self.store()
 
-        if item.entity in self.picks_map:
-            particles = self.picks_map[item.entity]
+        if entity in self.picks_map:
+            particles = self.picks_map[entity]
             particles.display = not particles.display
-            self._mw.set_entity_active(item.entity, particles.display)
+            self._mw.set_entity_active(entity, particles.display)
             self.update_stepper(particles)
         else:
-            picks = item.entity
+            picks = entity
             self.show_particles_from_picks(picks)
             self._mw.set_entity_active(picks, True)
 
@@ -328,19 +335,21 @@ class CopickTool(ToolInstance):
         if not index.isValid():
             return
 
-        # Only on picks
-        item = index.internalPointer()
-        if not isinstance(item, TablePicks):
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickPicks):
             return
 
         # Only if particle list exists
-        if item.entity not in self.picks_map:
+        if entity not in self.picks_map:
             return
 
-        self.session.ArtiaX.selected_partlist = self.picks_map[item.entity].id
-        self.session.ArtiaX.options_partlist = self.picks_map[item.entity].id
+        self.session.ArtiaX.selected_partlist = self.picks_map[entity].id
+        self.session.ArtiaX.options_partlist = self.picks_map[entity].id
 
-        self.update_stepper(self.picks_map[item.entity])
+        self.update_stepper(self.picks_map[entity])
 
     def update_stepper(self, partlist: ParticleList):
         if partlist is None:
@@ -559,6 +568,203 @@ class CopickTool(ToolInstance):
         self.show_particles_from_picks(np)
         self._mw.set_entity_active(np, True)
 
+    def duplicate_particles(self, index: QModelIndex):
+        """Duplicate a selected pick entity to create a new user pick"""
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickPicks):
+            return
+
+        # Store all the picks
+        self.store()
+
+        # Get user_id from root or use default
+        user_id = self.root.user_id if self.root.user_id is not None else "ArtiaX"
+
+        # Create new pick with same object and run but different session
+        req_run = entity.run
+        object_name = entity.pickable_object_name
+        session_id = f"{entity.session_id}-copy-1"
+
+        # Create new picks
+        np = req_run.new_picks(user_id=user_id, object_name=object_name, session_id=session_id)
+        np.meta.trust_orientation = entity.trust_orientation
+        np.points = deepcopy(entity.points)
+        np.store()
+
+        # Update UI
+        self._mw.update_picks_table()
+        self.show_particles_from_picks(np)
+        self._mw.set_entity_active(np, True)
+
+    def new_particles(self, object_name: str, user_id: str, session_id: str):
+        """Create a new empty pick entity"""
+        if not self.active_volume:
+            return
+
+        # Get the current run from active volume
+        req_run = self.active_volume.copick_tomo.voxel_spacing.run
+
+        # Create new empty picks
+        np = req_run.new_picks(user_id=user_id, object_name=object_name, session_id=session_id)
+        np.points = []  # Start with empty points
+        np.store()
+
+        # Update UI
+        self._mw.update_picks_table()
+
+        # Show the particles (this will create the particle list and add it to the picks_map)
+        self.show_particles_from_picks(np)
+        self._mw.set_entity_active(np, True)
+
+        # Set mouse mode to "mark plane" (pick on plane)
+        run(self.session, "ui mousemode right 'mark plane'", log=False)
+
+    def duplicate_mesh(self, index: QModelIndex):
+        """Placeholder for mesh duplication"""
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickMesh):
+            return
+
+        # TODO: Implement mesh duplication logic
+        pass
+
+    def new_mesh(self, object_name: str, user_id: str, session_id: str):
+        """Placeholder for new mesh creation"""
+        # TODO: Implement new mesh creation logic
+        pass
+
+    def duplicate_segmentation(self, index: QModelIndex):
+        """Placeholder for segmentation duplication"""
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickSegmentation):
+            return
+
+        # TODO: Implement segmentation duplication logic
+        pass
+
+    def new_segmentation(self, object_name: str, user_id: str, session_id: str):
+        """Placeholder for new segmentation creation"""
+        # TODO: Implement new segmentation creation logic
+        pass
+
+    ######################
+    # Delete actions #
+    ######################
+    def delete_particles(self, index: QModelIndex):
+        """Delete selected picks"""
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickPicks):
+            return
+
+        try:
+            # Get the run that contains this picks entity
+            run = entity.run
+
+            # Delete using the copick API
+            run.delete_picks(
+                object_name=entity.pickable_object_name, user_id=entity.user_id, session_id=entity.session_id
+            )
+
+            # Remove from local tracking if it exists
+            if entity in self.picks_map:
+                particle_list = self.picks_map[entity]
+                particle_list.delete()
+                del self.picks_map[entity]
+
+            # Update the UI
+            self._mw.update_picks_table()
+
+        except Exception as e:
+            self.session.logger.error(f"Failed to delete picks: {e}")
+
+    def delete_mesh(self, index: QModelIndex):
+        """Delete selected mesh"""
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickMesh):
+            return
+
+        try:
+            # Get the run that contains this mesh entity
+            run = entity.run
+
+            # Delete using the copick API
+            run.delete_meshes(
+                object_name=entity.pickable_object_name, user_id=entity.user_id, session_id=entity.session_id
+            )
+
+            # Remove from local tracking if it exists
+            if entity in self.mesh_map:
+                surface = self.mesh_map[entity]
+                surface.delete()
+                del self.mesh_map[entity]
+
+            # Update the UI
+            self._mw._meshes_table.update()
+
+        except Exception as e:
+            self.session.logger.error(f"Failed to delete mesh: {e}")
+
+    def delete_segmentation(self, index: QModelIndex):
+        """Delete selected segmentation"""
+        # Only on valid indices
+        if not index.isValid():
+            return
+
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickSegmentation):
+            return
+
+        try:
+            # Get the run that contains this segmentation entity
+            run = entity.run
+
+            # Delete using the copick API
+            run.delete_segmentations(
+                user_id=entity.user_id, session_id=entity.session_id, name=entity.name, voxel_size=entity.voxel_size
+            )
+
+            # Remove from local tracking if it exists
+            if entity in self.seg_map:
+                volume = self.seg_map[entity]
+                volume.delete()
+                del self.seg_map[entity]
+
+            # Update the UI
+            self._mw._segmentations_table.update()
+
+        except Exception as e:
+            self.session.logger.error(f"Failed to delete segmentation: {e}")
+
     ########################
     # Segmentation actions #
     ########################
@@ -567,17 +773,19 @@ class CopickTool(ToolInstance):
         if not index.isValid():
             return
 
-        # Only on segmentations
-        item = index.internalPointer()
-        if not isinstance(item, TableSegmentation):
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickSegmentation):
             return
 
-        if item.entity in self.seg_map:
-            volume = self.seg_map[item.entity]
+        if entity in self.seg_map:
+            volume = self.seg_map[entity]
             volume.display = not volume.display
-            self._mw.set_entity_active(item.entity, volume.display)
+            self._mw.set_entity_active(entity, volume.display)
         else:
-            seg = item.entity
+            seg = entity
             self.show_volume_from_segmentation(seg)
             self._mw.set_entity_active(seg, True)
 
@@ -621,19 +829,21 @@ class CopickTool(ToolInstance):
         if not index.isValid():
             return
 
-        # Only on meshes
-        item = index.internalPointer()
-        if not isinstance(item, TableMesh):
+        # Get entity from unified table model
+        model = index.model()
+        entity = model.get_entity(index)
+
+        if not isinstance(entity, CopickMesh):
             return
 
         print(self.mesh_map)
-        print(item.entity)
-        if item.entity in self.mesh_map:
-            surf = self.mesh_map[item.entity]
+        print(entity)
+        if entity in self.mesh_map:
+            surf = self.mesh_map[entity]
             surf.display = not surf.display
-            self._mw.set_entity_active(item.entity, surf.display)
+            self._mw.set_entity_active(entity, surf.display)
         else:
-            mesh = item.entity
+            mesh = entity
             self.show_surf_from_mesh(mesh)
             self._mw.set_entity_active(mesh, True)
 
@@ -730,3 +940,163 @@ class CopickTool(ToolInstance):
                 f"Editable: {editable}' bold true xpos 0.05 ypos 0.02 size 14",
                 log=False,
             )
+
+    def edit_object_types(self):
+        """Show dialog to edit and manage PickableObject types in the configuration"""
+        if self.root is None:
+            from Qt.QtWidgets import QMessageBox
+
+            QMessageBox.warning(
+                self.tool_window.ui_area,
+                "No Configuration",
+                "No copick configuration loaded. Please start copick with a config file first.",
+            )
+            return
+
+        from .ui.EditObjectTypesDialog import EditObjectTypesDialog
+
+        dialog = EditObjectTypesDialog(parent=self.tool_window.ui_area, existing_objects=self.root.config.pickable_objects)
+
+        if dialog.exec_() == dialog.Accepted:
+            try:
+                # Check if there are any changes
+                if dialog.has_changes():
+                    # Get the updated objects list
+                    updated_objects = dialog.get_objects()
+
+                    # Replace the config objects
+                    self.root.config.pickable_objects = updated_objects
+
+                    # Save the updated config
+                    self._save_config()
+
+                    # Reinitialize the UI
+                    self._reinitialize_ui()
+
+                    self.session.logger.info("Object types configuration updated successfully")
+                else:
+                    self.session.logger.info("No changes made to object types")
+
+            except Exception as e:
+                from Qt.QtWidgets import QMessageBox
+
+                QMessageBox.critical(
+                    self.tool_window.ui_area, "Error Updating Object Types", f"Failed to update object types: {str(e)}"
+                )
+                self.session.logger.error(f"Error updating object types: {e}")
+
+    def add_object_type(self):
+        """Legacy method - redirects to edit_object_types for backwards compatibility"""
+        self.edit_object_types()
+
+    def reload_session(self):
+        """Reload the current copick session from the config file"""
+        if self.root is None or self.config_file is None:
+            from Qt.QtWidgets import QMessageBox
+
+            QMessageBox.warning(
+                self.tool_window.ui_area,
+                "No Configuration",
+                "No copick configuration loaded. Please start copick with a config file first.",
+            )
+            return
+
+        try:
+            # Store current state before reloading
+            self.store()
+
+            # Reload from config file
+            self.from_config_file(self.config_file)
+
+            self.session.logger.info(f"Successfully reloaded copick project from {self.config_file}")
+
+        except Exception as e:
+            from Qt.QtWidgets import QMessageBox
+
+            QMessageBox.critical(self.tool_window.ui_area, "Error Reloading", f"Failed to reload session: {str(e)}")
+            self.session.logger.error(f"Error reloading session: {e}")
+
+    def _save_config(self):
+        """Save the current config to disk"""
+        if self.root is None or self.config_file is None:
+            from Qt.QtWidgets import QMessageBox
+
+            QMessageBox.warning(
+                self.tool_window.ui_area,
+                "No Configuration",
+                "No copick configuration loaded. Please start copick with a config file first.",
+            )
+            return
+
+        try:
+            # Store current state before reloading
+            self.store()
+
+            with open(self.config_file, "w") as f:
+                json.dump(self.root.config.model_dump(), f, indent=4)
+
+            self.session.logger.info(f"Configuration saved to {self.config_file}")
+
+        except Exception as e:
+            self.session.logger.error(f"Failed to save config: {e}")
+            raise
+
+    def _reinitialize_ui(self):
+        """Reinitialize the UI components after config changes"""
+        try:
+            # Store current state before reinitializing
+            self.store()
+
+            # Store information about current active volume before closing
+            current_run_name = None
+            current_voxel_size = None
+            current_tomo_type = None
+            if self.active_volume and hasattr(self.active_volume, "copick_tomo"):
+                tomo = self.active_volume.copick_tomo
+                if tomo and tomo.voxel_spacing and tomo.voxel_spacing.run:
+                    current_run_name = tomo.voxel_spacing.run.name
+                    current_voxel_size = tomo.voxel_spacing.voxel_size
+                    current_tomo_type = tomo.tomo_type
+
+            # Close all current objects (tables, tomogram, etc.)
+            self.close_all()
+
+            # Close the active volume/tomogram
+            self.close_active_volume()
+
+            # Reload config from file to get fresh root with updated pickable objects
+            self.root = copick.from_file(self.config_file)
+
+            # Update the main widget with the new root
+            self._mw.set_root(self.root)
+
+            # Update palette command
+            self.palette_command = palette_from_root(self.root)
+
+            # If we had an active volume, find the corresponding run in the new root
+            # and update table views so dialogs get the updated pickable objects
+            if current_run_name:
+                updated_run = self.root.get_run(current_run_name)
+
+                if updated_run:
+                    # Update all table views with the refreshed run data
+                    self._mw._picks_table.set_view(updated_run)
+                    self._mw._meshes_table.set_view(updated_run)
+                    self._mw._segmentations_table.set_view(updated_run)
+
+                    # Reload the previously active tomogram if we have the necessary info
+                    if current_voxel_size is not None and current_tomo_type is not None:
+                        vs = updated_run.get_voxel_spacing(current_voxel_size)
+
+                        if vs is None:
+                            return
+
+                        updated_tomo = vs.get_tomogram(current_tomo_type)
+
+                        if updated_tomo:
+                            # Load the tomogram (this will also set it as active)
+                            self.load_tomo(updated_tomo)
+
+        except Exception as e:
+            self.session.logger.error(f"Failed to reinitialize UI: {e}")
+            raise
