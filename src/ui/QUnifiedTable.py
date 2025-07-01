@@ -21,16 +21,16 @@ from .validation import generate_smart_copy_name
 
 class TableFilterProxyModel(QSortFilterProxyModel):
     """Custom proxy model for table search across user, object, and session columns"""
-    
+
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         """Override to search across user, object, and session columns"""
         if not self.filterRegularExpression().pattern():
             return True
-        
+
         source_model = self.sourceModel()
         if not source_model:
             return False
-        
+
         # Check all three columns (User/Tool, Object, Session)
         for column in range(3):
             index = source_model.index(source_row, column, source_parent)
@@ -38,17 +38,17 @@ class TableFilterProxyModel(QSortFilterProxyModel):
                 data = source_model.data(index, Qt.ItemDataRole.DisplayRole)
                 if data and self.filterRegularExpression().match(str(data)).hasMatch():
                     return True
-        
+
         return False
 
 
 class QUnifiedTable(QWidget):
     """Unified table widget replacing QDoubleTable with single table and new buttons"""
-    
+
     # Signals for button actions
     duplicateClicked = Signal(QModelIndex)
     newClicked = Signal(str, str, str)  # object_name, user_id, session_id
-    
+
     def __init__(
         self,
         item_type: Union[Literal["picks"], Literal["meshes"], Literal["segmentations"]],
@@ -62,34 +62,36 @@ class QUnifiedTable(QWidget):
         self._duplicate_mode = "ask"  # Default duplicate behavior
         self._setup_ui()
         self._connect_signals()
-        
+
     def _setup_ui(self):
         """Setup the UI components"""
         # Main layout
         layout = QVBoxLayout()
-        
+
         # Create container for table with overlay search
         table_container = QWidget()
         table_container_layout = QVBoxLayout()
         table_container_layout.setContentsMargins(0, 0, 0, 0)
         table_container_layout.setSpacing(0)
-        
+
         # Table view
         self._table = QTableView()
         self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self._table.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding))
-        
+
         # Create overlay search widget (floating at bottom-left)
         self._search_overlay = QWidget(self._table)
-        self._search_overlay.setStyleSheet("""
+        self._search_overlay.setStyleSheet(
+            """
             QWidget {
                 background-color: rgba(45, 45, 45, 200);
                 border: 1px solid rgba(100, 100, 100, 180);
                 border-radius: 6px;
             }
-        """)
-        
+        """
+        )
+
         # Search overlay layout
         overlay_layout = QHBoxLayout()
         overlay_layout.setContentsMargins(6, 4, 6, 4)
@@ -99,7 +101,8 @@ class QUnifiedTable(QWidget):
         self._search_input = QLineEdit()
         self._search_input.setPlaceholderText(f"Search {self.item_type}...")
         self._search_input.setMaximumHeight(24)
-        self._search_input.setStyleSheet("""
+        self._search_input.setStyleSheet(
+            """
             QLineEdit {
                 background-color: rgba(255, 255, 255, 240);
                 border: 1px solid rgba(120, 120, 120, 180);
@@ -112,13 +115,15 @@ class QUnifiedTable(QWidget):
                 border: 2px solid rgba(70, 130, 200, 200);
                 background-color: rgba(255, 255, 255, 255);
             }
-        """)
+        """
+        )
 
         # Clear/Close button
         self._clear_button = QPushButton("✕")
         self._clear_button.setMaximumSize(22, 22)
         self._clear_button.setToolTip("Clear search and close")
-        self._clear_button.setStyleSheet("""
+        self._clear_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(200, 200, 200, 180);
                 border: none;
@@ -131,7 +136,8 @@ class QUnifiedTable(QWidget):
                 background-color: rgba(220, 220, 220, 200);
                 color: #333;
             }
-        """)
+        """
+        )
 
         overlay_layout.addWidget(self._search_input)
         overlay_layout.addWidget(self._clear_button)
@@ -143,7 +149,8 @@ class QUnifiedTable(QWidget):
         self._search_toggle.setParent(self._table)
         self._search_toggle.setMaximumSize(30, 30)
         self._search_toggle.setToolTip(f"Search {self.item_type}")
-        self._search_toggle.setStyleSheet("""
+        self._search_toggle.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(240, 240, 240, 200);
                 border: 1px solid #ccc;
@@ -153,126 +160,127 @@ class QUnifiedTable(QWidget):
             QPushButton:hover {
                 background-color: rgba(220, 220, 220, 220);
             }
-        """)
+        """
+        )
         self._search_toggle.hide()
-        
+
         # Install event filter for hover behavior
         self._table.installEventFilter(self)
         self._table.setMouseTracking(True)
-        
+
         # Add table to container
         table_container_layout.addWidget(self._table)
         table_container.setLayout(table_container_layout)
-        
+
         # Button layout - center aligned with tight spacing
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 2, 0, 2)  # Minimal margins
         button_layout.setSpacing(8)  # Tight spacing between buttons
-        
+
         # Duplicate button
         self._duplicate_button = QPushButton("Duplicate")
         self._duplicate_button.setToolTip("Duplicate the selected entity")
         self._duplicate_button.setEnabled(False)  # Disabled until selection
-        
-        # New button  
+
+        # New button
         self._new_button = QPushButton("New")
         self._new_button.setToolTip("Create a new entity")
-        
+
         # Center the buttons
         button_layout.addStretch()  # Left stretch
         button_layout.addWidget(self._duplicate_button)
         button_layout.addWidget(self._new_button)
-        
+
         # Settings button for duplicate behavior
         self._settings_button = QPushButton("⚙")
         self._settings_button.setToolTip("Duplicate settings")
         button_layout.addWidget(self._settings_button)
         button_layout.addStretch()  # Right stretch
-        
+
         # Create settings overlay (hidden initially) - use None as parent so it's a top-level window
         self._settings_overlay = DuplicateSettingsOverlay(None)
         self._settings_overlay.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self._settings_overlay.hide()
-        
+
         # Add to main layout with tight spacing
         layout.setContentsMargins(0, 0, 0, 0)  # Remove default margins
         layout.setSpacing(2)  # Minimal spacing between table and buttons
         layout.addWidget(table_container)
         layout.addLayout(button_layout)
-        
+
         self.setLayout(layout)
-        
+
     def _connect_signals(self):
         """Connect widget signals"""
         self._duplicate_button.clicked.connect(self._on_duplicate_clicked)
         self._new_button.clicked.connect(self._on_new_clicked)
-        
+
         # Search functionality
         self._search_toggle.clicked.connect(self._toggle_search)
         self._search_input.textChanged.connect(self._filter_table)
         self._clear_button.clicked.connect(self._clear_and_close_search)
-        
+
         # Settings functionality
         self._settings_button.clicked.connect(self._toggle_settings)
         self._settings_overlay.settingsChanged.connect(self._on_settings_changed)
-        
+
         # Note: selection model connection will be done in set_view() when model is set
-        
+
     def set_view(self, run: CopickRun):
         """Set the run data and update the table model"""
         self._run = run
         self._source_model = QUnifiedTableModel(run, self.item_type)
-        
+
         # Set up filter proxy model for search functionality
         self._filter_model = TableFilterProxyModel()
         self._filter_model.setSourceModel(self._source_model)
         self._filter_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self._filter_model.setFilterRole(Qt.DisplayRole)
-        
+
         self._table.setModel(self._filter_model)
-        
+
         # Connect selection model after model is set
         self._table.selectionModel().selectionChanged.connect(self._on_selection_changed)
-        
+
         # Resize columns to content
         self._table.resizeColumnsToContents()
-        
+
     def set_entity_active(self, entity: Union[CopickMesh, CopickPicks, CopickSegmentation], active: bool):
         """Update the active state of an entity"""
         if self._source_model:
             self._source_model.set_entity_active(entity, active)
-            
+
     def update(self):
         """Refresh the table data"""
         if self._source_model:
             self._source_model.update_all()
             self._table.resizeColumnsToContents()
-            
+
     def _on_selection_changed(self, selected, deselected):
         """Handle table selection changes"""
         has_selection = len(self._table.selectionModel().selectedRows()) > 0
         self._duplicate_button.setEnabled(has_selection)
-        
+
     def _on_duplicate_clicked(self):
         """Handle duplicate button click with settings-based behavior"""
         selected_rows = self._table.selectionModel().selectedRows()
         if not selected_rows:
             return
-            
+
         proxy_index = selected_rows[0]
         # Map proxy index to source index
         if self._filter_model:
             source_index = self._filter_model.mapToSource(proxy_index)
         else:
             source_index = proxy_index
-            
+
         # Get the entity to determine current session ID
         entity = self._source_model.get_entity(source_index) if self._source_model else None
         if not entity:
             return
-            
-        original_session_id = getattr(entity, 'session_id', 'session')
-        
+
+        original_session_id = getattr(entity, "session_id", "session")
+
         if self._duplicate_mode == "ask":
             # Show dialog for session ID input
             suggested_name = f"{original_session_id}-copy1"
@@ -280,29 +288,29 @@ class QUnifiedTable(QWidget):
             if dialog.exec_() == DuplicateDialog.Accepted:
                 new_session_id = dialog.get_session_id()
                 self._emit_duplicate_with_session_id(source_index, new_session_id)
-                
+
         elif self._duplicate_mode == "auto_increment":
             # Generate smart auto-increment name
             existing_names = self._get_existing_session_ids()
             new_session_id = generate_smart_copy_name(original_session_id, existing_names)
             self._emit_duplicate_with_session_id(source_index, new_session_id)
-            
+
         elif self._duplicate_mode == "simple_copy":
             # Simple -copy suffix
             new_session_id = f"{original_session_id}-copy"
             self._emit_duplicate_with_session_id(source_index, new_session_id)
-            
+
     def _emit_duplicate_with_session_id(self, source_index, session_id):
         """Emit duplicate signal with custom session ID"""
         # For now, emit the original signal - this will need to be enhanced
         # to pass the custom session ID to the handler
         self.duplicateClicked.emit(source_index)
-        
+
     def _get_existing_session_ids(self) -> list:
         """Get list of existing session IDs for smart naming"""
         if not self._source_model:
             return []
-            
+
         session_ids = []
         for row in range(self._source_model.rowCount()):
             index = self._source_model.index(row, 2)  # Session ID column
@@ -310,19 +318,19 @@ class QUnifiedTable(QWidget):
             if session_id:
                 session_ids.append(str(session_id))
         return session_ids
-            
+
     def _on_new_clicked(self):
         """Handle new button click - show dialog for new entity creation"""
         if not self._run:
             return
-            
+
         # Show dialog based on item type
         if self.item_type == "picks":
             # Get preset user ID from root if available
             preset_user_id = None
             if self._run.root and self._run.root.user_id:
                 preset_user_id = self._run.root.user_id
-                
+
             dialog = NewPickDialog(self._run, self, preset_user_id)
             if dialog.exec_() == NewPickDialog.Accepted:
                 selection = dialog.get_selection()
@@ -333,7 +341,7 @@ class QUnifiedTable(QWidget):
             # For meshes and segmentations, we could implement similar dialogs
             # For now, emit with default values
             self.newClicked.emit("", "", "")
-            
+
     def get_selected_entity(self) -> Union[CopickMesh, CopickPicks, CopickSegmentation, None]:
         """Get the currently selected entity"""
         selected_rows = self._table.selectionModel().selectedRows()
@@ -346,15 +354,15 @@ class QUnifiedTable(QWidget):
             else:
                 return self._source_model.get_entity(proxy_index)
         return None
-        
+
     def get_table_view(self) -> QTableView:
         """Get the underlying table view for direct access if needed"""
         return self._table
-    
+
     def _toggle_search(self):
         """Toggle the visibility of the search overlay"""
         is_visible = self._search_overlay.isVisible()
-        
+
         if not is_visible:
             # Position and show overlay
             self._position_search_overlay()
@@ -364,34 +372,34 @@ class QUnifiedTable(QWidget):
             # Hide overlay and clear search
             self._search_overlay.hide()
             self._clear_search()
-    
+
     def _position_search_overlay(self):
         """Position the search overlay at the bottom-left of the table view"""
-        if hasattr(self, '_search_overlay') and hasattr(self, '_table'):
+        if hasattr(self, "_search_overlay") and hasattr(self, "_table"):
             table_height = self._table.height()
             table_width = self._table.width()
             overlay_width = min(240, table_width - 60)  # Leave space for search toggle button
             overlay_height = 32  # Fixed height for search overlay
-            
+
             # Position at bottom-left with some margin
             x = 10
             y = table_height - overlay_height - 15
-            
+
             self._search_overlay.setGeometry(x, y, overlay_width, overlay_height)
-    
+
     def _position_search_toggle(self):
         """Position the search toggle button at bottom-right corner"""
-        if hasattr(self, '_search_toggle') and hasattr(self, '_table'):
+        if hasattr(self, "_search_toggle") and hasattr(self, "_table"):
             table_width = self._table.width()
             table_height = self._table.height()
             button_size = 30
-            
+
             # Position at bottom-right corner with margin
             x = table_width - button_size - 10
             y = table_height - button_size - 15
-            
+
             self._search_toggle.setGeometry(x, y, button_size, button_size)
-    
+
     def eventFilter(self, obj, event):
         """Handle resize events to reposition floating elements and mouse hover events"""
         if obj == self._table:
@@ -409,11 +417,11 @@ class QUnifiedTable(QWidget):
                 if not self._search_overlay.isVisible():
                     self._search_toggle.hide()
         return super().eventFilter(obj, event)
-    
+
     def resizeEvent(self, event):
         """Handle resize events to reposition overlays"""
         super().resizeEvent(event)
-        if hasattr(self, '_settings_overlay') and self._settings_overlay.isVisible():
+        if hasattr(self, "_settings_overlay") and self._settings_overlay.isVisible():
             self._position_settings_overlay()
 
     def _filter_table(self, text: str):
@@ -426,12 +434,12 @@ class QUnifiedTable(QWidget):
         self._search_input.clear()
         if self._filter_model:
             self._filter_model.setFilterFixedString("")
-    
+
     def _clear_and_close_search(self):
         """Clear the search input, reset the filter, and close the overlay"""
         self._clear_search()
         self._search_overlay.hide()
-        
+
     def _toggle_settings(self):
         """Toggle the visibility of the settings overlay"""
         if self._settings_overlay.isVisible():
@@ -441,58 +449,53 @@ class QUnifiedTable(QWidget):
             self._settings_overlay.show()
             self._settings_overlay.raise_()
             self._settings_overlay.activateWindow()
-            
+
     def _position_settings_overlay(self):
         """Position the settings overlay to the right of the settings button in global coordinates"""
-        if hasattr(self, '_settings_overlay') and hasattr(self, '_settings_button'):
+        if hasattr(self, "_settings_overlay") and hasattr(self, "_settings_button"):
             # Get button position in global coordinates
             button_global_pos = self._settings_button.mapToGlobal(self._settings_button.rect().topRight())
-            
+
             # Position overlay to the right of the button, outside the widget
             x = button_global_pos.x() + 10  # Gap from button
             y = button_global_pos.y()
-            
+
             # Get screen geometry to ensure we stay on screen
             from Qt.QtWidgets import QApplication
+
             screen = QApplication.primaryScreen().geometry()
             overlay_width = 280
             overlay_height = 140
-            
-            print(f"Debug: Button global pos: {button_global_pos}, Screen width: {screen.width()}, Overlay will be at x={x}, overlay_width={overlay_width}")
-            
+
             # Only position to the left if there's truly not enough space on the right
             if x + overlay_width > screen.width() - 20:  # 20px margin from screen edge
                 # Position to the left of the button
                 button_left_pos = self._settings_button.mapToGlobal(self._settings_button.rect().topLeft())
                 x = button_left_pos.x() - overlay_width - 10
-                print(f"Debug: Not enough space on right, positioning to left at x={x}")
-            else:
-                print(f"Debug: Enough space on right, keeping position at x={x}")
-                
+
             # Ensure we don't go off-screen to the left
             if x < screen.left() + 10:
                 x = screen.left() + 10
-                
+
             # Ensure vertical positioning is within screen bounds
             if y + overlay_height > screen.bottom() - 10:
                 y = screen.bottom() - overlay_height - 10
             if y < screen.top() + 10:
                 y = screen.top() + 10
-                
-            print(f"Debug: Final position: ({x}, {y})")
+
             self._settings_overlay.move(x, y)
-            
+
     def _on_settings_changed(self, mode: str):
         """Handle settings change"""
         self._duplicate_mode = mode
         # Update settings button tooltip to show current mode
         mode_desc = self._settings_overlay.get_mode_description(mode)
         self._settings_button.setToolTip(f"Duplicate settings\nCurrent: {mode_desc}")
-        
+
     def get_duplicate_mode(self) -> str:
         """Get current duplicate mode"""
         return self._duplicate_mode
-        
+
     def set_duplicate_mode(self, mode: str):
         """Set duplicate mode"""
         self._duplicate_mode = mode

@@ -32,6 +32,7 @@ class NewPickDialog(BaseEntityDialog):
     def _populate_initial_data(self):
         """Populate initial data specific to NewPickDialog"""
         self._populate_objects()
+        self._generate_session_id()
     
     def _populate_objects(self):
         """Populate the object combobox with available pickable objects"""
@@ -47,6 +48,28 @@ class NewPickDialog(BaseEntityDialog):
             # Add object with its color
             color = obj.color if obj.color else (128, 128, 128, 255)  # Default gray
             self._object_combo.addColoredItem(obj.name, color)
+    
+    def _generate_session_id(self):
+        """Generate an auto-incremented session ID in the format 'manual-X'"""
+        if not self._run:
+            # Fallback if no run available
+            self._session_edit.setText("manual-1")
+            return
+            
+        # Get all existing session IDs from all picks in this run
+        existing_session_ids = set()
+        for picks in self._run.picks:
+            if picks.session_id:
+                existing_session_ids.add(picks.session_id.lower())
+        
+        # Find the next available manual-X number
+        counter = 1
+        while True:
+            candidate = f"manual-{counter}"
+            if candidate not in existing_session_ids:
+                self._session_edit.setText(candidate)
+                break
+            counter += 1
     
     def get_selection(self) -> Optional[Tuple[str, str, str]]:
         """Get the selected values from the dialog

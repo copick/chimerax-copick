@@ -23,47 +23,47 @@ from ..ui.tree import TreeRoot, TreeRun, TreeVoxelSpacing, TreeTomogram
 
 class FilterProxyModel(QSortFilterProxyModel):
     """Custom proxy model that filters only run names, not their children"""
-    
+
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         """Override to only filter run names, always show children of matching runs"""
         if not self.filterRegularExpression().pattern():
             # No filter applied - accept everything
             return True
-        
+
         source_model = self.sourceModel()
         if not source_model:
             return False
-        
+
         # Get the item for this row
         source_index = source_model.index(source_row, 0, source_parent)
         if not source_index.isValid():
             return False
-        
+
         item = source_index.internalPointer()
-        
+
         # Always accept root
         if isinstance(item, TreeRoot):
             return True
-        
+
         # For runs (top level), apply the filter to their name
         if isinstance(item, TreeRun):
             item_text = source_model.data(source_index, Qt.ItemDataRole.DisplayRole)
             if item_text:
                 return self.filterRegularExpression().match(item_text).hasMatch()
             return False
-        
+
         # For children of runs (TreeVoxelSpacing, TreeTomogram), check if their ancestor run matches
         if isinstance(item, (TreeVoxelSpacing, TreeTomogram)):
             # Find the TreeRun ancestor
             current_item = item
             while current_item and not isinstance(current_item, TreeRun):
                 current_item = current_item.parent
-            
+
             if isinstance(current_item, TreeRun):
                 # Check if the ancestor run matches the filter
                 run_name = current_item.run.name
                 return self.filterRegularExpression().match(run_name).hasMatch()
-        
+
         return False
 
 
@@ -88,6 +88,9 @@ class MainWidget(QWidget):
         self._layout.setContentsMargins(2, 2, 2, 2)  # Minimal margins
         self._layout.setSpacing(2)  # Tight spacing
         self.setLayout(self._layout)
+
+        # Create top button bar
+        self._create_top_buttons()
 
         # Create main splitter (vertical - tables on top, tree on bottom)
         self._main_splitter = QSplitter(Qt.Orientation.Vertical)
@@ -169,14 +172,16 @@ class MainWidget(QWidget):
 
         # Create overlay search widget (floating at bottom-left)
         self._search_overlay = QWidget(self._tree_view)
-        self._search_overlay.setStyleSheet("""
+        self._search_overlay.setStyleSheet(
+            """
             QWidget {
                 background-color: rgba(45, 45, 45, 200);
                 border: 1px solid rgba(100, 100, 100, 180);
                 border-radius: 6px;
             }
-        """)
-        
+        """
+        )
+
         # Search overlay layout
         overlay_layout = QHBoxLayout()
         overlay_layout.setContentsMargins(6, 4, 6, 4)
@@ -186,7 +191,8 @@ class MainWidget(QWidget):
         self._search_input = QLineEdit()
         self._search_input.setPlaceholderText("Search runs...")
         self._search_input.setMaximumHeight(24)
-        self._search_input.setStyleSheet("""
+        self._search_input.setStyleSheet(
+            """
             QLineEdit {
                 background-color: rgba(255, 255, 255, 240);
                 border: 1px solid rgba(120, 120, 120, 180);
@@ -199,13 +205,15 @@ class MainWidget(QWidget):
                 border: 2px solid rgba(70, 130, 200, 200);
                 background-color: rgba(255, 255, 255, 255);
             }
-        """)
+        """
+        )
 
         # Clear/Close button (does both clear and close)
         self._clear_button = QPushButton("✕")
         self._clear_button.setMaximumSize(22, 22)
         self._clear_button.setToolTip("Clear search and close")
-        self._clear_button.setStyleSheet("""
+        self._clear_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(200, 200, 200, 180);
                 border: none;
@@ -218,7 +226,8 @@ class MainWidget(QWidget):
                 background-color: rgba(220, 220, 220, 200);
                 color: #333;
             }
-        """)
+        """
+        )
 
         overlay_layout.addWidget(self._search_input)
         overlay_layout.addWidget(self._clear_button)
@@ -232,7 +241,8 @@ class MainWidget(QWidget):
         self._search_toggle.setParent(self._tree_view)
         self._search_toggle.setMaximumSize(30, 30)
         self._search_toggle.setToolTip("Search runs")
-        self._search_toggle.setStyleSheet("""
+        self._search_toggle.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(240, 240, 240, 200);
                 border: 1px solid #ccc;
@@ -242,20 +252,49 @@ class MainWidget(QWidget):
             QPushButton:hover {
                 background-color: rgba(220, 220, 220, 220);
             }
-        """)
+        """
+        )
         # Hide search toggle initially - only show on tree hover
         self._search_toggle.hide()
 
         # Add only tree view to main layout
         layout.addWidget(self._tree_view)
         container.setLayout(layout)
-        
+
         # Install event filter to handle resizing and mouse events
         self._tree_view.installEventFilter(self)
         # Set mouse tracking to detect enter/leave events
         self._tree_view.setMouseTracking(True)
-        
+
         return container
+
+    def _create_top_buttons(self):
+        """Create the top button bar with Add Object Type and Reload buttons"""
+        button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(5)
+
+        # Add Object Type button
+        self._add_object_button = QPushButton("🌟 Add Object Type")
+        self._add_object_button.setToolTip("Add a new pickable object type to the configuration")
+
+        # Reload button
+        self._reload_button = QPushButton("🔄 Reload")
+        self._reload_button.setToolTip("Reload the current copick session")
+
+        # Add buttons to layout with center alignment
+        button_layout.addStretch()  # Left stretch
+        button_layout.addWidget(self._add_object_button)
+        button_layout.addWidget(self._reload_button)
+        button_layout.addStretch()  # Right stretch
+
+        # Create container widget
+        button_widget = QWidget()
+        button_widget.setLayout(button_layout)
+        button_widget.setMaximumHeight(35)
+
+        # Add to main layout
+        self._layout.addWidget(button_widget)
 
     def set_root(self, root: CopickRootFSSpec):
         self._model = QCoPickTreeModel(root)
@@ -270,6 +309,10 @@ class MainWidget(QWidget):
         self._tree_view.setModel(self._filter_model)
 
     def _connect(self):
+        # Top button actions
+        self._add_object_button.clicked.connect(self._on_add_object_type)
+        self._reload_button.clicked.connect(self._on_reload)
+
         # Tree actions
         self._tree_view.doubleClicked.connect(self._on_tree_double_click)
 
@@ -316,7 +359,7 @@ class MainWidget(QWidget):
     def _toggle_search(self):
         """Toggle the visibility of the search overlay"""
         is_visible = self._search_overlay.isVisible()
-        
+
         if not is_visible:
             # Position and show overlay
             self._position_search_overlay()
@@ -326,34 +369,34 @@ class MainWidget(QWidget):
             # Hide overlay and clear search
             self._search_overlay.hide()
             self._clear_search()
-    
+
     def _position_search_overlay(self):
         """Position the search overlay at the bottom-left of the tree view"""
-        if hasattr(self, '_search_overlay') and hasattr(self, '_tree_view'):
+        if hasattr(self, "_search_overlay") and hasattr(self, "_tree_view"):
             tree_height = self._tree_view.height()
             tree_width = self._tree_view.width()
             overlay_width = min(240, tree_width - 60)  # Leave space for search toggle button
             overlay_height = 32  # Fixed height for search overlay
-            
+
             # Position at bottom-left with some margin
             x = 10
             y = tree_height - overlay_height - 15
-            
+
             self._search_overlay.setGeometry(x, y, overlay_width, overlay_height)
-    
+
     def _position_search_toggle(self):
         """Position the search toggle button at bottom-right corner"""
-        if hasattr(self, '_search_toggle') and hasattr(self, '_tree_view'):
+        if hasattr(self, "_search_toggle") and hasattr(self, "_tree_view"):
             tree_width = self._tree_view.width()
             tree_height = self._tree_view.height()
             button_size = 30
-            
+
             # Position at bottom-right corner with margin
             x = tree_width - button_size - 10
             y = tree_height - button_size - 15
-            
+
             self._search_toggle.setGeometry(x, y, button_size, button_size)
-    
+
     def eventFilter(self, obj, event):
         """Handle resize events to reposition floating elements and mouse hover events"""
         if obj == self._tree_view:
@@ -421,56 +464,64 @@ class MainWidget(QWidget):
         if hasattr(self, "_filter_model"):
             self._filter_model.setFilterFixedString("")
             self._tree_view.collapseAll()
-    
+
     def _clear_and_close_search(self):
         """Clear the search input, reset the filter, and close the overlay"""
         self._clear_search()
         self._search_overlay.hide()
-    
+
     def _on_picks_double_click(self, proxy_index: QModelIndex):
         """Handle double-click on picks table by mapping proxy index to source index"""
         if not proxy_index.isValid():
             return
-        
+
         # Map proxy index to source index
-        if hasattr(self._picks_table, '_filter_model') and self._picks_table._filter_model:
+        if hasattr(self._picks_table, "_filter_model") and self._picks_table._filter_model:
             source_index = self._picks_table._filter_model.mapToSource(proxy_index)
             self._copick.show_particles(source_index)
         else:
             self._copick.show_particles(proxy_index)
-    
+
     def _on_picks_click(self, proxy_index: QModelIndex):
         """Handle click on picks table by mapping proxy index to source index"""
         if not proxy_index.isValid():
             return
-        
+
         # Map proxy index to source index
-        if hasattr(self._picks_table, '_filter_model') and self._picks_table._filter_model:
+        if hasattr(self._picks_table, "_filter_model") and self._picks_table._filter_model:
             source_index = self._picks_table._filter_model.mapToSource(proxy_index)
             self._copick.activate_particles(source_index)
         else:
             self._copick.activate_particles(proxy_index)
-    
+
     def _on_meshes_double_click(self, proxy_index: QModelIndex):
         """Handle double-click on meshes table by mapping proxy index to source index"""
         if not proxy_index.isValid():
             return
-        
+
         # Map proxy index to source index
-        if hasattr(self._meshes_table, '_filter_model') and self._meshes_table._filter_model:
+        if hasattr(self._meshes_table, "_filter_model") and self._meshes_table._filter_model:
             source_index = self._meshes_table._filter_model.mapToSource(proxy_index)
             self._copick.show_mesh(source_index)
         else:
             self._copick.show_mesh(proxy_index)
-    
+
     def _on_segmentations_double_click(self, proxy_index: QModelIndex):
         """Handle double-click on segmentations table by mapping proxy index to source index"""
         if not proxy_index.isValid():
             return
-        
+
         # Map proxy index to source index
-        if hasattr(self._segmentations_table, '_filter_model') and self._segmentations_table._filter_model:
+        if hasattr(self._segmentations_table, "_filter_model") and self._segmentations_table._filter_model:
             source_index = self._segmentations_table._filter_model.mapToSource(proxy_index)
             self._copick.show_segmentation(source_index)
         else:
             self._copick.show_segmentation(proxy_index)
+
+    def _on_add_object_type(self):
+        """Handle Add Object Type button click"""
+        self._copick.add_object_type()
+
+    def _on_reload(self):
+        """Handle Reload button click"""
+        self._copick.reload_session()
