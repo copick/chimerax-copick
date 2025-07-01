@@ -277,9 +277,27 @@ class QUnifiedTable(QWidget):
 
     def _on_selection_changed(self, selected, deselected):
         """Handle table selection changes"""
-        has_selection = len(self._table.selectionModel().selectedRows()) > 0
+        selected_rows = self._table.selectionModel().selectedRows()
+        has_selection = len(selected_rows) > 0
+        
+        # Enable duplicate button if there's any selection
         self._duplicate_button.setEnabled(has_selection)
-        self._delete_button.setEnabled(has_selection)
+        
+        # Enable delete button only if selection exists AND entity is not read-only
+        can_delete = False
+        if has_selection and self._source_model:
+            proxy_index = selected_rows[0]
+            # Map proxy index to source index if using filter model
+            if self._filter_model:
+                source_index = self._filter_model.mapToSource(proxy_index)
+            else:
+                source_index = proxy_index
+                
+            entity = self._source_model.get_entity(source_index)
+            if entity and not getattr(entity, 'from_tool', False):
+                can_delete = True
+        
+        self._delete_button.setEnabled(can_delete)
 
     def _on_duplicate_clicked(self):
         """Handle duplicate button click with settings-based behavior"""
