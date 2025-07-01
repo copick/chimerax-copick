@@ -3,8 +3,7 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 
 [project]
 name = "ChimeraX-copick"
-version = "0.6.0"
-dynamic = ["classifiers", "requires-python"]
+dynamic = ["version", "classifiers", "requires-python"]
 dependencies = [
     "ChimeraX-Core>=1.7",
     "ChimeraX-ArtiaX>=0.5.0",
@@ -21,6 +20,9 @@ description = "ChimeraX extension for collaborative annotation of cryo-electron 
 readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["cryoet", "cryo-et", "tomography", "annotation", "segmentation", "collaborative", "copick"]
+
+[tool.setuptools.dynamic]
+version = {attr = "chimerax.copick.__version__"}
 
 [project.urls]
 Repository = "https://github.com/copick/chimerax-copick.git"
