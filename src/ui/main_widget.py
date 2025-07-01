@@ -83,9 +83,10 @@ class MainWidget(QWidget):
         self._connect()
 
     def _build(self):
-        # Top level layout
+        # Top level layout with tight spacing
         self._layout = QVBoxLayout()
-        self._layout.setContentsMargins(5, 5, 5, 5)
+        self._layout.setContentsMargins(2, 2, 2, 2)  # Minimal margins
+        self._layout.setSpacing(2)  # Tight spacing
         self.setLayout(self._layout)
 
         # Create main splitter (vertical - tables on top, tree on bottom)
@@ -95,28 +96,31 @@ class MainWidget(QWidget):
         tables_widget = QWidget()
         tables_widget.setMinimumHeight(200)  # Minimum height for tables
 
-        # Picks widget with improved layout
+        # Picks widget with tight layout
         picks_layout = QVBoxLayout()
-        picks_layout.setContentsMargins(2, 2, 2, 2)
+        picks_layout.setContentsMargins(1, 1, 1, 1)  # Minimal margins
+        picks_layout.setSpacing(2)  # Tight spacing
         picks_widget = QWidget()
         self._picks_table = QUnifiedTable("picks")
         self._picks_stepper = StepWidget(0, 0)
-        self._picks_stepper.setMaximumHeight(40)  # Limit stepper height
+        self._picks_stepper.setMaximumHeight(45)  # Appropriate height for buttons and text
         picks_layout.addWidget(self._picks_table)
         picks_layout.addWidget(self._picks_stepper)
         picks_widget.setLayout(picks_layout)
 
-        # Mesh widget with improved layout
+        # Mesh widget with tight layout
         meshes_layout = QVBoxLayout()
-        meshes_layout.setContentsMargins(2, 2, 2, 2)
+        meshes_layout.setContentsMargins(1, 1, 1, 1)  # Minimal margins
+        meshes_layout.setSpacing(2)  # Tight spacing
         meshes_widget = QWidget()
         self._meshes_table = QUnifiedTable("meshes")
         meshes_layout.addWidget(self._meshes_table)
         meshes_widget.setLayout(meshes_layout)
 
-        # Segmentation widget with improved layout
+        # Segmentation widget with tight layout
         segmentations_layout = QVBoxLayout()
-        segmentations_layout.setContentsMargins(2, 2, 2, 2)
+        segmentations_layout.setContentsMargins(1, 1, 1, 1)  # Minimal margins
+        segmentations_layout.setSpacing(2)  # Tight spacing
         segmentations_widget = QWidget()
         self._segmentations_table = QUnifiedTable("segmentations")
         segmentations_layout.addWidget(self._segmentations_table)
@@ -128,14 +132,16 @@ class MainWidget(QWidget):
         self._object_tabs.addTab(meshes_widget, "Meshes")
         self._object_tabs.addTab(segmentations_widget, "Segmentations")
 
-        # Set up tables container
+        # Set up tables container with tight layout
         tables_layout = QVBoxLayout()
-        tables_layout.setContentsMargins(0, 0, 0, 0)
+        tables_layout.setContentsMargins(0, 0, 0, 0)  # No margins
+        tables_layout.setSpacing(0)  # No spacing
         tables_layout.addWidget(self._object_tabs)
         tables_widget.setLayout(tables_layout)
 
         # Create tree container with search functionality
         tree_container = self._create_tree_container()
+        tree_container.setContentsMargins(0, 0, 0, 0)  # Remove margins
 
         # Add widgets to splitter
         self._main_splitter.addWidget(tables_widget)
@@ -152,57 +158,76 @@ class MainWidget(QWidget):
     def _create_tree_container(self) -> QWidget:
         """Create tree container with overlay search functionality"""
         container = QWidget()
-        container.setMinimumHeight(150)
+        container.setMinimumHeight(120)  # Reduced minimum height
         layout = QVBoxLayout()
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setContentsMargins(1, 1, 1, 1)  # Minimal margins
         layout.setSpacing(0)  # No spacing to maximize tree area
 
         # Tree view setup - takes full space
         self._tree_view = QTreeView()
         self._tree_view.setHeaderHidden(False)
 
-        # Create overlay search widget (floating over tree)
+        # Create overlay search widget (floating at bottom-left)
         self._search_overlay = QWidget(self._tree_view)
         self._search_overlay.setStyleSheet("""
             QWidget {
-                background-color: rgba(240, 240, 240, 230);
-                border: 1px solid #ccc;
-                border-radius: 4px;
+                background-color: rgba(45, 45, 45, 200);
+                border: 1px solid rgba(100, 100, 100, 180);
+                border-radius: 6px;
             }
         """)
         
         # Search overlay layout
         overlay_layout = QHBoxLayout()
-        overlay_layout.setContentsMargins(5, 3, 5, 3)
-        overlay_layout.setSpacing(2)
+        overlay_layout.setContentsMargins(6, 4, 6, 4)
+        overlay_layout.setSpacing(3)
 
         # Search input
         self._search_input = QLineEdit()
         self._search_input.setPlaceholderText("Search runs...")
-        self._search_input.setMaximumHeight(25)
-        self._search_input.setStyleSheet("border: 1px solid #999; border-radius: 2px; padding: 2px;")
+        self._search_input.setMaximumHeight(24)
+        self._search_input.setStyleSheet("""
+            QLineEdit {
+                background-color: rgba(255, 255, 255, 240);
+                border: 1px solid rgba(120, 120, 120, 180);
+                border-radius: 3px;
+                padding: 3px 6px;
+                color: #333;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border: 2px solid rgba(70, 130, 200, 200);
+                background-color: rgba(255, 255, 255, 255);
+            }
+        """)
 
-        # Clear button
+        # Clear/Close button (does both clear and close)
         self._clear_button = QPushButton("✕")
-        self._clear_button.setMaximumSize(25, 25)
-        self._clear_button.setToolTip("Clear search")
-        self._clear_button.setStyleSheet("border: none; font-weight: bold;")
-
-        # Close search button
-        self._close_search_button = QPushButton("⨯")
-        self._close_search_button.setMaximumSize(25, 25)
-        self._close_search_button.setToolTip("Close search")
-        self._close_search_button.setStyleSheet("border: none; font-weight: bold;")
+        self._clear_button.setMaximumSize(22, 22)
+        self._clear_button.setToolTip("Clear search and close")
+        self._clear_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(200, 200, 200, 180);
+                border: none;
+                border-radius: 11px;
+                font-weight: bold;
+                color: #666;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: rgba(220, 220, 220, 200);
+                color: #333;
+            }
+        """)
 
         overlay_layout.addWidget(self._search_input)
         overlay_layout.addWidget(self._clear_button)
-        overlay_layout.addWidget(self._close_search_button)
         self._search_overlay.setLayout(overlay_layout)
 
         # Position overlay at top-right and hide initially
         self._search_overlay.hide()
 
-        # Search toggle button (floating at top-right corner)
+        # Search toggle button (floating at bottom-right corner, hidden initially)
         self._search_toggle = QPushButton("🔍")
         self._search_toggle.setParent(self._tree_view)
         self._search_toggle.setMaximumSize(30, 30)
@@ -218,13 +243,17 @@ class MainWidget(QWidget):
                 background-color: rgba(220, 220, 220, 220);
             }
         """)
+        # Hide search toggle initially - only show on tree hover
+        self._search_toggle.hide()
 
         # Add only tree view to main layout
         layout.addWidget(self._tree_view)
         container.setLayout(layout)
         
-        # Install event filter to handle resizing
+        # Install event filter to handle resizing and mouse events
         self._tree_view.installEventFilter(self)
+        # Set mouse tracking to detect enter/leave events
+        self._tree_view.setMouseTracking(True)
         
         return container
 
@@ -247,8 +276,7 @@ class MainWidget(QWidget):
         # Search functionality
         self._search_toggle.clicked.connect(self._toggle_search)
         self._search_input.textChanged.connect(self._filter_tree)
-        self._clear_button.clicked.connect(self._clear_search)
-        self._close_search_button.clicked.connect(self._toggle_search)
+        self._clear_button.clicked.connect(self._clear_and_close_search)
 
         # Picks actions
         self._picks_table.get_table_view().doubleClicked.connect(self._copick.show_particles)
@@ -300,36 +328,47 @@ class MainWidget(QWidget):
             self._clear_search()
     
     def _position_search_overlay(self):
-        """Position the search overlay at the top-right of the tree view"""
+        """Position the search overlay at the bottom-left of the tree view"""
         if hasattr(self, '_search_overlay') and hasattr(self, '_tree_view'):
-            tree_width = self._tree_view.width()
-            overlay_width = 250  # Fixed width for search overlay
-            overlay_height = 35  # Fixed height for search overlay
+            tree_height = self._tree_view.height()
+            overlay_width = 240  # Fixed width for search overlay
+            overlay_height = 32  # Fixed height for search overlay
             
-            # Position at top-right with some margin
-            x = tree_width - overlay_width - 10
-            y = 10
+            # Position at bottom-left with some margin
+            x = 10
+            y = tree_height - overlay_height - 15
             
             self._search_overlay.setGeometry(x, y, overlay_width, overlay_height)
     
     def _position_search_toggle(self):
-        """Position the search toggle button at top-right corner"""
+        """Position the search toggle button at bottom-right corner"""
         if hasattr(self, '_search_toggle') and hasattr(self, '_tree_view'):
             tree_width = self._tree_view.width()
+            tree_height = self._tree_view.height()
             button_size = 30
             
-            # Position at top-right corner with margin
+            # Position at bottom-right corner with margin
             x = tree_width - button_size - 10
-            y = 10
+            y = tree_height - button_size - 15
             
             self._search_toggle.setGeometry(x, y, button_size, button_size)
     
     def eventFilter(self, obj, event):
-        """Handle resize events to reposition floating elements"""
-        if obj == self._tree_view and event.type() == QEvent.Type.Resize:
-            self._position_search_toggle()
-            if self._search_overlay.isVisible():
-                self._position_search_overlay()
+        """Handle resize events to reposition floating elements and mouse hover events"""
+        if obj == self._tree_view:
+            if event.type() == QEvent.Type.Resize:
+                self._position_search_toggle()
+                if self._search_overlay.isVisible():
+                    self._position_search_overlay()
+            elif event.type() == QEvent.Type.Enter:
+                # Show search toggle when mouse enters tree view
+                if not self._search_overlay.isVisible():
+                    self._search_toggle.show()
+                    self._position_search_toggle()
+            elif event.type() == QEvent.Type.Leave:
+                # Hide search toggle when mouse leaves tree view (unless search is active)
+                if not self._search_overlay.isVisible():
+                    self._search_toggle.hide()
         return super().eventFilter(obj, event)
 
     def _filter_tree(self, text: str):
@@ -381,3 +420,8 @@ class MainWidget(QWidget):
         if hasattr(self, "_filter_model"):
             self._filter_model.setFilterFixedString("")
             self._tree_view.collapseAll()
+    
+    def _clear_and_close_search(self):
+        """Clear the search input, reset the filter, and close the overlay"""
+        self._clear_search()
+        self._search_overlay.hide()

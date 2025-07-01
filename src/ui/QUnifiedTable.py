@@ -45,8 +45,10 @@ class QUnifiedTable(QWidget):
         self._table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self._table.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding))
         
-        # Button layout
+        # Button layout - center aligned with tight spacing
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 2, 0, 2)  # Minimal margins
+        button_layout.setSpacing(8)  # Tight spacing between buttons
         
         # Duplicate button
         self._duplicate_button = QPushButton("Duplicate")
@@ -57,11 +59,15 @@ class QUnifiedTable(QWidget):
         self._new_button = QPushButton("New")
         self._new_button.setToolTip("Create a new entity")
         
+        # Center the buttons
+        button_layout.addStretch()  # Left stretch
         button_layout.addWidget(self._duplicate_button)
         button_layout.addWidget(self._new_button)
-        button_layout.addStretch()  # Push buttons to the left
+        button_layout.addStretch()  # Right stretch
         
-        # Add to main layout
+        # Add to main layout with tight spacing
+        layout.setContentsMargins(0, 0, 0, 0)  # Remove default margins
+        layout.setSpacing(2)  # Minimal spacing between table and buttons
         layout.addWidget(self._table)
         layout.addLayout(button_layout)
         
