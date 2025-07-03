@@ -267,6 +267,27 @@ class MainWidget(QWidget):
         # Hide search toggle initially - only show on tree hover
         self._search_toggle.hide()
 
+        # Stack widget toggle button (floating at top-right corner, hidden initially)
+        self._stack_toggle = QPushButton("📊")
+        self._stack_toggle.setParent(self._tree_view)
+        self._stack_toggle.setMaximumSize(30, 30)
+        self._stack_toggle.setToolTip("Switch to copick info view")
+        self._stack_toggle.setStyleSheet(
+            """
+            QPushButton {
+                background-color: rgba(240, 240, 240, 200);
+                border: 1px solid #ccc;
+                border-radius: 15px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(220, 220, 220, 220);
+            }
+        """
+        )
+        # Hide stack toggle initially - only show on tree hover
+        self._stack_toggle.hide()
+
         # Add only tree view to main layout
         layout.addWidget(self._tree_view)
         container.setLayout(layout)
@@ -341,6 +362,10 @@ class MainWidget(QWidget):
         self._filter_model.setFilterRole(Qt.DisplayRole)
 
         self._tree_view.setModel(self._filter_model)
+        
+        # Connect selection model after setting the model
+        if self._tree_view.selectionModel():
+            self._tree_view.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
 
     def _connect(self):
         # Top button actions
@@ -354,6 +379,9 @@ class MainWidget(QWidget):
         self._search_toggle.clicked.connect(self._toggle_search)
         self._search_input.textChanged.connect(self._filter_tree)
         self._clear_button.clicked.connect(self._clear_and_close_search)
+
+        # Stack widget toggle functionality
+        self._stack_toggle.clicked.connect(self._toggle_stack_widget)
 
         # Picks actions - use wrapper methods to handle proxy model mapping
         self._picks_table.get_table_view().doubleClicked.connect(self._on_picks_double_click)
@@ -453,22 +481,38 @@ class MainWidget(QWidget):
 
             self._search_toggle.setGeometry(x, y, button_size, button_size)
 
+    def _position_stack_toggle(self):
+        """Position the stack toggle button at top-right corner"""
+        if hasattr(self, "_stack_toggle") and hasattr(self, "_tree_view"):
+            tree_width = self._tree_view.width()
+            button_size = 30
+
+            # Position at top-right corner with margin
+            x = tree_width - button_size - 10
+            y = 10
+
+            self._stack_toggle.setGeometry(x, y, button_size, button_size)
+
     def eventFilter(self, obj, event):
         """Handle resize events to reposition floating elements and mouse hover events"""
         if obj == self._tree_view:
             if event.type() == QEvent.Type.Resize:
                 self._position_search_toggle()
+                self._position_stack_toggle()
                 if self._search_overlay.isVisible():
                     self._position_search_overlay()
             elif event.type() == QEvent.Type.Enter:
-                # Show search toggle when mouse enters tree view
+                # Show search and stack toggle when mouse enters tree view
                 if not self._search_overlay.isVisible():
                     self._search_toggle.show()
                     self._position_search_toggle()
+                self._stack_toggle.show()
+                self._position_stack_toggle()
             elif event.type() == QEvent.Type.Leave:
-                # Hide search toggle when mouse leaves tree view (unless search is active)
+                # Hide toggles when mouse leaves tree view (unless search is active)
                 if not self._search_overlay.isVisible():
                     self._search_toggle.hide()
+                self._stack_toggle.hide()
         return super().eventFilter(obj, event)
 
     def _filter_tree(self, text: str):
@@ -645,3 +689,130 @@ class MainWidget(QWidget):
                 y = screen_geometry.top() + 10
             
             overlay.move(x, y)
+
+    def _toggle_stack_widget(self):
+        """Toggle ChimeraX main window stack widget between OpenGL and copick info view"""
+        try:
+            # Get ChimeraX session and main window
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
+
+            # Get current widget
+            current_widget = stack_widget.currentWidget()
+            
+            # Check if our copick HTML widget is already in the stack
+            copick_widget = None
+            for i in range(stack_widget.count()):
+                widget = stack_widget.widget(i)
+                if hasattr(widget, '__class__') and widget.__class__.__name__ == 'CopickHtmlWidget':
+                    copick_widget = widget
+                    break
+
+            # If no copick widget exists, create one
+            if copick_widget is None:
+                from .copick_html_widget import CopickHtmlWidget
+                copick_widget = CopickHtmlWidget(session)
+                
+                # Update with current run if one is selected
+                if hasattr(self, '_current_run_name') and self._current_run_name:
+                    copick_widget.set_run_name(self._current_run_name)
+                
+                stack_widget.addWidget(copick_widget)
+                
+                # Store reference for cleanup
+                self._copick_html_widget = copick_widget
+
+            # Toggle between widgets
+            if current_widget == copick_widget:
+                # Switch back to OpenGL (first widget is usually the graphics view)
+                stack_widget.setCurrentIndex(0)
+                self._stack_toggle.setToolTip("Switch to copick info view")
+                self._stack_toggle.setText("📊")
+            else:
+                # Switch to copick info view
+                stack_widget.setCurrentWidget(copick_widget)
+                self._stack_toggle.setToolTip("Switch to OpenGL view")
+                self._stack_toggle.setText("🖼️")
+
+        except Exception as e:
+            # Log error but don't break functionality
+            print(f"Error toggling stack widget: {e}")
+
+    def set_current_run_name(self, run_name: str):
+        """Update the current run name and notify the HTML widget if it exists"""
+        self._current_run_name = run_name
+        
+        # Update HTML widget if it exists
+        try:
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
+            
+            for i in range(stack_widget.count()):
+                widget = stack_widget.widget(i)
+                if hasattr(widget, '__class__') and widget.__class__.__name__ == 'CopickHtmlWidget':
+                    widget.set_run_name(run_name)
+                    break
+        except:
+            pass  # Silently handle errors
+
+    def _on_tree_selection_changed(self, selected, deselected):
+        """Handle tree selection changes to update run name in HTML widget"""
+        try:
+            if not selected.indexes():
+                return
+                
+            # Get the first selected index
+            proxy_index = selected.indexes()[0]
+            if not proxy_index.isValid():
+                return
+
+            # Map proxy model index to source model index
+            if hasattr(self, "_filter_model") and self._filter_model is not None:
+                source_index = self._filter_model.mapToSource(proxy_index)
+            else:
+                source_index = proxy_index
+
+            if not source_index.isValid():
+                return
+
+            # Get the item from the source index
+            item = source_index.internalPointer()
+            
+            # Check if it's a run and update the current run name
+            if isinstance(item, TreeRun):
+                run_name = item.run.name
+                self.set_current_run_name(run_name)
+                
+        except Exception as e:
+            # Silently handle errors to avoid breaking the selection
+            print(f"Error handling tree selection: {e}")
+
+    def cleanup(self):
+        """Clean up resources, especially the HTML widget"""
+        try:
+            # Clean up HTML widget if it exists
+            if hasattr(self, '_copick_html_widget'):
+                self._copick_html_widget.delete()
+                delattr(self, '_copick_html_widget')
+            
+            # Also remove from ChimeraX stack if it exists
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
+            
+            # Remove any CopickHtmlWidget from the stack
+            widgets_to_remove = []
+            for i in range(stack_widget.count()):
+                widget = stack_widget.widget(i)
+                if hasattr(widget, '__class__') and widget.__class__.__name__ == 'CopickHtmlWidget':
+                    widgets_to_remove.append(widget)
+            
+            for widget in widgets_to_remove:
+                stack_widget.removeWidget(widget)
+                widget.delete()
+                
+        except Exception:
+            # Silently handle cleanup errors
+            pass
