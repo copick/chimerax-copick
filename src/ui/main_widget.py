@@ -19,6 +19,7 @@ from ..ui.QCoPickTreeModel import QCoPickTreeModel
 from ..ui.step_widget import StepWidget
 from .QUnifiedTable import QUnifiedTable
 from ..ui.tree import TreeRoot, TreeRun, TreeVoxelSpacing, TreeTomogram
+from .copick_gallery_widget import CopickGalleryWidget
 
 
 class FilterProxyModel(QSortFilterProxyModel):
@@ -267,13 +268,8 @@ class MainWidget(QWidget):
         # Hide search toggle initially - only show on tree hover
         self._search_toggle.hide()
 
-        # Stack widget toggle button (floating at top-right corner, hidden initially)
-        self._stack_toggle = QPushButton("📊")
-        self._stack_toggle.setParent(self._tree_view)
-        self._stack_toggle.setMaximumSize(30, 30)
-        self._stack_toggle.setToolTip("Switch to copick info view")
-        self._stack_toggle.setStyleSheet(
-            """
+        # Navigation buttons (floating at top-right corner, hidden initially)
+        button_style = """
             QPushButton {
                 background-color: rgba(240, 240, 240, 200);
                 border: 1px solid #ccc;
@@ -284,9 +280,30 @@ class MainWidget(QWidget):
                 background-color: rgba(220, 220, 220, 220);
             }
         """
-        )
-        # Hide stack toggle initially - only show on tree hover
-        self._stack_toggle.hide()
+
+        # 3D View button
+        self._view_3d_button = QPushButton("🧊")
+        self._view_3d_button.setParent(self._tree_view)
+        self._view_3d_button.setMaximumSize(30, 30)
+        self._view_3d_button.setToolTip("Switch to 3D view")
+        self._view_3d_button.setStyleSheet(button_style)
+        self._view_3d_button.hide()
+
+        # Details View button
+        self._view_details_button = QPushButton("ℹ️")
+        self._view_details_button.setParent(self._tree_view)
+        self._view_details_button.setMaximumSize(30, 30)
+        self._view_details_button.setToolTip("Switch to details view")
+        self._view_details_button.setStyleSheet(button_style)
+        self._view_details_button.hide()
+
+        # Gallery View button
+        self._view_gallery_button = QPushButton("📸")
+        self._view_gallery_button.setParent(self._tree_view)
+        self._view_gallery_button.setMaximumSize(30, 30)
+        self._view_gallery_button.setToolTip("Switch to gallery view")
+        self._view_gallery_button.setStyleSheet(button_style)
+        self._view_gallery_button.hide()
 
         # Add only tree view to main layout
         layout.addWidget(self._tree_view)
@@ -352,6 +369,7 @@ class MainWidget(QWidget):
         self._top_button_layout.addStretch()
 
     def set_root(self, root: CopickRootFSSpec):
+        self._root = root
         self._model = QCoPickTreeModel(root)
 
         # Set up filter proxy model for search functionality
@@ -367,6 +385,9 @@ class MainWidget(QWidget):
         if self._tree_view.selectionModel():
             self._tree_view.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
 
+        # Update gallery widget with new root if it exists
+        self._update_gallery_widget_root(root)
+
     def _connect(self):
         # Top button actions
         self._edit_objects_button.clicked.connect(self._on_edit_object_types)
@@ -380,8 +401,10 @@ class MainWidget(QWidget):
         self._search_input.textChanged.connect(self._filter_tree)
         self._clear_button.clicked.connect(self._clear_and_close_search)
 
-        # Stack widget toggle functionality
-        self._stack_toggle.clicked.connect(self._toggle_stack_widget)
+        # Navigation button functionality
+        self._view_3d_button.clicked.connect(self._navigate_to_3d)
+        self._view_details_button.clicked.connect(self._navigate_to_details)
+        self._view_gallery_button.clicked.connect(self._navigate_to_gallery)
 
         # Picks actions - use wrapper methods to handle proxy model mapping
         self._picks_table.get_table_view().doubleClicked.connect(self._on_picks_double_click)
@@ -481,38 +504,53 @@ class MainWidget(QWidget):
 
             self._search_toggle.setGeometry(x, y, button_size, button_size)
 
-    def _position_stack_toggle(self):
-        """Position the stack toggle button at top-right corner"""
-        if hasattr(self, "_stack_toggle") and hasattr(self, "_tree_view"):
+    def _position_navigation_buttons(self):
+        """Position the three navigation buttons vertically at top-right corner"""
+        if hasattr(self, "_tree_view"):
             tree_width = self._tree_view.width()
             button_size = 30
+            gap = 5
+            start_x = tree_width - button_size - 10
+            start_y = 10
 
-            # Position at top-right corner with margin
-            x = tree_width - button_size - 10
-            y = 10
+            # Position 3D view button at top
+            if hasattr(self, "_view_3d_button"):
+                self._view_3d_button.setGeometry(start_x, start_y, button_size, button_size)
 
-            self._stack_toggle.setGeometry(x, y, button_size, button_size)
+            # Position details button below 3D
+            if hasattr(self, "_view_details_button"):
+                y = start_y + button_size + gap
+                self._view_details_button.setGeometry(start_x, y, button_size, button_size)
+
+            # Position gallery button below details
+            if hasattr(self, "_view_gallery_button"):
+                y = start_y + 2 * (button_size + gap)
+                self._view_gallery_button.setGeometry(start_x, y, button_size, button_size)
 
     def eventFilter(self, obj, event):
         """Handle resize events to reposition floating elements and mouse hover events"""
         if obj == self._tree_view:
             if event.type() == QEvent.Type.Resize:
                 self._position_search_toggle()
-                self._position_stack_toggle()
+                self._position_navigation_buttons()
                 if self._search_overlay.isVisible():
                     self._position_search_overlay()
             elif event.type() == QEvent.Type.Enter:
-                # Show search and stack toggle when mouse enters tree view
+                # Show search and navigation buttons when mouse enters tree view
                 if not self._search_overlay.isVisible():
                     self._search_toggle.show()
                     self._position_search_toggle()
-                self._stack_toggle.show()
-                self._position_stack_toggle()
+                self._view_3d_button.show()
+                self._view_details_button.show()
+                self._view_gallery_button.show()
+                self._position_navigation_buttons()
             elif event.type() == QEvent.Type.Leave:
-                # Hide toggles when mouse leaves tree view (unless search is active)
+                # Hide buttons when mouse leaves tree view (unless search is active)
                 if not self._search_overlay.isVisible():
                     self._search_toggle.hide()
-                self._stack_toggle.hide()
+                self._view_3d_button.hide()
+                self._view_details_button.hide()
+                self._view_gallery_button.hide()
         return super().eventFilter(obj, event)
 
     def _filter_tree(self, text: str):
@@ -529,6 +567,20 @@ class MainWidget(QWidget):
 
             # Apply the filter
             self._filter_model.setFilterFixedString(text)
+
+            # Also apply filter to gallery widget if it exists
+            try:
+                session = self._copick.session
+                main_window = session.ui.main_window
+                stack_widget = main_window._stack
+
+                for i in range(stack_widget.count()):
+                    widget = stack_widget.widget(i)
+                    if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickGalleryWidget":
+                        widget.apply_search_filter(text)
+                        break
+            except Exception:
+                pass  # Silently handle errors
 
             if text:
                 # Keep runs collapsed when filtering - don't auto-expand
@@ -693,16 +745,41 @@ class MainWidget(QWidget):
 
             overlay.move(x, y)
 
-    def _toggle_stack_widget(self):
-        """Toggle ChimeraX main window stack widget between OpenGL and copick info view"""
+    def _on_gallery_run_selected(self, run):
+        """Handle run selection from gallery widget"""
         try:
-            # Get ChimeraX session and main window
+            # Update current run
+            self._current_run = run
+            self.set_current_run(run)
+
+            # Switch back to OpenGL view to show the selected run
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
+            stack_widget.setCurrentIndex(0)
+
+        except Exception as e:
+            print(f"Error handling gallery run selection: {e}")
+
+    def _navigate_to_3d(self):
+        """Navigate to 3D/OpenGL view"""
+        try:
             session = self._copick.session
             main_window = session.ui.main_window
             stack_widget = main_window._stack
 
-            # Get current widget
-            current_widget = stack_widget.currentWidget()
+            # Switch to OpenGL view (first widget is usually the graphics view)
+            stack_widget.setCurrentIndex(0)
+
+        except Exception as e:
+            print(f"Error navigating to 3D view: {e}")
+
+    def _navigate_to_details(self):
+        """Navigate to details/info view"""
+        try:
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
 
             # Check if our copick info widget is already in the stack
             copick_widget = None
@@ -729,21 +806,74 @@ class MainWidget(QWidget):
                 # Store reference for cleanup
                 self._copick_html_widget = copick_widget
 
-            # Toggle between widgets
-            if current_widget == copick_widget:
-                # Switch back to OpenGL (first widget is usually the graphics view)
-                stack_widget.setCurrentIndex(0)
-                self._stack_toggle.setToolTip("Switch to copick info view")
-                self._stack_toggle.setText("📊")
-            else:
-                # Switch to copick info view
-                stack_widget.setCurrentWidget(copick_widget)
-                self._stack_toggle.setToolTip("Switch to OpenGL view")
-                self._stack_toggle.setText("🖼️")
+            # Switch to copick info view
+            stack_widget.setCurrentWidget(copick_widget)
 
         except Exception as e:
-            # Log error but don't break functionality
-            print(f"Error toggling stack widget: {e}")
+            print(f"Error navigating to details view: {e}")
+
+    def _navigate_to_gallery(self):
+        """Navigate to gallery view"""
+        try:
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
+
+            # Check if our gallery widget is already in the stack
+            gallery_widget = None
+            for i in range(stack_widget.count()):
+                widget = stack_widget.widget(i)
+                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickGalleryWidget":
+                    gallery_widget = widget
+                    break
+
+            # If no gallery widget exists, create one
+            if gallery_widget is None:
+                gallery_widget = CopickGalleryWidget(session)
+
+                # Set copick root if available
+                if hasattr(self, "_root") and self._root:
+                    gallery_widget.set_copick_root(self._root)
+
+                # Connect gallery run selection to main widget
+                gallery_widget.run_selected.connect(self._on_gallery_run_selected)
+
+                stack_widget.addWidget(gallery_widget)
+
+                # Store reference for cleanup
+                self._copick_gallery_widget = gallery_widget
+
+            # Switch to gallery view
+            stack_widget.setCurrentWidget(gallery_widget)
+
+            # Apply current search filter to gallery
+            if hasattr(self, "_search_input") and self._search_input.text():
+                gallery_widget.apply_search_filter(self._search_input.text())
+
+        except Exception as e:
+            print(f"Error navigating to gallery view: {e}")
+
+    def _update_gallery_widget_root(self, root):
+        """Update gallery and info widgets when copick root changes"""
+        try:
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
+
+            # Update widgets in the stack
+            for i in range(stack_widget.count()):
+                widget = stack_widget.widget(i)
+                if hasattr(widget, "__class__"):
+                    if widget.__class__.__name__ == "CopickGalleryWidget":
+                        # Update the gallery widget with the new root
+                        widget.set_copick_root(root)
+                        print(f"Updated gallery widget with new copick root")
+                    elif widget.__class__.__name__ == "CopickInfoWidget":
+                        # Clear the info widget when root changes (no specific run selected yet)
+                        widget.set_run(None)
+                        print(f"Cleared info widget for new copick root")
+        except Exception as e:
+            print(f"Error updating widgets for new root: {e}")
 
     def set_current_run_name(self, run_name: str):
         """Update the current run name and notify the HTML widget if it exists"""
@@ -820,21 +950,28 @@ class MainWidget(QWidget):
     def cleanup(self):
         """Clean up resources, especially the info widget"""
         try:
-            # Clean up info widget if it exists
+            # Clean up info and gallery widgets if they exist
             if hasattr(self, "_copick_html_widget"):
                 self._copick_html_widget.delete()
                 delattr(self, "_copick_html_widget")
+
+            if hasattr(self, "_copick_gallery_widget"):
+                self._copick_gallery_widget.delete()
+                delattr(self, "_copick_gallery_widget")
 
             # Also remove from ChimeraX stack if it exists
             session = self._copick.session
             main_window = session.ui.main_window
             stack_widget = main_window._stack
 
-            # Remove any CopickInfoWidget from the stack
+            # Remove any CopickInfoWidget and CopickGalleryWidget from the stack
             widgets_to_remove = []
             for i in range(stack_widget.count()):
                 widget = stack_widget.widget(i)
-                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickInfoWidget":
+                if hasattr(widget, "__class__") and widget.__class__.__name__ in [
+                    "CopickInfoWidget",
+                    "CopickGalleryWidget",
+                ]:
                     widgets_to_remove.append(widget)
 
             for widget in widgets_to_remove:
