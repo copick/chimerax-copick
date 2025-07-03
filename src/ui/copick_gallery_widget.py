@@ -1,0 +1,788 @@
+"""Gallery widget for displaying copick runs in a grid layout with thumbnails."""
+
+import datetime
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from Qt.QtCore import QThreadPool, Signal, Slot, QModelIndex
+from Qt.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QFrame,
+    QSizePolicy,
+    QGridLayout,
+    QPushButton,
+    QLineEdit,
+    QTreeView,
+)
+from Qt.QtGui import QPixmap
+from Qt.QtCore import Qt
+
+from .async_workers import AsyncWorkerSignals, RunThumbnailWorker
+
+# Import copick models only when needed to avoid circular import issues
+if TYPE_CHECKING:
+    from copick.models import CopickRun, CopickTomogram
+
+
+def _debug_log(message: str) -> None:
+    """Write debug message to file and console"""
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    log_message = f"[{timestamp}] {message}\n"
+    
+    try:
+        with open("/tmp/copick_gallery_debug.log", "a") as f:
+            f.write(log_message)
+        print(f"DEBUG: {message}")
+    except Exception:
+        print(f"DEBUG (file write failed): {message}")
+
+
+class RunCard(QFrame):
+    """Individual run card widget with thumbnail and info"""
+
+    clicked = Signal(object)  # Emits the run object
+    info_requested = Signal(object)  # Emits the run object for info view
+
+    def __init__(self, run: "CopickRun", parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.run: "CopickRun" = run
+        self.thumbnail_pixmap: Optional[QPixmap] = None
+        self._setup_ui()
+        self._setup_style()
+
+    def _setup_ui(self) -> None:
+        """Setup the card UI layout"""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+
+        # Thumbnail container with info button overlay
+        thumbnail_container = QWidget()
+        thumbnail_container.setFixedSize(200, 200)
+
+        # Thumbnail label (placeholder)
+        self.thumbnail_label = QLabel(thumbnail_container)
+        self.thumbnail_label.setFixedSize(200, 200)
+        self.thumbnail_label.setAlignment(Qt.AlignCenter)
+        self.thumbnail_label.setStyleSheet(
+            """
+            QLabel {
+                background-color: #2d2d2d;
+                border: 1px solid #444;
+                border-radius: 4px;
+                color: #999;
+            }
+        """
+        )
+        self.thumbnail_label.setText("Loading...")
+
+        # Info button overlay (floating in top-right corner)
+        self.info_button = QPushButton("ℹ️", thumbnail_container)
+        self.info_button.setFixedSize(24, 24)
+        self.info_button.setToolTip("View run details")
+        self.info_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: rgba(70, 130, 200, 180);
+                border: none;
+                border-radius: 12px;
+                color: white;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: rgba(70, 130, 200, 220);
+            }
+            QPushButton:pressed {
+                background-color: rgba(70, 130, 200, 255);
+            }
+        """
+        )
+        self.info_button.move(170, 6)  # Position in top-right corner with margin
+        self.info_button.clicked.connect(lambda: self.info_requested.emit(self.run))
+
+        layout.addWidget(thumbnail_container)
+
+        # Run name label
+        self.name_label = QLabel(self.run.name)
+        self.name_label.setAlignment(Qt.AlignCenter)
+        self.name_label.setWordWrap(True)
+        self.name_label.setStyleSheet(
+            """
+            QLabel {
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 4px;
+            }
+        """
+        )
+        layout.addWidget(self.name_label)
+
+        # Status label (for error display)
+        self.status_label = QLabel()
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setVisible(False)
+        self.status_label.setStyleSheet(
+            """
+            QLabel {
+                color: #ff6b6b;
+                font-size: 10px;
+                padding: 2px;
+            }
+        """
+        )
+        layout.addWidget(self.status_label)
+
+    def _setup_style(self) -> None:
+        """Setup the card styling"""
+        self.setFixedSize(220, 260)
+        self.setStyleSheet(
+            """
+            RunCard {
+                background-color: #3d3d3d;
+                border: 1px solid #555;
+                border-radius: 8px;
+            }
+            RunCard:hover {
+                border: 2px solid #007AFF;
+                background-color: #444;
+            }
+        """
+        )
+        self.setCursor(Qt.PointingHandCursor)
+
+    def set_thumbnail(self, pixmap: Optional[QPixmap]) -> None:
+        """Set the thumbnail pixmap"""
+        if pixmap:
+            # Scale pixmap to fit label while maintaining aspect ratio
+            scaled_pixmap = pixmap.scaled(self.thumbnail_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.thumbnail_label.setPixmap(scaled_pixmap)
+            self.thumbnail_pixmap = pixmap
+        else:
+            self.thumbnail_label.setText("No thumbnail")
+
+    def set_error(self, error_message: str) -> None:
+        """Show error state"""
+        self.thumbnail_label.setText("Error")
+        self.status_label.setText(f"Error: {error_message}")
+        self.status_label.setVisible(True)
+
+    def mousePressEvent(self, event: Any) -> None:
+        """Handle mouse click"""
+        _debug_log(f"RunCard.mousePressEvent: Button {event.button()}, run={self.run.name}")
+        if event.button() == Qt.LeftButton:
+            _debug_log(f"RunCard: Emitting clicked signal for run {self.run.name}")
+            self.clicked.emit(self.run)
+        super().mousePressEvent(event)
+
+
+class CopickGalleryWidget(QWidget):
+    """Gallery widget displaying copick runs in a grid with thumbnails"""
+
+    run_selected = Signal(object)  # Emits selected run
+    info_requested = Signal(object)  # Emits run for info view
+
+    def __init__(self, session: Any, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        
+        # Initialize debug log file
+        try:
+            with open("/tmp/copick_gallery_debug.log", "w") as f:
+                f.write(f"=== CopickGalleryWidget Debug Log Started ===\n")
+        except Exception:
+            pass
+        _debug_log("CopickGalleryWidget.__init__: Starting initialization")
+        
+        self.session: Any = session
+        self.copick_root: Optional[Any] = None
+        self.runs: List["CopickRun"] = []
+        self.filtered_runs: List["CopickRun"] = []
+        self.all_run_cards: Dict[str, RunCard] = {}  # run_name -> RunCard (persistent cache)
+        self.visible_run_cards: Dict[str, RunCard] = {}  # run_name -> RunCard (currently visible)
+        self.search_filter: str = ""
+        self.thumbnail_cache: Dict[str, QPixmap] = {}  # run_name -> QPixmap (thumbnail cache)
+        self._grid_dirty: bool = True  # Flag to track if grid needs updating
+
+        # Async components
+        self._thread_pool = QThreadPool()
+        self._thread_pool.setMaxThreadCount(4)
+        self._signals = AsyncWorkerSignals()
+        self._signals.thumbnail_loaded.connect(self._on_thumbnail_loaded)
+
+        # Track widget lifecycle
+        self._is_destroyed: bool = False
+
+        self._setup_ui()
+
+        # Register for app quit trigger
+        if hasattr(session, "triggers"):
+            session.triggers.add_handler("app quit", self._app_quit)
+            
+        _debug_log("CopickGalleryWidget.__init__: Initialization complete")
+
+    def _setup_ui(self) -> None:
+        """Setup the gallery UI"""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        # Header
+        header_layout = QHBoxLayout()
+
+        title_label = QLabel("📸 Run Gallery")
+        title_label.setStyleSheet(
+            """
+            QLabel {
+                color: #ffffff;
+                font-size: 18px;
+                font-weight: bold;
+                padding: 8px;
+            }
+        """
+        )
+        header_layout.addWidget(title_label)
+
+        header_layout.addStretch()
+
+        # Search box
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Search runs...")
+        self.search_box.setFixedWidth(200)
+        self.search_box.setStyleSheet(
+            """
+            QLineEdit {
+                padding: 6px 8px;
+                border: 1px solid #555;
+                border-radius: 4px;
+                background-color: #2d2d2d;
+                color: #ffffff;
+            }
+            QLineEdit:focus {
+                border-color: #007AFF;
+            }
+        """
+        )
+        self.search_box.textChanged.connect(self._on_search_changed)
+        header_layout.addWidget(self.search_box)
+
+        layout.addLayout(header_layout)
+
+        # Scroll area for grid
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setStyleSheet(
+            """
+            QScrollArea {
+                border: none;
+                background-color: #1a1a1a;
+            }
+        """
+        )
+        layout.addWidget(self.scroll_area)
+
+        # Grid widget
+        self.grid_widget = QWidget()
+        self.grid_layout = QGridLayout(self.grid_widget)
+        self.grid_layout.setSpacing(15)
+        self.grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.scroll_area.setWidget(self.grid_widget)
+
+        # Empty state label
+        self.empty_label = QLabel("No runs to display")
+        self.empty_label.setAlignment(Qt.AlignCenter)
+        self.empty_label.setStyleSheet(
+            """
+            QLabel {
+                color: #999;
+                font-size: 14px;
+                padding: 40px;
+            }
+        """
+        )
+        self.empty_label.setVisible(False)
+        layout.addWidget(self.empty_label)
+
+    def _app_quit(self, *args: Any) -> None:
+        """Handle app quit trigger"""
+        if not self._is_destroyed:
+            # Clear thread pool immediately on app quit
+            if hasattr(self, "_thread_pool"):
+                print("Gallery: Clearing thread pool on app quit")
+                self._thread_pool.clear()
+                # Don't wait for completion during app quit to avoid hanging
+            self.deleteLater()
+
+    def delete(self) -> None:
+        """Clean up widget resources"""
+        if self._is_destroyed:
+            return
+
+        self._is_destroyed = True
+
+        try:
+            if hasattr(self, "_thread_pool"):
+                self._thread_pool.clear()
+                self._thread_pool.waitForDone(3000)
+
+            # Clear caches
+            if hasattr(self, "all_run_cards"):
+                self.all_run_cards.clear()
+            if hasattr(self, "visible_run_cards"):
+                self.visible_run_cards.clear()
+            if hasattr(self, "thumbnail_cache"):
+                self.thumbnail_cache.clear()
+        except Exception:
+            pass
+
+    def set_copick_root(self, copick_root: Optional[Any]) -> None:
+        """Set the copick root and load runs"""
+        print(f"Gallery: Setting new copick root with {len(list(copick_root.runs)) if copick_root else 0} runs")
+
+        # Clear thread pool to cancel any pending thumbnail loads from previous session
+        if hasattr(self, "_thread_pool"):
+            print("Gallery: Clearing thread pool to cancel old thumbnail workers")
+            self._thread_pool.clear()
+            # Don't wait for completion as old workers may be stuck
+
+        # Clear caches when root changes
+        self.all_run_cards.clear()
+        self.visible_run_cards.clear()
+        self.thumbnail_cache.clear()
+        self._grid_dirty = True
+
+        self.copick_root = copick_root
+        if copick_root:
+            self.runs = list(copick_root.runs)
+            self.filtered_runs = self.runs.copy()
+            print(f"Gallery: Loaded {len(self.runs)} runs, triggering grid update")
+            self._update_grid()
+        else:
+            self.runs = []
+            self.filtered_runs = []
+            self._clear_grid()
+
+    def apply_search_filter(self, filter_text: str) -> None:
+        """Apply search filter from external source (like tree widget)"""
+        self.search_filter = filter_text.lower()
+        self.search_box.setText(filter_text)  # Update search box
+        self._filter_runs()
+        self._update_grid()
+
+    @Slot(str)
+    def _on_search_changed(self, text: str):
+        """Handle search box text change"""
+        self.search_filter = text.lower()
+        self._filter_runs()
+        self._update_grid()
+
+    def _filter_runs(self) -> None:
+        """Filter runs based on search text"""
+        old_filtered = set(run.name for run in self.filtered_runs)
+
+        if not self.search_filter:
+            self.filtered_runs = self.runs.copy()
+        else:
+            self.filtered_runs = [run for run in self.runs if self.search_filter in run.name.lower()]
+
+        # Check if filtering actually changed the results
+        new_filtered = set(run.name for run in self.filtered_runs)
+        self._grid_dirty = old_filtered != new_filtered
+
+    def _clear_grid(self) -> None:
+        """Clear all cards from the grid layout (but keep them cached)"""
+        # Remove all cards from layout but don't delete them
+        for i in reversed(range(self.grid_layout.count())):
+            child = self.grid_layout.itemAt(i).widget()
+            if child:
+                # Temporarily reparent to None to remove from layout without deleting
+                child.setParent(None)
+
+        self.visible_run_cards.clear()
+        self.empty_label.setVisible(True)
+        self.grid_widget.setVisible(False)
+
+    def _update_grid(self) -> None:
+        """Update the grid with current filtered runs using cached cards"""
+        if self._is_destroyed:
+            return
+
+        # Only update if grid is dirty
+        if not self._grid_dirty:
+            print("Gallery: Grid is clean, skipping update")
+            return
+
+        print("Gallery: Grid is dirty, updating layout")
+
+        # Clear existing grid layout (but keep cards cached)
+        self._clear_grid()
+
+        if not self.filtered_runs:
+            self.empty_label.setVisible(True)
+            self.grid_widget.setVisible(False)
+            return
+
+        self.empty_label.setVisible(False)
+        self.grid_widget.setVisible(True)
+
+        # Calculate grid dimensions
+        cards_per_row = max(1, (self.scroll_area.width() - 30) // 235)  # 220 card width + 15 spacing
+
+        # Add cards for filtered runs (reuse cached cards where possible)
+        for i, run in enumerate(self.filtered_runs):
+            row = i // cards_per_row
+            col = i % cards_per_row
+
+            # Check if we already have this card cached
+            if run.name in self.all_run_cards:
+                # Reuse existing card
+                card = self.all_run_cards[run.name]
+                print(f"Gallery: Reusing cached card for {run.name}")
+            else:
+                # Create new card
+                print(f"Gallery: Creating new card for {run.name}")
+                card = RunCard(run)
+                card.clicked.connect(self._on_run_card_clicked)
+                card.info_requested.connect(self._on_run_info_requested)
+                self.all_run_cards[run.name] = card
+
+                # Check if we have a cached thumbnail
+                if run.name in self.thumbnail_cache:
+                    card.set_thumbnail(self.thumbnail_cache[run.name])
+                    print(f"Gallery: Using cached thumbnail for {run.name}")
+                else:
+                    # Start thumbnail loading
+                    print(f"Gallery: Loading new thumbnail for {run.name}")
+                    self._load_run_thumbnail(run, run.name)
+
+            # Add to visible cards and grid layout
+            self.visible_run_cards[run.name] = card
+            self.grid_layout.addWidget(card, row, col)
+
+        # Mark grid as clean
+        self._grid_dirty = False
+
+    def _load_run_thumbnail(self, run: "CopickRun", thumbnail_id: str) -> None:
+        """Start async loading of run thumbnail"""
+        if self._is_destroyed:
+            print(f"Gallery: Widget destroyed, skipping thumbnail load for {thumbnail_id}")
+            return
+
+        print(f"Gallery: Starting thumbnail worker for {thumbnail_id}")
+        worker = RunThumbnailWorker(self._signals, run, thumbnail_id)
+        self._thread_pool.start(worker)
+
+    @Slot(str, object, object)
+    def _on_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[QPixmap], error: Optional[str]) -> None:
+        """Handle thumbnail loading completion"""
+        if self._is_destroyed or thumbnail_id not in self.all_run_cards:
+            return
+
+        card = self.all_run_cards[thumbnail_id]
+
+        if error:
+            card.set_error(error)
+        else:
+            card.set_thumbnail(pixmap)
+            # Cache the thumbnail for future use
+            if pixmap:
+                self.thumbnail_cache[thumbnail_id] = pixmap
+
+    @Slot(object)
+    def _on_run_card_clicked(self, run: "CopickRun") -> None:
+        """Handle run card click - switch to 3D view and emit signal for main widget to handle"""
+        _debug_log(f"Gallery._on_run_card_clicked: START for run {run.name}")
+        try:
+            _debug_log(f"Gallery._on_run_card_clicked: Switching to 3D view")
+            # Switch to OpenGL view (index 0) - let main widget handle the volume loading
+            main_window = self.session.ui.main_window
+            stack_widget = main_window._stack
+            stack_widget.setCurrentIndex(0)
+            _debug_log(f"Gallery._on_run_card_clicked: Switched to 3D view")
+
+            _debug_log(f"Gallery._on_run_card_clicked: Emitting run_selected signal")
+            # Emit signal to let main widget handle tomogram loading and tree updates
+            self.run_selected.emit(run)
+            _debug_log(f"Gallery._on_run_card_clicked: END SUCCESS for run {run.name}")
+
+        except Exception as e:
+            _debug_log(f"Gallery._on_run_card_clicked: EXCEPTION: {e}")
+            print(f"Gallery: Error handling run card click: {e}")
+            # Still emit the signal as fallback
+            self.run_selected.emit(run)
+
+    def _select_best_tomogram_from_run(self, run: "CopickRun") -> Optional["CopickTomogram"]:
+        """Select the best tomogram from a run (prefer denoised, highest voxel spacing)"""
+        try:
+            all_tomograms = []
+
+            # Collect all tomograms from all voxel spacings
+            for vs in run.voxel_spacings:
+                for tomo in vs.tomograms:
+                    all_tomograms.append(tomo)
+
+            if not all_tomograms:
+                return None
+
+            # Preference order for tomogram types (denoised first)
+            preferred_types = ["denoised", "wbp"]
+
+            # Group by voxel spacing (highest first)
+            voxel_spacings = sorted(set(tomo.voxel_spacing.voxel_size for tomo in all_tomograms), reverse=True)
+
+            # Try each voxel spacing, starting with highest
+            for vs_size in voxel_spacings:
+                vs_tomograms = [tomo for tomo in all_tomograms if tomo.voxel_spacing.voxel_size == vs_size]
+
+                # Try preferred types in order
+                for preferred_type in preferred_types:
+                    for tomo in vs_tomograms:
+                        if preferred_type.lower() in tomo.tomo_type.lower():
+                            return tomo
+
+                # If no preferred type found, return the first tomogram at this voxel spacing
+                if vs_tomograms:
+                    return vs_tomograms[0]
+
+            # Fallback: return any tomogram
+            return all_tomograms[0] if all_tomograms else None
+
+        except Exception as e:
+            print(f"Gallery: Error selecting best tomogram: {e}")
+            return None
+
+    def _load_tomogram_and_switch_view(self, tomogram: "CopickTomogram") -> None:
+        """Load the tomogram and switch to OpenGL view - uses the same pattern as info widget"""
+        _debug_log(f"Gallery._load_tomogram_and_switch_view: START for tomogram {tomogram.tomo_type}")
+        try:
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Getting copick_tool")
+            copick_tool = self.session.copick
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Got copick_tool: {copick_tool}")
+
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Getting main window and stack widget")
+            # Get the main window and stack widget for view switching
+            main_window = self.session.ui.main_window
+            stack_widget = main_window._stack
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Got stack widget")
+
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Switching to OpenGL view")
+            # Switch to OpenGL view (index 0)
+            stack_widget.setCurrentIndex(0)
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Switched to OpenGL view")
+
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Finding tomogram in tree")
+            # Find the tomogram in the tree and get its QModelIndex using the safe approach
+            tomogram_index = self._find_tomogram_in_tree(tomogram)
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Found tomogram index: {tomogram_index.isValid() if tomogram_index else 'None'}")
+
+            if tomogram_index and tomogram_index.isValid():
+                _debug_log(f"Gallery._load_tomogram_and_switch_view: Calling copick_tool.switch_volume")
+                # This is exactly what _on_tree_double_click does - just call switch_volume
+                copick_tool.switch_volume(tomogram_index)
+                _debug_log(f"Gallery._load_tomogram_and_switch_view: Called copick_tool.switch_volume successfully")
+
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: Expanding run in tree")
+            # Expand the run in the tree widget
+            self._expand_run_in_tree(tomogram)
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: END SUCCESS")
+
+        except Exception as e:
+            _debug_log(f"Gallery._load_tomogram_and_switch_view: EXCEPTION: {e}")
+            print(f"Gallery: Error loading tomogram: {e}")
+
+    def _find_tomogram_in_tree(self, tomogram: "CopickTomogram") -> Optional[QModelIndex]:
+        """Find the tomogram in the tree model and return its QModelIndex - safe approach"""
+        try:
+            copick_tool = self.session.copick
+            tree_view = copick_tool._mw._tree_view
+            model = tree_view.model()
+
+            if not model:
+                return None
+
+            # Get current run from tomogram
+            current_run = tomogram.voxel_spacing.run
+
+            # Navigate the tree structure: Root -> Run -> VoxelSpacing -> Tomogram
+            for run_row in range(model.rowCount()):
+                run_index = model.index(run_row, 0)
+                if not run_index.isValid():
+                    continue
+
+                # Get the actual item (handling proxy model if present)
+                if hasattr(model, "mapToSource"):
+                    source_run_index = model.mapToSource(run_index)
+                    run_item = source_run_index.internalPointer()
+                else:
+                    run_item = run_index.internalPointer()
+
+                if not run_item:
+                    continue
+
+                # Check if this is the right run
+                if hasattr(run_item, "run"):
+                    if run_item.run.name != current_run.name:
+                        continue
+                elif hasattr(run_item, "name"):
+                    if run_item.name != current_run.name:
+                        continue
+                else:
+                    continue
+
+                # Force lazy loading by accessing the children property directly
+                if hasattr(run_item, "children"):
+                    vs_children = run_item.children  # This triggers lazy loading
+                    vs_count = len(vs_children)
+                else:
+                    vs_count = model.rowCount(run_index)
+
+                for vs_row in range(vs_count):
+                    vs_index = model.index(vs_row, 0, run_index)
+                    if not vs_index.isValid():
+                        continue
+
+                    # Get voxel spacing item
+                    if hasattr(model, "mapToSource"):
+                        source_vs_index = model.mapToSource(vs_index)
+                        vs_item = source_vs_index.internalPointer()
+                    else:
+                        vs_item = vs_index.internalPointer()
+
+                    if not vs_item:
+                        continue
+
+                    # Check if this voxel spacing contains our tomogram
+                    if hasattr(vs_item, "voxel_spacing"):
+                        vs_obj = vs_item.voxel_spacing
+                        if vs_obj.voxel_size != tomogram.voxel_spacing.voxel_size:
+                            continue
+                    else:
+                        continue
+
+                    # Force lazy loading by accessing the children property directly
+                    if hasattr(vs_item, "children"):
+                        tomo_children = vs_item.children  # This triggers lazy loading
+                        tomo_count = len(tomo_children)
+                    else:
+                        tomo_count = model.rowCount(vs_index)
+
+                    for tomo_row in range(tomo_count):
+                        tomo_index = model.index(tomo_row, 0, vs_index)
+                        if not tomo_index.isValid():
+                            continue
+
+                        # Get tomogram item
+                        if hasattr(model, "mapToSource"):
+                            source_tomo_index = model.mapToSource(tomo_index)
+                            tomo_item = source_tomo_index.internalPointer()
+                            final_index = source_tomo_index
+                        else:
+                            tomo_item = tomo_index.internalPointer()
+                            final_index = tomo_index
+
+                        if not tomo_item:
+                            continue
+
+                        # Check if this is our tomogram - compare by type and voxel spacing
+                        if hasattr(tomo_item, "tomogram"):
+                            tomo_obj = tomo_item.tomogram
+                            if (
+                                tomo_obj.tomo_type == tomogram.tomo_type
+                                and tomo_obj.voxel_spacing.voxel_size == tomogram.voxel_spacing.voxel_size
+                            ):
+                                return final_index
+
+            return None
+
+        except Exception as e:
+            print(f"Gallery: Error finding tomogram in tree: {e}")
+            return None
+
+    def _expand_run_in_tree(self, tomogram: "CopickTomogram") -> None:
+        """Expand the current run and voxel spacing in the tree widget"""
+        try:
+            copick_tool = self.session.copick
+            tree_view = copick_tool._mw._tree_view
+            model = tree_view.model()
+
+            if not model:
+                return
+
+            # Get current run from tomogram
+            current_run = tomogram.voxel_spacing.run
+
+            # Find the run in the tree model and expand it
+            for row in range(model.rowCount()):
+                index = model.index(row, 0)
+                if index.isValid():
+                    # Get the item and check if it matches our current run
+                    if hasattr(model, "mapToSource"):
+                        source_index = model.mapToSource(index)
+                        item = source_index.internalPointer()
+                    else:
+                        item = index.internalPointer()
+
+                    # Check if this is the right run
+                    if hasattr(item, "run") and item.run == current_run:
+                        tree_view.expand(index)
+                        tree_view.setCurrentIndex(index)
+
+                        # Also expand all voxel spacings within this run
+                        self._expand_all_voxel_spacings(model, index)
+                        break
+                    elif hasattr(item, "name") and item.name == current_run.name:
+                        tree_view.expand(index)
+                        tree_view.setCurrentIndex(index)
+
+                        # Also expand all voxel spacings within this run
+                        self._expand_all_voxel_spacings(model, index)
+                        break
+
+        except Exception as e:
+            print(f"Gallery: Error expanding run in tree: {e}")
+
+    def _expand_all_voxel_spacings(
+        self,
+        run_index: QModelIndex,
+    ) -> None:
+        """Expand all voxel spacings under the given run"""
+        try:
+            copick_tool = self.session.copick
+            tree_view = copick_tool._mw._tree_view
+            model = tree_view.model()
+
+            # Force lazy loading of voxel spacings
+            if hasattr(model, "mapToSource"):
+                source_run_index = model.mapToSource(run_index)
+                run_item = source_run_index.internalPointer()
+            else:
+                run_item = run_index.internalPointer()
+
+            vs_children = run_item.children  # Force lazy loading
+            vs_count = len(vs_children)
+
+            # Expand each voxel spacing
+            for vs_row in range(vs_count):
+                vs_index = model.index(vs_row, 0, run_index)
+                if vs_index.isValid():
+                    tree_view.expand(vs_index)
+
+        except Exception as e:
+            print(f"Gallery: Error expanding voxel spacings: {e}")
+
+    @Slot(object)
+    def _on_run_info_requested(self, run: "CopickRun") -> None:
+        """Handle run info button click"""
+        self.info_requested.emit(run)
+
+    def resizeEvent(self, event: Any) -> None:
+        """Handle widget resize to update grid layout"""
+        super().resizeEvent(event)
+        # Mark grid as dirty and trigger update to recalculate cards per row
+        if hasattr(self, "filtered_runs") and self.filtered_runs:
+            self._grid_dirty = True
+            self._update_grid()

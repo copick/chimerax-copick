@@ -1,7 +1,7 @@
-from typing import Optional
-import numpy as np
-import zarr
-from Qt.QtCore import QObject, QThreadPool, QUrl, Qt, Signal, Slot, QMetaObject, Q_ARG, QVariant
+from typing import Optional, Dict, List, Any
+from Qt.QtCore import QAbstractItemModel
+from Qt.QtWidgets import QTreeView
+from Qt.QtCore import QObject, QThreadPool, QUrl, Qt, Slot, QVariant, QModelIndex
 from Qt.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -13,27 +13,33 @@ from Qt.QtWidgets import (
     QPushButton,
     QGridLayout,
 )
-from Qt.QtGui import QFont, QPixmap, QPainter, QColor, QDesktopServices, QImage
+from Qt.QtGui import QFont, QPixmap, QDesktopServices
 
 from .async_workers import AsyncWorkerSignals, DataLoadWorker, ThumbnailLoadWorker
+
+# Import copick models only when needed to avoid circular import issues
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from copick.models import CopickRun, CopickTomogram, CopickVoxelSpacing
 
 
 class CopickInfoWidget(QWidget):
     """Native Qt widget for displaying copick run information with async loading"""
 
-    def __init__(self, session, parent: Optional[QObject] = None):
+    def __init__(self, session: Any, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
-        self.session = session
-        self.current_run_name = None
-        self.current_run = None
-        self._is_destroyed = False
-        self._thread_pool = QThreadPool()
+        self.session: Any = session
+        self.current_run_name: Optional[str] = None
+        self.current_run: Optional["CopickRun"] = None
+        self._is_destroyed: bool = False
+        self._thread_pool: QThreadPool = QThreadPool()
         self._thread_pool.setMaxThreadCount(4)  # Limit concurrent threads
-        self._loading_states = {}  # Track what's currently loading
-        self._loaded_data = {}  # Cache loaded data
+        self._loading_states: Dict[str, str] = {}  # Track what's currently loading
+        self._loaded_data: Dict[str, List[Any]] = {}  # Cache loaded data
 
         # Shared signals for async workers
-        self._signals = AsyncWorkerSignals()
+        self._signals: AsyncWorkerSignals = AsyncWorkerSignals()
         self._signals.data_loaded.connect(self._handle_data_loaded)
         self._signals.thumbnail_loaded.connect(self._handle_thumbnail_loaded)
 
@@ -41,18 +47,15 @@ class CopickInfoWidget(QWidget):
         session.triggers.add_handler("app quit", self._app_quit)
 
         self._setup_ui()
-        self._thumbnails = {}  # Cache for loaded thumbnails
-        self._thumbnail_widgets = {}  # Map thumbnail_id to widget
+        self._thumbnails: Dict[str, QPixmap] = {}  # Cache for loaded thumbnails
+        self._thumbnail_widgets: Dict[str, QFrame] = {}  # Map thumbnail_id to widget
         self._update_display()
 
-    def _on_tomogram_card_clicked(self, tomogram):
+    def _on_tomogram_card_clicked(self, tomogram: "CopickTomogram") -> None:
         """Handle click on tomogram card - load tomogram and switch to OpenGL view"""
-        if not hasattr(self.session, "copick") or not self.session.copick:
-            return
-        copick_tool = self.session.copick
-        self._load_tomogram_and_switch_view(tomogram, copick_tool)
+        self._load_tomogram_and_switch_view(tomogram)
 
-    def _load_tomogram_and_switch_view(self, tomogram, copick_tool):
+    def _load_tomogram_and_switch_view(self, tomogram: "CopickTomogram") -> None:
         """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior"""
         # Get the main window and stack widget for view switching
         main_window = self.session.ui.main_window
@@ -62,17 +65,19 @@ class CopickInfoWidget(QWidget):
         stack_widget.setCurrentIndex(0)
 
         # Find the tomogram in the tree and get its QModelIndex
-        tomogram_index = self._find_tomogram_in_tree(tomogram, copick_tool)
+        tomogram_index = self._find_tomogram_in_tree(tomogram)
 
         if tomogram_index and tomogram_index.isValid():
             # This is exactly what _on_tree_double_click does - just call switch_volume
+            copick_tool = self.session.copick
             copick_tool.switch_volume(tomogram_index)
 
         # Expand the run in the tree widget
-        self._expand_run_in_tree(copick_tool)
+        self._expand_run_in_tree()
 
-    def _find_tomogram_in_tree(self, tomogram, copick_tool):
+    def _find_tomogram_in_tree(self, tomogram: "CopickTomogram") -> Optional[QModelIndex]:
         """Find the tomogram in the tree model and return its QModelIndex"""
+        copick_tool = self.session.copick
         tree_view = copick_tool._mw._tree_view
         model = tree_view.model()
 
@@ -170,8 +175,9 @@ class CopickInfoWidget(QWidget):
 
         return None
 
-    def _expand_run_in_tree(self, copick_tool):
+    def _expand_run_in_tree(self) -> None:
         """Expand the current run and voxel spacing in the tree widget"""
+        copick_tool = self.session.copick
         tree_view = copick_tool._mw._tree_view
         model = tree_view.model()
 
@@ -203,7 +209,12 @@ class CopickInfoWidget(QWidget):
                         self._expand_all_voxel_spacings(tree_view, model, index)
                         break
 
-    def _expand_all_voxel_spacings(self, tree_view, model, run_index):
+    def _expand_all_voxel_spacings(
+        self,
+        tree_view: QTreeView,
+        model: QAbstractItemModel,
+        run_index: QModelIndex,
+    ) -> None:
         """Expand all voxel spacings under the given run"""
         # Force lazy loading of voxel spacings
         if hasattr(model, "mapToSource"):
@@ -221,16 +232,16 @@ class CopickInfoWidget(QWidget):
             if vs_index.isValid():
                 tree_view.expand(vs_index)
 
-    def _app_quit(self, *args):
+    def _app_quit(self, *args: Any) -> None:
         """Handle app quit trigger to ensure proper cleanup"""
         if not self._is_destroyed:
             # Clear thread pool immediately on app quit
-            if hasattr(self, '_thread_pool'):
+            if hasattr(self, "_thread_pool"):
                 self._thread_pool.clear()
                 # Don't wait for completion during app quit to avoid hanging
             self.deleteLater()
 
-    def delete(self):
+    def delete(self) -> None:
         """Properly clean up the widget"""
         if self._is_destroyed:
             return
@@ -241,7 +252,7 @@ class CopickInfoWidget(QWidget):
         self._thread_pool.clear()
         self._thread_pool.waitForDone(3000)  # Wait up to 3 seconds
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Set up the UI components"""
         layout = QVBoxLayout()
         layout.setContentsMargins(15, 15, 15, 15)
@@ -278,7 +289,7 @@ class CopickInfoWidget(QWidget):
         # Apply styling
         self._apply_styling()
 
-    def _create_header(self, layout):
+    def _create_header(self, layout: Any) -> None:
         """Create the header section"""
         header_widget = QWidget()
         header_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -311,7 +322,7 @@ class CopickInfoWidget(QWidget):
         header_widget.setLayout(header_layout)
         layout.addWidget(header_widget, 0)  # No stretch
 
-    def _create_footer(self, layout):
+    def _create_footer(self, layout: Any) -> None:
         """Create the footer hint"""
         footer_label = QLabel("💡 Use the overlay button on the tree widget to switch between OpenGL and info views")
         footer_label.setAlignment(Qt.AlignCenter)
@@ -329,7 +340,7 @@ class CopickInfoWidget(QWidget):
         )
         layout.addWidget(footer_label, 0)  # No stretch
 
-    def _apply_styling(self):
+    def _apply_styling(self) -> None:
         """Apply overall widget styling"""
         self.setStyleSheet(
             """
@@ -357,13 +368,13 @@ class CopickInfoWidget(QWidget):
         """
         )
 
-    def set_run_name(self, run_name: str):
+    def set_run_name(self, run_name: str) -> None:
         """Set the current run name and update the display"""
         self.current_run_name = run_name
         self.current_run = None  # Will be set by set_run()
         self._update_display()
 
-    def set_run(self, run):
+    def set_run(self, run: Optional["CopickRun"]) -> None:
         """Set the current run object and start async loading"""
         if self._is_destroyed:
             return
@@ -384,7 +395,7 @@ class CopickInfoWidget(QWidget):
 
         self._update_display()
 
-    def _start_async_loading(self):
+    def _start_async_loading(self) -> None:
         """Start asynchronous loading of all run data"""
         if not self.current_run or self._is_destroyed:
             return
@@ -397,7 +408,7 @@ class CopickInfoWidget(QWidget):
                 worker = DataLoadWorker(self._signals, self.current_run, data_type)
                 self._thread_pool.start(worker)
 
-    def _handle_data_loaded(self, data_type, data, error):
+    def _handle_data_loaded(self, data_type: str, data: Optional[List[Any]], error: Optional[str]) -> None:
         """Handle data loading completion"""
         if self._is_destroyed:
             return
@@ -411,7 +422,7 @@ class CopickInfoWidget(QWidget):
         # Update the display to show new data
         self._update_display()
 
-    def _handle_thumbnail_loaded(self, thumbnail_id, pixmap, error):
+    def _handle_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[QPixmap], error: Optional[str]) -> None:
         """Handle thumbnail loading completion"""
         if self._is_destroyed:
             return
@@ -452,17 +463,20 @@ class CopickInfoWidget(QWidget):
                     if thumbnail_id in self._thumbnail_widgets:
                         del self._thumbnail_widgets[thumbnail_id]
 
-    def _on_thumbnail_loaded(self, thumbnail_id, pixmap, error):
+    def _on_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[QPixmap], error: Optional[str]) -> None:
         """Qt slot method for handling thumbnail loading from worker threads"""
         # This method is called by QMetaObject.invokeMethod from worker threads
         self._handle_thumbnail_loaded(thumbnail_id, pixmap, error)
 
     @Slot(str, QVariant, QVariant)
-    def _on_thumbnail_loaded_slot(self, thumbnail_id, pixmap, error):
+    def _on_thumbnail_loaded_slot(self, thumbnail_id: str, pixmap: QVariant, error: QVariant) -> None:
         """Properly decorated Qt slot for thumbnail loading"""
-        self._handle_thumbnail_loaded(thumbnail_id, pixmap, error)
+        # Convert QVariant to proper types
+        pixmap_obj = pixmap if isinstance(pixmap, QPixmap) else None
+        error_str = str(error) if error is not None else None
+        self._handle_thumbnail_loaded(thumbnail_id, pixmap_obj, error_str)
 
-    def _update_display(self):
+    def _update_display(self) -> None:
         """Update the widget display"""
         # Update run name
         run_display = self.current_run_name or "No run selected"
@@ -490,7 +504,7 @@ class CopickInfoWidget(QWidget):
             empty_label.setStyleSheet("color: #999; font-style: italic; padding: 40px;")
             self._content_layout.addWidget(empty_label)
 
-    def _add_voxel_spacings_section(self):
+    def _add_voxel_spacings_section(self) -> None:
         """Add the voxel spacings section with nested tomograms"""
         voxel_status = self._loading_states.get("voxel_spacings", "not_started")
         tomo_status = self._loading_states.get("tomograms", "not_started")
@@ -566,7 +580,7 @@ class CopickInfoWidget(QWidget):
         section_frame.setLayout(section_layout)
         self._content_layout.addWidget(section_frame)
 
-    def _add_annotations_section(self):
+    def _add_annotations_section(self) -> None:
         """Add the annotations group section"""
         picks_status = self._loading_states.get("picks", "not_started")
         meshes_status = self._loading_states.get("meshes", "not_started")
@@ -634,7 +648,7 @@ class CopickInfoWidget(QWidget):
         section_frame.setLayout(section_layout)
         self._content_layout.addWidget(section_frame)
 
-    def _create_section_frame(self):
+    def _create_section_frame(self) -> QFrame:
         """Create a styled frame for a section"""
         frame = QFrame()
         frame.setFrameStyle(QFrame.StyledPanel)
@@ -649,7 +663,7 @@ class CopickInfoWidget(QWidget):
         )
         return frame
 
-    def _create_status_label(self, status, data_type):
+    def _create_status_label(self, status: str, data_type: str) -> QLabel:
         """Create a status indicator label"""
         label = QLabel()
         label.setAlignment(Qt.AlignCenter)
@@ -715,7 +729,7 @@ class CopickInfoWidget(QWidget):
 
         return label
 
-    def _create_content_placeholder(self, status):
+    def _create_content_placeholder(self, status: str) -> QLabel:
         """Create a placeholder label for content"""
         if status == "loading":
             text = "Loading data..."
@@ -729,7 +743,11 @@ class CopickInfoWidget(QWidget):
         label.setStyleSheet("color: #999; font-style: italic; padding: 20px;")
         return label
 
-    def _create_nested_voxel_tomogram_content(self, voxel_spacings, tomograms):
+    def _create_nested_voxel_tomogram_content(
+        self,
+        voxel_spacings: List["CopickVoxelSpacing"],
+        tomograms: List["CopickTomogram"],
+    ) -> QWidget:
         """Create nested voxel spacing and tomogram content"""
         content_widget = QWidget()
         content_layout = QVBoxLayout()
@@ -753,7 +771,9 @@ class CopickInfoWidget(QWidget):
         content_widget.setLayout(content_layout)
         return content_widget
 
-    def _create_voxel_spacing_widget(self, voxel_spacing, tomograms):
+    def _create_voxel_spacing_widget(
+        self, voxel_spacing: "CopickVoxelSpacing", tomograms: List["CopickTomogram"]
+    ) -> QFrame:
         """Create a widget for a voxel spacing with its tomograms"""
         frame = QFrame()
         frame.setFrameStyle(QFrame.StyledPanel)
@@ -818,7 +838,7 @@ class CopickInfoWidget(QWidget):
         frame.setLayout(layout)
         return frame
 
-    def _create_tomogram_card(self, tomogram):
+    def _create_tomogram_card(self, tomogram: "CopickTomogram") -> QFrame:
         """Create a card widget for a tomogram with thumbnail"""
         card = QFrame()
         card.setFrameStyle(QFrame.StyledPanel)
@@ -924,7 +944,7 @@ class CopickInfoWidget(QWidget):
         card.setLayout(layout)
         return card
 
-    def _create_tomogram_widget(self, tomogram):
+    def _create_tomogram_widget(self, tomogram: "CopickTomogram") -> QWidget:
         """Create a widget for a tomogram"""
         widget = QWidget()
         layout = QHBoxLayout()
@@ -958,7 +978,7 @@ class CopickInfoWidget(QWidget):
         )
         return widget
 
-    def _create_annotation_subsection(self, data_type, title, status):
+    def _create_annotation_subsection(self, data_type: str, title: str, status: str) -> QFrame:
         """Create an annotation subsection widget"""
         frame = QFrame()
         frame.setFrameStyle(QFrame.StyledPanel)
@@ -1021,7 +1041,7 @@ class CopickInfoWidget(QWidget):
         frame.setLayout(layout)
         return frame
 
-    def _create_annotation_items_widget(self, data_type, data):
+    def _create_annotation_items_widget(self, data_type: str, data: List[Any]) -> QWidget:
         """Create a widget containing annotation items"""
         widget = QWidget()
         layout = QVBoxLayout()
@@ -1036,7 +1056,7 @@ class CopickInfoWidget(QWidget):
         widget.setLayout(layout)
         return widget
 
-    def _create_annotation_item_widget(self, data_type, item):
+    def _create_annotation_item_widget(self, data_type: str, item: Any) -> QWidget:
         """Create a widget for a single annotation item"""
         widget = QWidget()
         layout = QHBoxLayout()
@@ -1095,7 +1115,7 @@ class CopickInfoWidget(QWidget):
         )
         return widget
 
-    def _create_cryoet_link_button(self, item):
+    def _create_cryoet_link_button(self, item: Any) -> Optional[QPushButton]:
         """Create a CryoET Data Portal link button for an item if applicable"""
         try:
             # Import here to avoid circular imports

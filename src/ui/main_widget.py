@@ -1,4 +1,5 @@
 from typing import List, Optional, Union
+from datetime import datetime
 
 from chimerax.core.tools import ToolInstance
 from copick.impl.filesystem import CopickRootFSSpec
@@ -387,6 +388,9 @@ class MainWidget(QWidget):
 
         # Update gallery widget with new root if it exists
         self._update_gallery_widget_root(root)
+        
+        # Default to gallery view when new root is set
+        self._navigate_to_gallery()
 
     def _connect(self):
         # Top button actions
@@ -748,18 +752,336 @@ class MainWidget(QWidget):
     def _on_gallery_run_selected(self, run):
         """Handle run selection from gallery widget"""
         try:
+            # Add debug logging
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: START for run {run.name}\n")
+            
+            # Update current run
+            self._current_run = run
+            
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling set_current_run\n")
+            
+            self.set_current_run(run)
+            
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling _select_best_tomogram_from_run\n")
+
+            # Find and load the best tomogram from this run
+            best_tomogram = self._select_best_tomogram_from_run(run)
+            
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Selected tomogram: {best_tomogram.tomo_type if best_tomogram else 'None'}\n")
+            
+            if best_tomogram:
+                with open("/tmp/copick_gallery_debug.log", "a") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling _load_tomogram_and_switch_view\n")
+                
+                self._load_tomogram_and_switch_view(best_tomogram)
+                
+                with open("/tmp/copick_gallery_debug.log", "a") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Returned from _load_tomogram_and_switch_view\n")
+            else:
+                with open("/tmp/copick_gallery_debug.log", "a") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: No tomogram, switching to 3D view\n")
+                
+                # If no tomogram found, just switch to 3D view
+                session = self._copick.session
+                main_window = session.ui.main_window
+                stack_widget = main_window._stack
+                stack_widget.setCurrentIndex(0)
+                
+                with open("/tmp/copick_gallery_debug.log", "a") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Switched to 3D view\n")
+
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: END SUCCESS\n")
+
+        except Exception as e:
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: EXCEPTION: {e}\n")
+            print(f"Error handling gallery run selection: {e}")
+
+    def _select_best_tomogram_from_run(self, run):
+        """Select the best tomogram from a run (prefer denoised, highest voxel spacing)"""
+        try:
+            all_tomograms = []
+            
+            # Collect all tomograms from all voxel spacings
+            for vs in run.voxel_spacings:
+                for tomo in vs.tomograms:
+                    all_tomograms.append(tomo)
+            
+            if not all_tomograms:
+                return None
+
+            # Preference order for tomogram types (denoised first)
+            preferred_types = ["denoised", "wbp", "ribo", "defocus"]
+            
+            # Group by voxel spacing (highest first)
+            voxel_spacings = sorted(set(tomo.voxel_spacing.voxel_size for tomo in all_tomograms), reverse=True)
+            
+            # Try each voxel spacing, starting with highest
+            for vs_size in voxel_spacings:
+                vs_tomograms = [tomo for tomo in all_tomograms if tomo.voxel_spacing.voxel_size == vs_size]
+                
+                # Try preferred types in order
+                for preferred_type in preferred_types:
+                    for tomo in vs_tomograms:
+                        if preferred_type.lower() in tomo.tomo_type.lower():
+                            return tomo
+                
+                # If no preferred type found, return the first tomogram at this voxel spacing
+                if vs_tomograms:
+                    return vs_tomograms[0]
+            
+            # Fallback: return any tomogram
+            return all_tomograms[0] if all_tomograms else None
+
+        except Exception:
+            return None
+
+    def _load_tomogram_and_switch_view(self, tomogram):
+        """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior"""
+        try:
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: START for tomogram {tomogram.tomo_type}\n")
+            
+            # Get the copick tool
+            copick_tool = self._copick
+            
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Got copick_tool\n")
+            
+            # Get the main window and stack widget for view switching
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
+
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Got stack_widget\n")
+
+            # Switch to OpenGL view (index 0)
+            stack_widget.setCurrentIndex(0)
+
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Set stack widget index to 0\n")
+
+            # Find the tomogram in the tree and get its QModelIndex
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Calling _find_tomogram_in_tree\n")
+            
+            tomogram_index = self._find_tomogram_in_tree(tomogram, copick_tool)
+
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Found tomogram index: {tomogram_index.isValid() if tomogram_index else 'None'}\n")
+
+            if tomogram_index and tomogram_index.isValid():
+                with open("/tmp/copick_gallery_debug.log", "a") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: About to call copick_tool.switch_volume\n")
+                
+                # This is exactly what _on_tree_double_click does - just call switch_volume
+                copick_tool.switch_volume(tomogram_index)
+                
+                with open("/tmp/copick_gallery_debug.log", "a") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Called copick_tool.switch_volume successfully\n")
+
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: About to call _expand_run_in_tree\n")
+
+            # Expand the run in the tree widget
+            self._expand_run_in_tree(copick_tool)
+            
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: END SUCCESS\n")
+            
+        except Exception as e:
+            with open("/tmp/copick_gallery_debug.log", "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: EXCEPTION: {e}\n")
+            print(f"Error loading tomogram: {e}")
+
+    def _find_tomogram_in_tree(self, tomogram, copick_tool):
+        """Find the tomogram in the tree model and return its QModelIndex"""
+        try:
+            # Use our own tree view instead of accessing copick_tool._mw._tree_view
+            tree_view = self._tree_view
+            model = tree_view.model()
+
+            if not model:
+                return None
+
+            # Navigate the tree structure: Root -> Run -> VoxelSpacing -> Tomogram
+            for run_row in range(model.rowCount()):
+                run_index = model.index(run_row, 0)
+                if not run_index.isValid():
+                    continue
+
+                # Get the actual item (handling proxy model if present)
+                if hasattr(model, "mapToSource"):
+                    source_run_index = model.mapToSource(run_index)
+                    run_item = source_run_index.internalPointer()
+                else:
+                    run_item = run_index.internalPointer()
+
+                if not run_item:
+                    continue
+
+                # Check if this is the right run
+                if hasattr(run_item, "run"):
+                    if run_item.run.name != self._current_run.name:
+                        continue
+                elif hasattr(run_item, "name"):
+                    if run_item.name != self._current_run.name:
+                        continue
+                else:
+                    continue
+
+                # Force lazy loading by accessing the children property directly
+                if hasattr(run_item, "children"):
+                    vs_children = run_item.children  # This triggers lazy loading
+                    vs_count = len(vs_children)
+                else:
+                    vs_count = model.rowCount(run_index)
+
+                for vs_row in range(vs_count):
+                    vs_index = model.index(vs_row, 0, run_index)
+                    if not vs_index.isValid():
+                        continue
+
+                    # Get voxel spacing item
+                    if hasattr(model, "mapToSource"):
+                        source_vs_index = model.mapToSource(vs_index)
+                        vs_item = source_vs_index.internalPointer()
+                    else:
+                        vs_item = vs_index.internalPointer()
+
+                    if not vs_item:
+                        continue
+
+                    # Check if this voxel spacing contains our tomogram
+                    if hasattr(vs_item, "voxel_spacing"):
+                        vs_obj = vs_item.voxel_spacing
+                        if vs_obj.voxel_size != tomogram.voxel_spacing.voxel_size:
+                            continue
+                    else:
+                        continue
+
+                    # Force lazy loading by accessing the children property directly
+                    if hasattr(vs_item, "children"):
+                        tomo_children = vs_item.children  # This triggers lazy loading
+                        tomo_count = len(tomo_children)
+                    else:
+                        tomo_count = model.rowCount(vs_index)
+
+                    for tomo_row in range(tomo_count):
+                        tomo_index = model.index(tomo_row, 0, vs_index)
+                        if not tomo_index.isValid():
+                            continue
+
+                        # Get tomogram item
+                        if hasattr(model, "mapToSource"):
+                            source_tomo_index = model.mapToSource(tomo_index)
+                            tomo_item = source_tomo_index.internalPointer()
+                            final_index = source_tomo_index  # Return source index, not proxy index
+                        else:
+                            tomo_item = tomo_index.internalPointer()
+                            final_index = tomo_index
+
+                        if not tomo_item:
+                            continue
+
+                        # Check if this is our tomogram
+                        if hasattr(tomo_item, "tomogram"):
+                            tomo_obj = tomo_item.tomogram
+                            if tomo_obj.tomo_type == tomogram.tomo_type:
+                                return final_index
+
+            return None
+            
+        except Exception:
+            return None
+
+    def _expand_run_in_tree(self, copick_tool):
+        """Expand the current run and all voxel spacings in the tree widget"""
+        try:
+            # Use our own tree view instead of accessing copick_tool._mw._tree_view
+            tree_view = self._tree_view
+            model = tree_view.model()
+
+            if not model or not self._current_run:
+                return
+
+            # Find and expand the run
+            for run_row in range(model.rowCount()):
+                run_index = model.index(run_row, 0)
+                if not run_index.isValid():
+                    continue
+
+                # Get the actual item (handling proxy model if present)
+                if hasattr(model, "mapToSource"):
+                    source_run_index = model.mapToSource(run_index)
+                    run_item = source_run_index.internalPointer()
+                else:
+                    run_item = run_index.internalPointer()
+
+                if not run_item:
+                    continue
+
+                # Check if this is the right run
+                if hasattr(run_item, "run"):
+                    if run_item.run.name == self._current_run.name:
+                        tree_view.expand(run_index)
+                        tree_view.setCurrentIndex(run_index)
+                        
+                        # Also expand all voxel spacings within this run
+                        self._expand_all_voxel_spacings(tree_view, model, run_index)
+                        break
+                elif hasattr(run_item, "name"):
+                    if run_item.name == self._current_run.name:
+                        tree_view.expand(run_index)
+                        tree_view.setCurrentIndex(run_index)
+                        
+                        # Also expand all voxel spacings within this run
+                        self._expand_all_voxel_spacings(tree_view, model, run_index)
+                        break
+                        
+        except Exception:
+            pass
+
+    def _expand_all_voxel_spacings(self, tree_view, model, run_index):
+        """Expand all voxel spacings under the given run"""
+        try:
+            # Force lazy loading of voxel spacings
+            if hasattr(model, "mapToSource"):
+                source_run_index = model.mapToSource(run_index)
+                run_item = source_run_index.internalPointer()
+            else:
+                run_item = run_index.internalPointer()
+
+            vs_children = run_item.children  # Force lazy loading
+            vs_count = len(vs_children)
+
+            # Expand each voxel spacing
+            for vs_row in range(vs_count):
+                vs_index = model.index(vs_row, 0, run_index)
+                if vs_index.isValid():
+                    tree_view.expand(vs_index)
+                    
+        except Exception:
+            pass
+
+    def _on_gallery_info_requested(self, run):
+        """Handle info request from gallery widget - switch to info view with selected run"""
+        try:
             # Update current run
             self._current_run = run
             self.set_current_run(run)
 
-            # Switch back to OpenGL view to show the selected run
-            session = self._copick.session
-            main_window = session.ui.main_window
-            stack_widget = main_window._stack
-            stack_widget.setCurrentIndex(0)
+            # Navigate to details/info view
+            self._navigate_to_details()
 
         except Exception as e:
-            print(f"Error handling gallery run selection: {e}")
+            print(f"Error handling gallery info request: {e}")
 
     def _navigate_to_3d(self):
         """Navigate to 3D/OpenGL view"""
@@ -837,6 +1159,7 @@ class MainWidget(QWidget):
 
                 # Connect gallery run selection to main widget
                 gallery_widget.run_selected.connect(self._on_gallery_run_selected)
+                gallery_widget.info_requested.connect(self._on_gallery_info_requested)
 
                 stack_widget.addWidget(gallery_widget)
 
