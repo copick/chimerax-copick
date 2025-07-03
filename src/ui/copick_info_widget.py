@@ -391,7 +391,7 @@ class CopickInfoWidget(QWidget):
         header_layout.setAlignment(Qt.AlignCenter)
         
         # Title
-        title_label = QLabel("📊 Copick Run Details")
+        title_label = QLabel("Copick Run Details")
         title_font = QFont()
         title_font.setPointSize(16)
         title_font.setBold(True)
