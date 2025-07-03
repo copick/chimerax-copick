@@ -104,7 +104,7 @@ class MainWidget(QWidget):
         self._picks_table = QUnifiedTable("picks")
         self._picks_stepper = StepWidget(0, 0)
         self._picks_stepper.setMaximumHeight(45)  # Appropriate height for buttons and text
-        
+
         # Create horizontal layout to center the stepper widget
         stepper_layout = QHBoxLayout()
         stepper_layout.addStretch()  # Left stretch
@@ -113,7 +113,7 @@ class MainWidget(QWidget):
         stepper_layout.setContentsMargins(0, 0, 0, 0)  # No margins
         stepper_container = QWidget()
         stepper_container.setLayout(stepper_layout)
-        
+
         picks_layout.addWidget(self._picks_table)
         picks_layout.addWidget(stepper_container)
         picks_widget.setLayout(picks_layout)
@@ -164,7 +164,7 @@ class MainWidget(QWidget):
 
         # Add splitter to main layout
         self._layout.addWidget(self._main_splitter)
-        
+
         # Add table settings buttons to top layout (after tables are created)
         self._add_table_settings_buttons()
 
@@ -317,7 +317,7 @@ class MainWidget(QWidget):
         button_layout.addStretch()  # Left stretch
         button_layout.addWidget(self._edit_objects_button)
         button_layout.addWidget(self._reload_button)
-        
+
         # Add settings buttons from tables (will be added later in _build)
         # Placeholder for table settings buttons
         button_layout.addStretch()  # Right stretch
@@ -332,7 +332,7 @@ class MainWidget(QWidget):
 
         # Add to main layout
         self._layout.addWidget(button_widget)
-        
+
     def _add_table_settings_buttons(self):
         """Add a single shared settings button to the top button layout"""
         # Remove the last stretch before adding button
@@ -341,13 +341,13 @@ class MainWidget(QWidget):
             last_item = self._top_button_layout.itemAt(item_count - 1)
             if last_item.spacerItem():  # Remove the right stretch
                 self._top_button_layout.removeItem(last_item)
-        
+
         # Create single shared settings button
         self._shared_settings_button = QPushButton("⚙")
         self._shared_settings_button.setToolTip("Table settings (applies to all tables)")
         self._shared_settings_button.clicked.connect(self._on_shared_settings_clicked)
         self._top_button_layout.addWidget(self._shared_settings_button)
-        
+
         # Add back the right stretch
         self._top_button_layout.addStretch()
 
@@ -362,7 +362,7 @@ class MainWidget(QWidget):
         self._filter_model.setFilterRole(Qt.DisplayRole)
 
         self._tree_view.setModel(self._filter_model)
-        
+
         # Connect selection model after setting the model
         if self._tree_view.selectionModel():
             self._tree_view.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
@@ -420,16 +420,16 @@ class MainWidget(QWidget):
         self._picks_table._table.setModel(None)
         self._meshes_table._table.setModel(None)
         self._segmentations_table._table.setModel(None)
-        
+
         # Reset internal state
         self._picks_table._run = None
         self._picks_table._source_model = None
         self._picks_table._filter_model = None
-        
+
         self._meshes_table._run = None
         self._meshes_table._source_model = None
         self._meshes_table._filter_model = None
-        
+
         self._segmentations_table._run = None
         self._segmentations_table._source_model = None
         self._segmentations_table._filter_model = None
@@ -629,7 +629,7 @@ class MainWidget(QWidget):
     def _on_shared_settings_clicked(self):
         """Handle shared settings button click - show settings for current tab"""
         current_tab_index = self._object_tabs.currentIndex()
-        
+
         # Get the current table's settings overlay
         current_table = None
         if current_tab_index == 0:  # Picks tab
@@ -638,11 +638,11 @@ class MainWidget(QWidget):
             current_table = self._meshes_table
         elif current_tab_index == 2:  # Segmentations tab
             current_table = self._segmentations_table
-        
+
         if current_table:
             # Position the overlay relative to the shared settings button
             self._position_shared_settings_overlay(current_table._settings_overlay)
-            
+
             # Show the overlay
             if current_table._settings_overlay.isVisible():
                 current_table._settings_overlay.hide()
@@ -650,44 +650,47 @@ class MainWidget(QWidget):
                 current_table._settings_overlay.show()
                 current_table._settings_overlay.raise_()
                 current_table._settings_overlay.activateWindow()
-    
+
     def _position_shared_settings_overlay(self, overlay):
         """Position the settings overlay relative to the shared settings button"""
         if hasattr(self, "_shared_settings_button"):
             # Get button position in global coordinates
             button_global_pos = self._shared_settings_button.mapToGlobal(self._shared_settings_button.rect().topLeft())
-            
+
             # Position overlay below the button with some offset
             overlay_width = 280
             overlay_height = 140
-            x = button_global_pos.x() - overlay_width + self._shared_settings_button.width()  # Align right edge with button
+            x = (
+                button_global_pos.x() - overlay_width + self._shared_settings_button.width()
+            )  # Align right edge with button
             y = button_global_pos.y() + self._shared_settings_button.height() + 5  # Below button with gap
-            
+
             # Get the screen that contains the button (not just primary screen)
             from Qt.QtWidgets import QApplication
+
             app = QApplication.instance()
             screen = app.screenAt(button_global_pos)
             if screen is None:
                 # Fallback to primary screen if we can't determine the current screen
                 screen = app.primaryScreen()
             screen_geometry = screen.geometry()
-            
+
             # Ensure we don't go off-screen to the left
             if x < screen_geometry.left() + 10:
                 x = screen_geometry.left() + 10
-            
+
             # Ensure we don't go off-screen to the right
             if x + overlay_width > screen_geometry.right() - 10:
                 x = screen_geometry.right() - overlay_width - 10
-            
+
             # Ensure vertical positioning is within screen bounds
             if y + overlay_height > screen_geometry.bottom() - 10:
                 # Position above the button instead
                 y = button_global_pos.y() - overlay_height - 5
-            
+
             if y < screen_geometry.top() + 10:
                 y = screen_geometry.top() + 10
-            
+
             overlay.move(x, y)
 
     def _toggle_stack_widget(self):
@@ -700,26 +703,29 @@ class MainWidget(QWidget):
 
             # Get current widget
             current_widget = stack_widget.currentWidget()
-            
-            # Check if our copick HTML widget is already in the stack
+
+            # Check if our copick info widget is already in the stack
             copick_widget = None
             for i in range(stack_widget.count()):
                 widget = stack_widget.widget(i)
-                if hasattr(widget, '__class__') and widget.__class__.__name__ == 'CopickHtmlWidget':
+                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickInfoWidget":
                     copick_widget = widget
                     break
 
             # If no copick widget exists, create one
             if copick_widget is None:
-                from .copick_html_widget import CopickHtmlWidget
-                copick_widget = CopickHtmlWidget(session)
-                
+                from .copick_info_widget import CopickInfoWidget
+
+                copick_widget = CopickInfoWidget(session)
+
                 # Update with current run if one is selected
-                if hasattr(self, '_current_run_name') and self._current_run_name:
+                if hasattr(self, "_current_run") and self._current_run:
+                    copick_widget.set_run(self._current_run)
+                elif hasattr(self, "_current_run_name") and self._current_run_name:
                     copick_widget.set_run_name(self._current_run_name)
-                
+
                 stack_widget.addWidget(copick_widget)
-                
+
                 # Store reference for cleanup
                 self._copick_html_widget = copick_widget
 
@@ -742,27 +748,49 @@ class MainWidget(QWidget):
     def set_current_run_name(self, run_name: str):
         """Update the current run name and notify the HTML widget if it exists"""
         self._current_run_name = run_name
-        
-        # Update HTML widget if it exists
+
+        # Update info widget if it exists
         try:
             session = self._copick.session
             main_window = session.ui.main_window
             stack_widget = main_window._stack
-            
+
             for i in range(stack_widget.count()):
                 widget = stack_widget.widget(i)
-                if hasattr(widget, '__class__') and widget.__class__.__name__ == 'CopickHtmlWidget':
+                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickInfoWidget":
                     widget.set_run_name(run_name)
                     break
         except:
             pass  # Silently handle errors
 
+    def set_current_run(self, run):
+        """Update the current run object and notify the HTML widget if it exists"""
+        self._current_run = run
+        if run:
+            self._current_run_name = run.name
+        else:
+            self._current_run_name = None
+
+        # Update info widget if it exists
+        try:
+            session = self._copick.session
+            main_window = session.ui.main_window
+            stack_widget = main_window._stack
+
+            for i in range(stack_widget.count()):
+                widget = stack_widget.widget(i)
+                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickInfoWidget":
+                    widget.set_run(run)
+                    break
+        except:
+            pass  # Silently handle errors
+
     def _on_tree_selection_changed(self, selected, deselected):
-        """Handle tree selection changes to update run name in HTML widget"""
+        """Handle tree selection changes to update run object in HTML widget"""
         try:
             if not selected.indexes():
                 return
-                
+
             # Get the first selected index
             proxy_index = selected.indexes()[0]
             if not proxy_index.isValid():
@@ -779,40 +807,40 @@ class MainWidget(QWidget):
 
             # Get the item from the source index
             item = source_index.internalPointer()
-            
-            # Check if it's a run and update the current run name
+
+            # Check if it's a run and update the current run object
             if isinstance(item, TreeRun):
-                run_name = item.run.name
-                self.set_current_run_name(run_name)
-                
+                # Pass the actual run object for async loading
+                self.set_current_run(item.run)
+
         except Exception as e:
             # Silently handle errors to avoid breaking the selection
             print(f"Error handling tree selection: {e}")
 
     def cleanup(self):
-        """Clean up resources, especially the HTML widget"""
+        """Clean up resources, especially the info widget"""
         try:
-            # Clean up HTML widget if it exists
-            if hasattr(self, '_copick_html_widget'):
+            # Clean up info widget if it exists
+            if hasattr(self, "_copick_html_widget"):
                 self._copick_html_widget.delete()
-                delattr(self, '_copick_html_widget')
-            
+                delattr(self, "_copick_html_widget")
+
             # Also remove from ChimeraX stack if it exists
             session = self._copick.session
             main_window = session.ui.main_window
             stack_widget = main_window._stack
-            
-            # Remove any CopickHtmlWidget from the stack
+
+            # Remove any CopickInfoWidget from the stack
             widgets_to_remove = []
             for i in range(stack_widget.count()):
                 widget = stack_widget.widget(i)
-                if hasattr(widget, '__class__') and widget.__class__.__name__ == 'CopickHtmlWidget':
+                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickInfoWidget":
                     widgets_to_remove.append(widget)
-            
+
             for widget in widgets_to_remove:
                 stack_widget.removeWidget(widget)
                 widget.delete()
-                
+
         except Exception:
             # Silently handle cleanup errors
             pass
