@@ -60,101 +60,71 @@ class ThumbnailLoadWorker(QRunnable):
     
     def run(self):
         """Load thumbnail and update widget via signals"""
-        print(f"DEBUG: ThumbnailLoadWorker.run() started for {self.thumbnail_id}")
         try:
-            # Use zarr-based API for faster loading
-            print(f"DEBUG: Loading thumbnail using direct zarr API...")
-            
             # Try all available zarr groups from lowest to highest resolution
             zarr_groups_to_try = ['2', '1', '0']  # Start with lowest resolution first
             zarr_array = None
-            successful_group = None
             
             for zarr_group in zarr_groups_to_try:
                 try:
-                    print(f"DEBUG: Trying zarr group '{zarr_group}'...")
                     # Use the faster zarr-based API: zarr.open(tomogram.zarr())[group]
                     zarr_store = zarr.open(self.tomogram.zarr())
                     zarr_array = zarr_store[zarr_group]
-                    successful_group = zarr_group
-                    print(f"DEBUG: Successfully opened zarr group '{zarr_group}', shape: {zarr_array.shape}, dtype: {zarr_array.dtype}")
                     break
-                except Exception as e:
-                    print(f"DEBUG: Failed to open zarr group '{zarr_group}': {e}")
+                except Exception:
                     continue
             
             if zarr_array is None:
                 # Fallback: try the convenience method
-                print(f"DEBUG: Fallback: trying tomogram.numpy() method...")
                 full_array = self.tomogram.numpy(zarr_group='2')  # Default to lowest resolution
-                print(f"DEBUG: Fallback successful, shape: {full_array.shape}, dtype: {full_array.dtype}")
                 # Get array dimensions 
                 shape = full_array.shape
                 z_center = shape[0] // 2
-                print(f"DEBUG: Array shape: {shape}, center Z: {z_center}")
                 # Extract full X/Y extent at center Z slice
                 data_slice = full_array[z_center, :, :]
             else:
                 # Get array dimensions directly from zarr
                 shape = zarr_array.shape
                 z_center = shape[0] // 2
-                print(f"DEBUG: Zarr array shape: {shape}, center Z: {z_center}")
                 
                 # Extract full X/Y extent at center Z slice directly from zarr (faster)
                 data_slice = np.array(zarr_array[z_center, :, :])
-                print(f"DEBUG: Extracted full X/Y slice at Z={z_center}, shape: {data_slice.shape}, dtype: {data_slice.dtype}")
             
             # Use the extracted slice as data array
             data_array = data_slice
-            print(f"DEBUG: Using full X/Y data array, shape: {data_array.shape}")
             
             # Normalize to 0-255 range
             if data_array.size > 0:
                 min_val = np.min(data_array)
                 max_val = np.max(data_array)
-                print(f"DEBUG: Data range: {min_val} to {max_val}")
                 if max_val > min_val:
                     normalized = ((data_array - min_val) / (max_val - min_val) * 255).astype(np.uint8)
-                    print(f"DEBUG: Normalized to 0-255 range")
                 else:
                     normalized = np.zeros_like(data_array, dtype=np.uint8)
-                    print(f"DEBUG: Data has no range, using zeros")
             else:
                 # Create a small fallback image
                 normalized = np.zeros((100, 100), dtype=np.uint8)
-                print(f"DEBUG: Empty data, creating 100x100 zeros")
-            
-            print(f"DEBUG: Normalized array shape: {normalized.shape}")
-            print(f"DEBUG: Thumbnail will be resized dynamically when displayed")
             
             # Convert to QPixmap
             height, width = normalized.shape
             bytes_per_line = width
-            print(f"DEBUG: Creating QImage from {height}x{width} array")
             q_image = QImage(normalized.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
             pixmap = QPixmap.fromImage(q_image)
-            print(f"DEBUG: QPixmap created, size: {pixmap.width()}x{pixmap.height()}")
             
-            # FIXED: Use the properly decorated slot method
-            print(f"DEBUG: Invoking _on_thumbnail_loaded_slot for {self.thumbnail_id}")
-            result = QMetaObject.invokeMethod(self.widget, "_on_thumbnail_loaded_slot", 
+            # Use the properly decorated slot method
+            QMetaObject.invokeMethod(self.widget, "_on_thumbnail_loaded_slot", 
                                    Qt.QueuedConnection,
                                    Q_ARG(str, self.thumbnail_id),
                                    Q_ARG(QVariant, pixmap), 
                                    Q_ARG(QVariant, None))
-            print(f"DEBUG: QMetaObject.invokeMethod result: {result}")
             
         except Exception as e:
-            print(f"DEBUG: Exception in ThumbnailLoadWorker.run(): {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
-            # FIXED: Use the properly decorated slot method for errors
-            result = QMetaObject.invokeMethod(self.widget, "_on_thumbnail_loaded_slot",
+            # Use the properly decorated slot method for errors
+            QMetaObject.invokeMethod(self.widget, "_on_thumbnail_loaded_slot",
                                    Qt.QueuedConnection, 
                                    Q_ARG(str, self.thumbnail_id),
                                    Q_ARG(QVariant, None),
                                    Q_ARG(QVariant, str(e)))
-            print(f"DEBUG: Error QMetaObject.invokeMethod result: {result}")
 
 
 class CopickInfoWidget(QWidget):
@@ -175,8 +145,7 @@ class CopickInfoWidget(QWidget):
         self._loaded_data = {}  # Cache loaded data
         
         # Register for app quit trigger to ensure proper cleanup
-        if hasattr(session, 'triggers'):
-            session.triggers.add_handler('app quit', self._app_quit)
+        session.triggers.add_handler('app quit', self._app_quit)
         
         self._setup_ui()
         self.data_loaded.connect(self._handle_data_loaded)
@@ -184,6 +153,180 @@ class CopickInfoWidget(QWidget):
         self._thumbnails = {}  # Cache for loaded thumbnails
         self._thumbnail_widgets = {}  # Map thumbnail_id to widget
         self._update_display()
+    
+    def _on_tomogram_card_clicked(self, tomogram):
+        """Handle click on tomogram card - load tomogram and switch to OpenGL view"""
+        if not hasattr(self.session, 'copick') or not self.session.copick:
+            return
+        copick_tool = self.session.copick
+        self._load_tomogram_and_switch_view(tomogram, copick_tool)
+    
+    def _load_tomogram_and_switch_view(self, tomogram, copick_tool):
+        """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior"""
+        # Get the main window and stack widget for view switching
+        main_window = self.session.ui.main_window
+        stack_widget = main_window._stack
+        
+        # Switch to OpenGL view (index 0)
+        stack_widget.setCurrentIndex(0)
+        
+        # Find the tomogram in the tree and get its QModelIndex
+        tomogram_index = self._find_tomogram_in_tree(tomogram, copick_tool)
+        
+        if tomogram_index and tomogram_index.isValid():
+            # This is exactly what _on_tree_double_click does - just call switch_volume
+            copick_tool.switch_volume(tomogram_index)
+                
+        # Expand the run in the tree widget
+        self._expand_run_in_tree(copick_tool)
+    
+    def _find_tomogram_in_tree(self, tomogram, copick_tool):
+        """Find the tomogram in the tree model and return its QModelIndex"""
+        tree_view = copick_tool._mw._tree_view
+        model = tree_view.model()
+        
+        if not model:
+            return None
+        
+        # Navigate the tree structure: Root -> Run -> VoxelSpacing -> Tomogram
+        for run_row in range(model.rowCount()):
+            run_index = model.index(run_row, 0)
+            if not run_index.isValid():
+                continue
+            
+            # Get the actual item (handling proxy model if present)
+            if hasattr(model, 'mapToSource'):
+                source_run_index = model.mapToSource(run_index)
+                run_item = source_run_index.internalPointer()
+            else:
+                run_item = run_index.internalPointer()
+            
+            if not run_item:
+                continue
+            
+            # Check if this is the right run
+            if hasattr(run_item, 'run'):
+                if run_item.run.name != self.current_run.name:
+                    continue
+            elif hasattr(run_item, 'name'):
+                if run_item.name != self.current_run.name:
+                    continue
+            else:
+                continue
+            
+            # Force lazy loading by accessing the children property directly
+            if hasattr(run_item, 'children'):
+                vs_children = run_item.children  # This triggers lazy loading
+                vs_count = len(vs_children)
+            else:
+                vs_count = model.rowCount(run_index)
+            
+            for vs_row in range(vs_count):
+                vs_index = model.index(vs_row, 0, run_index)
+                if not vs_index.isValid():
+                    continue
+                
+                # Get voxel spacing item
+                if hasattr(model, 'mapToSource'):
+                    source_vs_index = model.mapToSource(vs_index)
+                    vs_item = source_vs_index.internalPointer()
+                else:
+                    vs_item = vs_index.internalPointer()
+                
+                if not vs_item:
+                    continue
+                
+                # Check if this voxel spacing contains our tomogram
+                if hasattr(vs_item, 'voxel_spacing'):
+                    vs_obj = vs_item.voxel_spacing
+                    if vs_obj.voxel_size != tomogram.voxel_spacing.voxel_size:
+                        continue
+                else:
+                    continue
+                
+                # Force lazy loading by accessing the children property directly
+                if hasattr(vs_item, 'children'):
+                    tomo_children = vs_item.children  # This triggers lazy loading
+                    tomo_count = len(tomo_children)
+                else:
+                    tomo_count = model.rowCount(vs_index)
+                
+                for tomo_row in range(tomo_count):
+                    tomo_index = model.index(tomo_row, 0, vs_index)
+                    if not tomo_index.isValid():
+                        continue
+                    
+                    # Get tomogram item
+                    if hasattr(model, 'mapToSource'):
+                        source_tomo_index = model.mapToSource(tomo_index)
+                        tomo_item = source_tomo_index.internalPointer()
+                        final_index = source_tomo_index
+                    else:
+                        tomo_item = tomo_index.internalPointer()
+                        final_index = tomo_index
+                    
+                    if not tomo_item:
+                        continue
+                    
+                    # Check if this is our tomogram - compare by type and voxel spacing
+                    if hasattr(tomo_item, 'tomogram'):
+                        tomo_obj = tomo_item.tomogram
+                        if (tomo_obj.tomo_type == tomogram.tomo_type and 
+                            tomo_obj.voxel_spacing.voxel_size == tomogram.voxel_spacing.voxel_size):
+                            return final_index
+        
+        return None
+    
+    def _expand_run_in_tree(self, copick_tool):
+        """Expand the current run and voxel spacing in the tree widget"""
+        tree_view = copick_tool._mw._tree_view
+        model = tree_view.model()
+        
+        if model and self.current_run:
+            # Find the run in the tree model and expand it
+            for row in range(model.rowCount()):
+                index = model.index(row, 0)
+                if index.isValid():
+                    # Get the item and check if it matches our current run
+                    if hasattr(model, 'mapToSource'):
+                        source_index = model.mapToSource(index)
+                        item = source_index.internalPointer()
+                    else:
+                        item = index.internalPointer()
+                    
+                    # Check if this is the right run
+                    if hasattr(item, 'run') and item.run == self.current_run:
+                        tree_view.expand(index)
+                        tree_view.setCurrentIndex(index)
+                        
+                        # Also expand all voxel spacings within this run
+                        self._expand_all_voxel_spacings(tree_view, model, index)
+                        break
+                    elif hasattr(item, 'name') and item.name == self.current_run.name:
+                        tree_view.expand(index)
+                        tree_view.setCurrentIndex(index)
+                        
+                        # Also expand all voxel spacings within this run
+                        self._expand_all_voxel_spacings(tree_view, model, index)
+                        break
+    
+    def _expand_all_voxel_spacings(self, tree_view, model, run_index):
+        """Expand all voxel spacings under the given run"""
+        # Force lazy loading of voxel spacings
+        if hasattr(model, 'mapToSource'):
+            source_run_index = model.mapToSource(run_index)
+            run_item = source_run_index.internalPointer()
+        else:
+            run_item = run_index.internalPointer()
+        
+        vs_children = run_item.children  # Force lazy loading
+        vs_count = len(vs_children)
+        
+        # Expand each voxel spacing
+        for vs_row in range(vs_count):
+            vs_index = model.index(vs_row, 0, run_index)
+            if vs_index.isValid():
+                tree_view.expand(vs_index)
     
     def _app_quit(self, *args):
         """Handle app quit trigger to ensure proper cleanup"""
@@ -197,14 +340,9 @@ class CopickInfoWidget(QWidget):
         
         self._is_destroyed = True
         
-        try:
-            # Stop thread pool
-            if hasattr(self, '_thread_pool'):
-                self._thread_pool.clear()
-                self._thread_pool.waitForDone(3000)  # Wait up to 3 seconds
-        except Exception:
-            # Silently handle any cleanup errors
-            pass
+        # Stop thread pool
+        self._thread_pool.clear()
+        self._thread_pool.waitForDone(3000)  # Wait up to 3 seconds
     
     def _setup_ui(self):
         """Set up the UI components"""
@@ -379,12 +517,10 @@ class CopickInfoWidget(QWidget):
             
         if error:
             # Could show error placeholder, but for now just leave the loading placeholder
-            print(f"DEBUG: Thumbnail loading error for {thumbnail_id}: {error}")
             pass
         else:
             # Store the thumbnail
             self._thumbnails[thumbnail_id] = pixmap
-            print(f"DEBUG: Thumbnail loaded and cached for {thumbnail_id}")
             
             # Update the widget if it exists and is still valid
             if thumbnail_id in self._thumbnail_widgets:
@@ -395,7 +531,6 @@ class CopickInfoWidget(QWidget):
                         # Find the thumbnail label in the widget and update it
                         thumbnail_label = widget.findChild(QLabel, "thumbnail_label")
                         if thumbnail_label and not thumbnail_label.isHidden():
-                            print(f"DEBUG: Updating thumbnail UI for {thumbnail_id}")
                             # Use adaptive scaling based on widget size
                             widget_size = thumbnail_label.size()
                             # Leave some margin around the thumbnail
@@ -403,15 +538,11 @@ class CopickInfoWidget(QWidget):
                             if max_size > 0:
                                 scaled_pixmap = pixmap.scaled(max_size, max_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                                 thumbnail_label.setPixmap(scaled_pixmap)
-                        else:
-                            print(f"DEBUG: Thumbnail label not found or hidden for {thumbnail_id}")
                     else:
-                        print(f"DEBUG: Widget no longer valid for {thumbnail_id}")
                         # Clean up the reference
                         del self._thumbnail_widgets[thumbnail_id]
-                except RuntimeError as e:
+                except RuntimeError:
                     # Widget has been deleted - clean up the reference
-                    print(f"DEBUG: Widget deleted for {thumbnail_id}: {e}")
                     if thumbnail_id in self._thumbnail_widgets:
                         del self._thumbnail_widgets[thumbnail_id]
     
@@ -439,7 +570,6 @@ class CopickInfoWidget(QWidget):
         
         # Clear thumbnail widget references since widgets are being deleted
         self._thumbnail_widgets.clear()
-        print(f"DEBUG: Cleared thumbnail widget references during display update")
         
         if self.current_run:
             # Add voxel spacings section with nested tomograms
@@ -696,12 +826,9 @@ class CopickInfoWidget(QWidget):
             voxel_to_tomos[vs.voxel_size] = []
             
         for tomo in tomograms:
-            try:
-                vs_size = tomo.voxel_spacing.voxel_size
-                if vs_size in voxel_to_tomos:
-                    voxel_to_tomos[vs_size].append(tomo)
-            except:
-                pass  # Skip tomograms with invalid voxel spacing
+            vs_size = tomo.voxel_spacing.voxel_size
+            if vs_size in voxel_to_tomos:
+                voxel_to_tomos[vs_size].append(tomo)
         
         for vs in voxel_spacings:
             vs_widget = self._create_voxel_spacing_widget(vs, voxel_to_tomos.get(vs.voxel_size, []))
@@ -859,6 +986,14 @@ class CopickInfoWidget(QWidget):
         info_widget.setLayout(info_layout)
         layout.addWidget(info_widget)
         
+        # Make the card clickable
+        card.mousePressEvent = lambda event: self._on_tomogram_card_clicked(tomogram)
+        
+        # Add visual feedback for clickability
+        card.setStyleSheet(card.styleSheet().rstrip("}") + """
+            cursor: pointer;
+        }""")
+        
         card.setLayout(layout)
         return card
     
@@ -982,27 +1117,20 @@ class CopickInfoWidget(QWidget):
         info_layout.setContentsMargins(0, 0, 0, 0)
         info_layout.setSpacing(2)
         
-        try:
-            if data_type == "picks":
-                name = f"📍 {item.pickable_object_name}"
-                try:
-                    point_count = len(item.points) if hasattr(item, 'points') else 'N/A'
-                except:
-                    point_count = 'N/A'
-                details = f"User: {item.user_id} | Session: {item.session_id} | Points: {point_count}"
-            elif data_type == "meshes":
-                name = f"🕸 {item.pickable_object_name}"
-                details = f"User: {item.user_id} | Session: {item.session_id}"
-            elif data_type == "segmentations":
-                seg_name = getattr(item, 'name', item.pickable_object_name if hasattr(item, 'pickable_object_name') else 'Unknown')
-                name = f"🖌 {seg_name}"
-                details = f"User: {item.user_id} | Session: {item.session_id}"
-            else:
-                name = str(item)
-                details = ""
-        except Exception as e:
-            name = f"{data_type.rstrip('s').title()} (error displaying)"
-            details = f"Error: {str(e)[:50]}..."
+        if data_type == "picks":
+            name = f"📍 {item.pickable_object_name}"
+            point_count = len(item.points) if hasattr(item, 'points') else 'N/A'
+            details = f"User: {item.user_id} | Session: {item.session_id} | Points: {point_count}"
+        elif data_type == "meshes":
+            name = f"🕸 {item.pickable_object_name}"
+            details = f"User: {item.user_id} | Session: {item.session_id}"
+        elif data_type == "segmentations":
+            seg_name = getattr(item, 'name', item.pickable_object_name if hasattr(item, 'pickable_object_name') else 'Unknown')
+            name = f"🖌 {seg_name}"
+            details = f"User: {item.user_id} | Session: {item.session_id}"
+        else:
+            name = str(item)
+            details = ""
         
         # Name label
         name_label = QLabel(name)
