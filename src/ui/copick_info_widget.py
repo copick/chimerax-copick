@@ -55,6 +55,15 @@ class CopickInfoWidget(QWidget):
         """Handle click on tomogram card - load tomogram and switch to OpenGL view"""
         self._load_tomogram_and_switch_view(tomogram)
 
+    def _on_back_to_gallery(self) -> None:
+        """Handle back to gallery button click"""
+        try:
+            # Get the main widget and call its navigation method
+            copick_tool = self.session.copick
+            copick_tool._mw._navigate_to_gallery()
+        except Exception as e:
+            print(f"Error navigating back to gallery: {e}")
+
     def _load_tomogram_and_switch_view(self, tomogram: "CopickTomogram") -> None:
         """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior"""
         # Get the main window and stack widget for view switching
@@ -298,6 +307,33 @@ class CopickInfoWidget(QWidget):
         header_layout.setSpacing(8)
         header_layout.setAlignment(Qt.AlignCenter)
 
+        # Top row with back button and title
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(10)
+
+        # Back to gallery button
+        self._back_to_gallery_button = QPushButton("📸 Back to Gallery")
+        self._back_to_gallery_button.setToolTip("Return to gallery view")
+        self._back_to_gallery_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007AFF;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0056CC;
+            }
+            QPushButton:pressed {
+                background-color: #004499;
+            }
+        """)
+        self._back_to_gallery_button.clicked.connect(self._on_back_to_gallery)
+        
         # Title
         title_label = QLabel("Copick Run Details")
         title_font = QFont()
@@ -306,7 +342,19 @@ class CopickInfoWidget(QWidget):
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        header_layout.addWidget(title_label)
+
+        # Add to top row
+        top_row.addWidget(self._back_to_gallery_button)
+        top_row.addStretch()  # Center the title
+        top_row.addWidget(title_label)
+        top_row.addStretch()  # Balance the layout
+        
+        # Add invisible placeholder widget to balance the button on the left
+        placeholder = QWidget()
+        placeholder.setFixedSize(self._back_to_gallery_button.sizeHint())
+        top_row.addWidget(placeholder)
+        
+        header_layout.addLayout(top_row)
 
         # Run name
         self._run_name_label = QLabel("No run selected")
