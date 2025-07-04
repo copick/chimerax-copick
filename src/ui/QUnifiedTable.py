@@ -93,7 +93,7 @@ class QUnifiedTable(QWidget):
                 border: 1px solid rgba(100, 100, 100, 180);
                 border-radius: 6px;
             }
-        """,
+        """
         )
 
         # Search overlay layout
@@ -119,7 +119,7 @@ class QUnifiedTable(QWidget):
                 border: 2px solid rgba(70, 130, 200, 200);
                 background-color: rgba(255, 255, 255, 255);
             }
-        """,
+        """
         )
 
         # Clear/Close button
@@ -140,7 +140,7 @@ class QUnifiedTable(QWidget):
                 background-color: rgba(220, 220, 220, 200);
                 color: #333;
             }
-        """,
+        """
         )
 
         overlay_layout.addWidget(self._search_input)

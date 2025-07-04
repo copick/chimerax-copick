@@ -30,8 +30,9 @@ class RunCard(QFrame):
     clicked = Signal(object)  # Emits the run object
     info_requested = Signal(object)  # Emits the run object for info view
 
-    def __init__(self, run: "CopickRun", parent: Optional[QWidget] = None) -> None:
+    def __init__(self, run: "CopickRun", parent: Optional[QWidget] = None, objectName: str = "run_card") -> None:
         super().__init__(parent)
+        self.setObjectName(objectName)
         self.run: "CopickRun" = run
         self.thumbnail_pixmap: Optional[QPixmap] = None
         self._setup_ui()
@@ -48,7 +49,7 @@ class RunCard(QFrame):
         thumbnail_container.setFixedSize(200, 200)
 
         # Thumbnail label (placeholder)
-        self.thumbnail_label = QLabel(thumbnail_container)
+        self.thumbnail_label = QLabel(thumbnail_container, objectName="run_card_thumbnail_label")
         self.thumbnail_label.setFixedSize(200, 200)
         self.thumbnail_label.setAlignment(Qt.AlignCenter)
         self.thumbnail_label.setStyleSheet(
@@ -59,12 +60,12 @@ class RunCard(QFrame):
                 border-radius: 4px;
                 color: #999;
             }
-        """,
+        """
         )
         self.thumbnail_label.setText("Loading...")
 
         # Info button overlay (floating in top-right corner)
-        self.info_button = QPushButton("ℹ️", thumbnail_container)
+        self.info_button = QPushButton("ℹ️", thumbnail_container, objectName="run_card_info_button")
         self.info_button.setFixedSize(24, 24)
         self.info_button.setToolTip("View run details")
         self.info_button.setStyleSheet(
@@ -83,7 +84,7 @@ class RunCard(QFrame):
             QPushButton:pressed {
                 background-color: rgba(70, 130, 200, 255);
             }
-        """,
+        """
         )
         self.info_button.move(170, 6)  # Position in top-right corner with margin
         self.info_button.clicked.connect(lambda: self.info_requested.emit(self.run))
@@ -91,7 +92,7 @@ class RunCard(QFrame):
         layout.addWidget(thumbnail_container)
 
         # Run name label
-        self.name_label = QLabel(self.run.name)
+        self.name_label = QLabel(self.run.name, objectName="run_card_name_label")
         self.name_label.setAlignment(Qt.AlignCenter)
         self.name_label.setWordWrap(True)
         self.name_label.setStyleSheet(
@@ -102,12 +103,12 @@ class RunCard(QFrame):
                 font-size: 12px;
                 padding: 4px;
             }
-        """,
+        """
         )
         layout.addWidget(self.name_label)
 
         # Status label (for error display)
-        self.status_label = QLabel()
+        self.status_label = QLabel(objectName="run_card_status_label")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setVisible(False)
         self.status_label.setStyleSheet(
@@ -117,7 +118,7 @@ class RunCard(QFrame):
                 font-size: 10px;
                 padding: 2px;
             }
-        """,
+        """
         )
         layout.addWidget(self.status_label)
 
@@ -135,7 +136,7 @@ class RunCard(QFrame):
                 border: 2px solid #007AFF;
                 background-color: #444;
             }
-        """,
+        """
         )
         self.setCursor(Qt.PointingHandCursor)
 
@@ -211,7 +212,7 @@ class CopickGalleryWidget(QWidget):
         # Header
         header_layout = QHBoxLayout()
 
-        title_label = QLabel("📸 Run Gallery")
+        title_label = QLabel("📸 Run Gallery", objectName="gallery_title_label")
         title_label.setStyleSheet(
             """
             QLabel {
@@ -220,14 +221,14 @@ class CopickGalleryWidget(QWidget):
                 font-weight: bold;
                 padding: 8px;
             }
-        """,
+        """
         )
         header_layout.addWidget(title_label)
 
         header_layout.addStretch()
 
         # Regenerate thumbnails button
-        self.regenerate_button = QPushButton("🔄 Regenerate Thumbnails")
+        self.regenerate_button = QPushButton("🔄 Regenerate Thumbnails", objectName="regenerate_thumbnails_button")
         self.regenerate_button.setToolTip("Clear cache and regenerate all thumbnails")
         self.regenerate_button.setStyleSheet(
             """
@@ -247,13 +248,13 @@ class CopickGalleryWidget(QWidget):
             QPushButton:pressed {
                 background-color: #CC4E24;
             }
-        """,
+        """
         )
         self.regenerate_button.clicked.connect(self._on_regenerate_thumbnails)
         header_layout.addWidget(self.regenerate_button)
 
         # Search box
-        self.search_box = QLineEdit()
+        self.search_box = QLineEdit(objectName="gallery_search_input")
         self.search_box.setPlaceholderText("Search runs...")
         self.search_box.setFixedWidth(200)
         self.search_box.setStyleSheet(
@@ -268,7 +269,7 @@ class CopickGalleryWidget(QWidget):
             QLineEdit:focus {
                 border-color: #007AFF;
             }
-        """,
+        """
         )
         self.search_box.textChanged.connect(self._on_search_changed)
         header_layout.addWidget(self.search_box)
@@ -276,7 +277,7 @@ class CopickGalleryWidget(QWidget):
         layout.addLayout(header_layout)
 
         # Scroll area for grid
-        self.scroll_area = QScrollArea()
+        self.scroll_area = QScrollArea(objectName="gallery_scroll_area")
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -286,7 +287,7 @@ class CopickGalleryWidget(QWidget):
                 border: none;
                 background-color: #1a1a1a;
             }
-        """,
+        """
         )
         layout.addWidget(self.scroll_area)
 
@@ -298,7 +299,7 @@ class CopickGalleryWidget(QWidget):
         self.scroll_area.setWidget(self.grid_widget)
 
         # Empty state label
-        self.empty_label = QLabel("No runs to display")
+        self.empty_label = QLabel("No runs to display", objectName="gallery_empty_state_label")
         self.empty_label.setAlignment(Qt.AlignCenter)
         self.empty_label.setStyleSheet(
             """
@@ -307,7 +308,7 @@ class CopickGalleryWidget(QWidget):
                 font-size: 14px;
                 padding: 40px;
             }
-        """,
+        """
         )
         self.empty_label.setVisible(False)
         layout.addWidget(self.empty_label)
@@ -350,7 +351,6 @@ class CopickGalleryWidget(QWidget):
         if copick_root:
             self.runs = list(copick_root.runs)
             self.filtered_runs = self.runs.copy()
-            print(f"Gallery: Loaded {len(self.runs)} runs, triggering grid update")
             self._update_grid()
         else:
             self.runs = []
@@ -404,10 +404,7 @@ class CopickGalleryWidget(QWidget):
 
         # Only update if grid is dirty
         if not self._grid_dirty:
-            print("Gallery: Grid is clean, skipping update")
             return
-
-        print("Gallery: Grid is dirty, updating layout")
 
         # Clear existing grid layout (but keep cards cached)
         self._clear_grid()
@@ -432,10 +429,8 @@ class CopickGalleryWidget(QWidget):
             if run.name in self.all_run_cards:
                 # Reuse existing card
                 card = self.all_run_cards[run.name]
-                print(f"Gallery: Reusing cached card for {run.name}")
             else:
                 # Create new card
-                print(f"Gallery: Creating new card for {run.name}")
                 card = RunCard(run)
                 card.clicked.connect(self._on_run_card_clicked)
                 card.info_requested.connect(self._on_run_info_requested)
@@ -444,10 +439,8 @@ class CopickGalleryWidget(QWidget):
                 # Check if we have a cached thumbnail
                 if run.name in self.thumbnail_cache:
                     card.set_thumbnail(self.thumbnail_cache[run.name])
-                    print(f"Gallery: Using cached thumbnail for {run.name}")
                 else:
                     # Start thumbnail loading
-                    print(f"Gallery: Loading new thumbnail for {run.name}")
                     self._load_run_thumbnail(run, run.name)
 
             # Add to visible cards and grid layout
@@ -460,10 +453,8 @@ class CopickGalleryWidget(QWidget):
     def _load_run_thumbnail(self, run: "CopickRun", thumbnail_id: str, force_regenerate: bool = False) -> None:
         """Start async loading of run thumbnail"""
         if self._is_destroyed:
-            print(f"Gallery: Widget destroyed, skipping thumbnail load for {thumbnail_id}")
             return
 
-        print(f"Gallery: Starting thumbnail worker for {thumbnail_id}")
         worker = RunThumbnailWorker(self._signals, run, thumbnail_id, force_regenerate)
         self._thread_pool.start(worker)
 

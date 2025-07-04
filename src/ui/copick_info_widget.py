@@ -1,7 +1,17 @@
 # Import copick models only when needed to avoid circular import issues
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from Qt.QtCore import QAbstractItemModel, QModelIndex, QObject, QSortFilterProxyModel, Qt, QThreadPool, QUrl, QVariant, Slot
+from Qt.QtCore import (
+    QAbstractItemModel,
+    QModelIndex,
+    QObject,
+    QSortFilterProxyModel,
+    Qt,
+    QThreadPool,
+    QUrl,
+    QVariant,
+    Slot,
+)
 from Qt.QtGui import QDesktopServices, QFont, QPixmap
 from Qt.QtWidgets import (
     QFrame,
@@ -326,7 +336,7 @@ class CopickInfoWidget(QWidget):
             QPushButton:pressed {
                 background-color: #004499;
             }
-        """,
+        """
         )
         self._back_to_gallery_button.clicked.connect(self._on_back_to_gallery)
 
@@ -380,7 +390,7 @@ class CopickInfoWidget(QWidget):
                 font-size: 10px;
                 color: #999;
             }
-        """,
+        """
         )
         layout.addWidget(footer_label, 0)  # No stretch
 
@@ -409,7 +419,7 @@ class CopickInfoWidget(QWidget):
             QScrollBar::handle:vertical:hover {
                 background: #666;
             }
-        """,
+        """
         )
 
     def set_run_name(self, run_name: str) -> None:
@@ -463,8 +473,10 @@ class CopickInfoWidget(QWidget):
             self._loading_states[data_type] = "loaded"
             self._loaded_data[data_type] = data
 
-        # Update the display to show new data
-        self._update_display()
+        # Defer UI update to main thread to avoid cross-thread Qt warnings
+        from Qt.QtCore import QMetaObject, Qt
+
+        QMetaObject.invokeMethod(self, "_update_display", Qt.ConnectionType.QueuedConnection)
 
     def _handle_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[QPixmap], error: Optional[str]) -> None:
         """Handle thumbnail loading completion"""
@@ -520,6 +532,7 @@ class CopickInfoWidget(QWidget):
         error_str = str(error) if error is not None else None
         self._handle_thumbnail_loaded(thumbnail_id, pixmap_obj, error_str)
 
+    @Slot()
     def _update_display(self) -> None:
         """Update the widget display"""
         # Update run name
@@ -694,7 +707,7 @@ class CopickInfoWidget(QWidget):
 
     def _create_section_frame(self) -> QFrame:
         """Create a styled frame for a section"""
-        frame = QFrame()
+        frame = QFrame(objectName="section_frame")
         frame.setFrameStyle(QFrame.StyledPanel)
         frame.setStyleSheet(
             """
@@ -703,7 +716,7 @@ class CopickInfoWidget(QWidget):
                 border-radius: 8px;
                 border: 1px solid #444;
             }
-        """,
+        """
         )
         return frame
 
@@ -724,7 +737,7 @@ class CopickInfoWidget(QWidget):
                     font-size: 10px;
                     font-weight: bold;
                 }
-            """,
+            """
             )
         elif status == "loaded":
             count = len(self._loaded_data.get(data_type, []))
@@ -739,7 +752,7 @@ class CopickInfoWidget(QWidget):
                     font-size: 10px;
                     font-weight: bold;
                 }
-            """,
+            """
             )
         elif status.startswith("error:"):
             error_msg = status[6:]  # Remove "error:" prefix
@@ -754,7 +767,7 @@ class CopickInfoWidget(QWidget):
                     font-size: 10px;
                     font-weight: bold;
                 }
-            """,
+            """
             )
         else:
             label.setText("Pending...")
@@ -768,7 +781,7 @@ class CopickInfoWidget(QWidget):
                     font-size: 10px;
                     font-weight: bold;
                 }
-            """,
+            """
             )
 
         return label
@@ -821,7 +834,7 @@ class CopickInfoWidget(QWidget):
         tomograms: List["CopickTomogram"],
     ) -> QFrame:
         """Create a widget for a voxel spacing with its tomograms"""
-        frame = QFrame()
+        frame = QFrame(objectName="vs_frame")
         frame.setFrameStyle(QFrame.StyledPanel)
         frame.setStyleSheet(
             """
@@ -830,7 +843,7 @@ class CopickInfoWidget(QWidget):
                 border-radius: 6px;
                 border: 1px solid #444;
             }
-        """,
+        """
         )
 
         layout = QVBoxLayout()
@@ -886,7 +899,7 @@ class CopickInfoWidget(QWidget):
 
     def _create_tomogram_card(self, tomogram: "CopickTomogram") -> QFrame:
         """Create a card widget for a tomogram with thumbnail"""
-        card = QFrame()
+        card = QFrame(objectName="info_card")
         card.setFrameStyle(QFrame.StyledPanel)
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         card.setMinimumSize(200, 240)  # Reasonable minimum size
@@ -902,7 +915,7 @@ class CopickInfoWidget(QWidget):
                 border: 1px solid #007AFF;
                 background-color: #4d4d4d;
             }
-        """,
+        """
         )
 
         layout = QVBoxLayout()
@@ -922,7 +935,7 @@ class CopickInfoWidget(QWidget):
                 border-radius: 6px;
                 border: 1px solid #444;
             }
-        """,
+        """
         )
 
         # Create unique ID for this tomogram thumbnail
@@ -944,7 +957,17 @@ class CopickInfoWidget(QWidget):
         else:
             # Show loading placeholder and start async loading
             thumbnail_label.setText("⏳")
-            thumbnail_label.setStyleSheet(thumbnail_label.styleSheet() + "color: #999; font-size: 24px;")
+            thumbnail_label.setStyleSheet(
+                """
+                QLabel {
+                    background-color: #2d2d2d;
+                    border-radius: 6px;
+                    border: 1px solid #444;
+                    color: #999;
+                    font-size: 24px;
+                }
+            """
+            )
 
             # Store widget reference for later update
             self._thumbnail_widgets[thumbnail_id] = card
@@ -982,14 +1005,6 @@ class CopickInfoWidget(QWidget):
         # Make the card clickable
         card.mousePressEvent = lambda event: self._on_tomogram_card_clicked(tomogram)
 
-        # Add visual feedback for clickability
-        card.setStyleSheet(
-            card.styleSheet().rstrip("}")
-            + """
-            cursor: pointer;
-        }""",
-        )
-
         card.setLayout(layout)
         return card
 
@@ -1023,13 +1038,13 @@ class CopickInfoWidget(QWidget):
                 background-color: #3d3d3d;
                 border-radius: 4px;
             }
-        """,
+        """
         )
         return widget
 
     def _create_annotation_subsection(self, data_type: str, title: str, status: str) -> QFrame:
         """Create an annotation subsection widget"""
-        frame = QFrame()
+        frame = QFrame(objectName="annotation_section")
         frame.setFrameStyle(QFrame.StyledPanel)
         frame.setStyleSheet(
             """
@@ -1038,7 +1053,7 @@ class CopickInfoWidget(QWidget):
                 border-radius: 4px;
                 border: 1px solid #444;
             }
-        """,
+        """
         )
 
         layout = QVBoxLayout()
@@ -1162,7 +1177,7 @@ class CopickInfoWidget(QWidget):
                 background-color: #3d3d3d;
                 border-radius: 4px;
             }
-        """,
+        """
         )
         return widget
 
@@ -1211,7 +1226,7 @@ class CopickInfoWidget(QWidget):
                 QPushButton:hover {
                     background-color: rgba(0, 122, 255, 0.2);
                 }
-            """,
+            """
             )
             button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
             return button

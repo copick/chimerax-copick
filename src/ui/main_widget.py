@@ -212,7 +212,7 @@ class MainWidget(QWidget):
                 border: 1px solid rgba(100, 100, 100, 180);
                 border-radius: 6px;
             }
-        """,
+        """
         )
 
         # Search overlay layout
@@ -238,7 +238,7 @@ class MainWidget(QWidget):
                 border: 2px solid rgba(70, 130, 200, 200);
                 background-color: rgba(255, 255, 255, 255);
             }
-        """,
+        """
         )
 
         # Clear/Close button (does both clear and close)
@@ -259,7 +259,7 @@ class MainWidget(QWidget):
                 background-color: rgba(220, 220, 220, 200);
                 color: #333;
             }
-        """,
+        """
         )
 
         overlay_layout.addWidget(self._search_input)
@@ -285,7 +285,7 @@ class MainWidget(QWidget):
             QPushButton:hover {
                 background-color: rgba(220, 220, 220, 220);
             }
-        """,
+        """
         )
         # Hide search toggle initially - only show on tree hover
         self._search_toggle.hide()
@@ -816,42 +816,38 @@ class MainWidget(QWidget):
 
     def _select_best_tomogram_from_run(self, run):
         """Select the best tomogram from a run (prefer denoised, highest voxel spacing)"""
-        try:
-            all_tomograms = []
+        all_tomograms = []
 
-            # Collect all tomograms from all voxel spacings
-            for vs in run.voxel_spacings:
-                for tomo in vs.tomograms:
-                    all_tomograms.append(tomo)
+        # Collect all tomograms from all voxel spacings
+        for vs in run.voxel_spacings:
+            for tomo in vs.tomograms:
+                all_tomograms.append(tomo)
 
-            if not all_tomograms:
-                return None
-
-            # Preference order for tomogram types (denoised first)
-            preferred_types = ["denoised", "wbp", "ribo", "defocus"]
-
-            # Group by voxel spacing (highest first)
-            voxel_spacings = sorted({tomo.voxel_spacing.voxel_size for tomo in all_tomograms}, reverse=True)
-
-            # Try each voxel spacing, starting with highest
-            for vs_size in voxel_spacings:
-                vs_tomograms = [tomo for tomo in all_tomograms if tomo.voxel_spacing.voxel_size == vs_size]
-
-                # Try preferred types in order
-                for preferred_type in preferred_types:
-                    for tomo in vs_tomograms:
-                        if preferred_type.lower() in tomo.tomo_type.lower():
-                            return tomo
-
-                # If no preferred type found, return the first tomogram at this voxel spacing
-                if vs_tomograms:
-                    return vs_tomograms[0]
-
-            # Fallback: return any tomogram
-            return all_tomograms[0] if all_tomograms else None
-
-        except Exception:
+        if not all_tomograms:
             return None
+
+        # Preference order for tomogram types (denoised first)
+        preferred_types = ["denoised", "wbp"]
+
+        # Group by voxel spacing (highest first)
+        voxel_spacings = sorted({tomo.voxel_spacing.voxel_size for tomo in all_tomograms}, reverse=True)
+
+        # Try each voxel spacing, starting with highest
+        for vs_size in voxel_spacings:
+            vs_tomograms = [tomo for tomo in all_tomograms if tomo.voxel_spacing.voxel_size == vs_size]
+
+            # Try preferred types in order
+            for preferred_type in preferred_types:
+                for tomo in vs_tomograms:
+                    if preferred_type.lower() in tomo.tomo_type.lower():
+                        return tomo
+
+            # If no preferred type found, return the first tomogram at this voxel spacing
+            if vs_tomograms:
+                return vs_tomograms[0]
+
+        # Fallback: return any tomogram
+        return all_tomograms[0] if all_tomograms else None
 
     def _load_tomogram_and_switch_view(self, tomogram):
         """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior"""
@@ -868,21 +864,20 @@ class MainWidget(QWidget):
             stack_widget.setCurrentIndex(0)
 
             # Find the tomogram in the tree and get its QModelIndex
-            tomogram_index = self._find_tomogram_in_tree(tomogram, copick_tool)
+            tomogram_index = self._find_tomogram_in_tree(tomogram)
 
             if tomogram_index and tomogram_index.isValid():
                 # This is exactly what _on_tree_double_click does - just call switch_volume
                 copick_tool.switch_volume(tomogram_index)
 
             # Expand the run in the tree widget
-            self._expand_run_in_tree(copick_tool)
+            self._expand_run_in_tree()
 
         except Exception as e:
             print(f"Error loading tomogram: {e}")
 
-    def _find_tomogram_in_tree(self, tomogram, copick_tool):
+    def _find_tomogram_in_tree(self, tomogram):
         """Find the tomogram in the tree model and return its QModelIndex"""
-        # Use our own tree view instead of accessing copick_tool._mw._tree_view
         tree_view = self._tree_view
         model = tree_view.model()
 
@@ -977,7 +972,7 @@ class MainWidget(QWidget):
 
         return None
 
-    def _expand_run_in_tree(self, copick_tool):
+    def _expand_run_in_tree(self):
         """Expand the current run and all voxel spacings in the tree widget"""
         # Use our own tree view instead of accessing copick_tool._mw._tree_view
         tree_view = self._tree_view
@@ -1002,22 +997,35 @@ class MainWidget(QWidget):
             if not run_item:
                 continue
 
-            # Check if this is the right run
-            if hasattr(run_item, "run"):
-                if run_item.run.name == self._current_run.name:
-                    tree_view.expand(run_index)
-                    tree_view.setCurrentIndex(run_index)
+            # If it's a TreeRun, get the CopickRun object
+            if isinstance(run_item, TreeRun):
+                run_item = run_item.run
 
-                    # Also expand all voxel spacings within this run
-                    self._expand_all_voxel_spacings(tree_view, model, run_index)
-                    break
-            elif hasattr(run_item, "name") and run_item.name == self._current_run.name:
+            # Check if this is the right run
+            if run_item.name == self._current_run.name:
                 tree_view.expand(run_index)
                 tree_view.setCurrentIndex(run_index)
 
                 # Also expand all voxel spacings within this run
                 self._expand_all_voxel_spacings(tree_view, model, run_index)
-                break
+
+            # if isinstance(run_item, TreeRun):
+            #     print("Is TreeRun")
+            #     if run_item.run.name == self._current_run.name:
+            #         tree_view.expand(run_index)
+            #         tree_view.setCurrentIndex(run_index)
+            #
+            #         # Also expand all voxel spacings within this run
+            #         self._expand_all_voxel_spacings(tree_view, model, run_index)
+            #         break
+            # elif isinstance(run_item, CopickRun) and run_item.name == self._current_run.name:
+            #     print("Is CopickRun")
+            #     tree_view.expand(run_index)
+            #     tree_view.setCurrentIndex(run_index)
+            #
+            #     # Also expand all voxel spacings within this run
+            #     self._expand_all_voxel_spacings(tree_view, model, run_index)
+            #     break
 
     def _expand_all_voxel_spacings(self, tree_view, model, run_index):
         """Expand all voxel spacings under the given run"""
