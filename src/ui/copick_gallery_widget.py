@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from chimerax.core.session import Session
-from Qt.QtCore import QModelIndex, Qt, QThreadPool, Signal, Slot
+from Qt.QtCore import QModelIndex, QSortFilterProxyModel, Qt, QThreadPool, Signal, Slot
 from Qt.QtGui import QPixmap
 from Qt.QtWidgets import (
     QFrame,
@@ -585,7 +585,7 @@ class CopickGalleryWidget(QWidget):
                     continue
 
                 # Get the actual item (handling proxy model if present)
-                if hasattr(model, "mapToSource"):
+                if isinstance(model, QSortFilterProxyModel):
                     source_run_index = model.mapToSource(run_index)
                     run_item = source_run_index.internalPointer()
                 else:
@@ -617,7 +617,7 @@ class CopickGalleryWidget(QWidget):
                         continue
 
                     # Get voxel spacing item
-                    if hasattr(model, "mapToSource"):
+                    if isinstance(model, QSortFilterProxyModel):
                         source_vs_index = model.mapToSource(vs_index)
                         vs_item = source_vs_index.internalPointer()
                     else:
@@ -647,7 +647,7 @@ class CopickGalleryWidget(QWidget):
                             continue
 
                         # Get tomogram item
-                        if hasattr(model, "mapToSource"):
+                        if isinstance(model, QSortFilterProxyModel):
                             source_tomo_index = model.mapToSource(tomo_index)
                             tomo_item = source_tomo_index.internalPointer()
                             final_index = source_tomo_index
@@ -691,7 +691,7 @@ class CopickGalleryWidget(QWidget):
                 index = model.index(row, 0)
                 if index.isValid():
                     # Get the item and check if it matches our current run
-                    if hasattr(model, "mapToSource"):
+                    if isinstance(model, QSortFilterProxyModel):
                         source_index = model.mapToSource(index)
                         item = source_index.internalPointer()
                     else:
@@ -725,7 +725,7 @@ class CopickGalleryWidget(QWidget):
             model = tree_view.model()
 
             # Force lazy loading of voxel spacings
-            if hasattr(model, "mapToSource"):
+            if isinstance(model, QSortFilterProxyModel):
                 source_run_index = model.mapToSource(run_index)
                 run_item = source_run_index.internalPointer()
             else:

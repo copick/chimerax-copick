@@ -1,7 +1,7 @@
 # Import copick models only when needed to avoid circular import issues
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from Qt.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QThreadPool, QUrl, QVariant, Slot
+from Qt.QtCore import QAbstractItemModel, QModelIndex, QObject, QSortFilterProxyModel, Qt, QThreadPool, QUrl, QVariant, Slot
 from Qt.QtGui import QDesktopServices, QFont, QPixmap
 from Qt.QtWidgets import (
     QFrame,
@@ -98,7 +98,7 @@ class CopickInfoWidget(QWidget):
                 continue
 
             # Get the actual item (handling proxy model if present)
-            if hasattr(model, "mapToSource"):
+            if isinstance(model, QSortFilterProxyModel):
                 source_run_index = model.mapToSource(run_index)
                 run_item = source_run_index.internalPointer()
             else:
@@ -130,7 +130,7 @@ class CopickInfoWidget(QWidget):
                     continue
 
                 # Get voxel spacing item
-                if hasattr(model, "mapToSource"):
+                if isinstance(model, QSortFilterProxyModel):
                     source_vs_index = model.mapToSource(vs_index)
                     vs_item = source_vs_index.internalPointer()
                 else:
@@ -160,7 +160,7 @@ class CopickInfoWidget(QWidget):
                         continue
 
                     # Get tomogram item
-                    if hasattr(model, "mapToSource"):
+                    if isinstance(model, QSortFilterProxyModel):
                         source_tomo_index = model.mapToSource(tomo_index)
                         tomo_item = source_tomo_index.internalPointer()
                         final_index = source_tomo_index
@@ -194,7 +194,7 @@ class CopickInfoWidget(QWidget):
                 index = model.index(row, 0)
                 if index.isValid():
                     # Get the item and check if it matches our current run
-                    if hasattr(model, "mapToSource"):
+                    if isinstance(model, QSortFilterProxyModel):
                         source_index = model.mapToSource(index)
                         item = source_index.internalPointer()
                     else:
@@ -222,7 +222,7 @@ class CopickInfoWidget(QWidget):
     ) -> None:
         """Expand all voxel spacings under the given run"""
         # Force lazy loading of voxel spacings
-        if hasattr(model, "mapToSource"):
+        if isinstance(model, QSortFilterProxyModel):
             source_run_index = model.mapToSource(run_index)
             run_item = source_run_index.internalPointer()
         else:

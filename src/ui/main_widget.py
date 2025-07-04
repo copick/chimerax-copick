@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Optional, Union, TYPE_CHECKING
 
 from chimerax.core.tools import ToolInstance
 from copick.impl.filesystem import CopickRootFSSpec
@@ -23,6 +23,9 @@ from ..ui.tree import TreeRoot, TreeRun
 from .copick_gallery_widget import CopickGalleryWidget
 from .copick_info_widget import CopickInfoWidget
 from .QUnifiedTable import QUnifiedTable
+
+if TYPE_CHECKING:
+    from ..tool import CopickTool
 
 
 class FilterProxyModel(QSortFilterProxyModel):
@@ -71,7 +74,7 @@ class FilterProxyModel(QSortFilterProxyModel):
 class MainWidget(QWidget):
     def __init__(
         self,
-        copick: ToolInstance,
+        copick: "CopickTool",
         parent: Optional[QObject] = None,
     ):
         super().__init__(parent=parent)
@@ -893,7 +896,7 @@ class MainWidget(QWidget):
                 continue
 
             # Get the actual item (handling proxy model if present)
-            if hasattr(model, "mapToSource"):
+            if isinstance(model, FilterProxyModel):
                 source_run_index = model.mapToSource(run_index)
                 run_item = source_run_index.internalPointer()
             else:
@@ -925,7 +928,7 @@ class MainWidget(QWidget):
                     continue
 
                 # Get voxel spacing item
-                if hasattr(model, "mapToSource"):
+                if isinstance(model, FilterProxyModel):
                     source_vs_index = model.mapToSource(vs_index)
                     vs_item = source_vs_index.internalPointer()
                 else:
@@ -955,7 +958,7 @@ class MainWidget(QWidget):
                         continue
 
                     # Get tomogram item
-                    if hasattr(model, "mapToSource"):
+                    if isinstance(model, FilterProxyModel):
                         source_tomo_index = model.mapToSource(tomo_index)
                         tomo_item = source_tomo_index.internalPointer()
                         final_index = source_tomo_index  # Return source index, not proxy index
@@ -990,7 +993,7 @@ class MainWidget(QWidget):
                 continue
 
             # Get the actual item (handling proxy model if present)
-            if hasattr(model, "mapToSource"):
+            if isinstance(model, FilterProxyModel):
                 source_run_index = model.mapToSource(run_index)
                 run_item = source_run_index.internalPointer()
             else:
@@ -1019,7 +1022,7 @@ class MainWidget(QWidget):
     def _expand_all_voxel_spacings(self, tree_view, model, run_index):
         """Expand all voxel spacings under the given run"""
         # Force lazy loading of voxel spacings
-        if hasattr(model, "mapToSource"):
+        if isinstance(model, FilterProxyModel):
             source_run_index = model.mapToSource(run_index)
             run_item = source_run_index.internalPointer()
         else:
