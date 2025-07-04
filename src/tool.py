@@ -54,6 +54,11 @@ class CopickTool(ToolInstance):
 
     # Let ChimeraX know about our help page
     def __init__(self, session, tool_name):
+        # Suppress SSH client logging to reduce console noise
+        import logging
+        logging.getLogger('asyncssh').setLevel(logging.WARNING)
+        logging.getLogger('asyncssh.sftp').setLevel(logging.WARNING)
+        
         # Initialize base class
         super().__init__(session, tool_name)
 
