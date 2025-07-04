@@ -1,10 +1,10 @@
-from typing import List, Optional, Union
 from datetime import datetime
+from typing import List, Optional, Union
 
 from chimerax.core.tools import ToolInstance
 from copick.impl.filesystem import CopickRootFSSpec
 from copick.models import CopickMesh, CopickPicks, CopickSegmentation
-from Qt.QtCore import QObject, Qt, QSortFilterProxyModel, QModelIndex, QEvent
+from Qt.QtCore import QEvent, QModelIndex, QObject, QSortFilterProxyModel, Qt
 from Qt.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
@@ -16,11 +16,13 @@ from Qt.QtWidgets import (
     QWidget,
 )
 
+from .copick_info_widget import CopickInfoWidget
 from ..ui.QCoPickTreeModel import QCoPickTreeModel
 from ..ui.step_widget import StepWidget
-from .QUnifiedTable import QUnifiedTable
-from ..ui.tree import TreeRoot, TreeRun, TreeVoxelSpacing, TreeTomogram
+from ..ui.tree import TreeRoot, TreeRun
 from .copick_gallery_widget import CopickGalleryWidget
+from .copick_info_widget import CopickInfoWidget
+from .QUnifiedTable import QUnifiedTable
 
 
 class FilterProxyModel(QSortFilterProxyModel):
@@ -78,8 +80,24 @@ class MainWidget(QWidget):
         self._root = None
         self._model = None
 
+        # Filter and model management
+        self._filter_model = None
+
+        # State tracking
+        self._current_run = None
+        self._current_run_name = None
+
+        # UI layout references
+        self._top_button_layout = None
+        self._shared_settings_button = None
+
+        # UI components
         self._build()
         self._connect()
+
+        # Initialize gallery and info widgets
+        self._build_gallery_widget()
+        self._build_info_widget()
 
     def _build(self):
         # Top level layout with tight spacing
@@ -191,7 +209,7 @@ class MainWidget(QWidget):
                 border: 1px solid rgba(100, 100, 100, 180);
                 border-radius: 6px;
             }
-        """
+        """,
         )
 
         # Search overlay layout
@@ -217,7 +235,7 @@ class MainWidget(QWidget):
                 border: 2px solid rgba(70, 130, 200, 200);
                 background-color: rgba(255, 255, 255, 255);
             }
-        """
+        """,
         )
 
         # Clear/Close button (does both clear and close)
@@ -238,7 +256,7 @@ class MainWidget(QWidget):
                 background-color: rgba(220, 220, 220, 200);
                 color: #333;
             }
-        """
+        """,
         )
 
         overlay_layout.addWidget(self._search_input)
@@ -264,7 +282,7 @@ class MainWidget(QWidget):
             QPushButton:hover {
                 background-color: rgba(220, 220, 220, 220);
             }
-        """
+        """,
         )
         # Hide search toggle initially - only show on tree hover
         self._search_toggle.hide()
@@ -368,6 +386,45 @@ class MainWidget(QWidget):
 
         # Add back the right stretch
         self._top_button_layout.addStretch()
+
+    def _build_gallery_widget(self):
+        """Build the gallery widget and add it to the main layout"""
+        session = self._copick.session
+        main_window = session.ui.main_window
+        stack_widget = main_window._stack
+
+        gallery_widget = CopickGalleryWidget(session)
+
+        # Set copick root if available
+        if self._root:
+            gallery_widget.set_copick_root(self._root)
+
+        # Connect gallery run selection to main widget
+        gallery_widget.run_selected.connect(self._on_gallery_run_selected)
+        gallery_widget.info_requested.connect(self._on_gallery_info_requested)
+
+        stack_widget.addWidget(gallery_widget)
+
+        # Store reference
+        self._copick_gallery_widget = gallery_widget
+
+    def _build_info_widget(self):
+        session = self._copick.session
+        main_window = session.ui.main_window
+        stack_widget = main_window._stack
+
+        copick_widget = CopickInfoWidget(session)
+
+        # Update with current run if one is selected
+        if self._current_run:
+            copick_widget.set_run(self._current_run)
+        elif self._current_run_name:
+            copick_widget.set_run_name(self._current_run_name)
+
+        stack_widget.addWidget(copick_widget)
+
+        # Store reference for cleanup
+        self._copick_info_widget = copick_widget
 
     def set_root(self, root: CopickRootFSSpec):
         self._root = root
@@ -483,53 +540,47 @@ class MainWidget(QWidget):
 
     def _position_search_overlay(self):
         """Position the search overlay at the bottom-left of the tree view"""
-        if hasattr(self, "_search_overlay") and hasattr(self, "_tree_view"):
-            tree_height = self._tree_view.height()
-            tree_width = self._tree_view.width()
-            overlay_width = min(240, tree_width - 60)  # Leave space for search toggle button
-            overlay_height = 32  # Fixed height for search overlay
+        tree_height = self._tree_view.height()
+        tree_width = self._tree_view.width()
+        overlay_width = min(240, tree_width - 60)  # Leave space for search toggle button
+        overlay_height = 32  # Fixed height for search overlay
 
-            # Position at bottom-left with some margin
-            x = 10
-            y = tree_height - overlay_height - 15
+        # Position at bottom-left with some margin
+        x = 10
+        y = tree_height - overlay_height - 15
 
-            self._search_overlay.setGeometry(x, y, overlay_width, overlay_height)
+        self._search_overlay.setGeometry(x, y, overlay_width, overlay_height)
 
     def _position_search_toggle(self):
         """Position the search toggle button at bottom-right corner"""
-        if hasattr(self, "_search_toggle") and hasattr(self, "_tree_view"):
-            tree_width = self._tree_view.width()
-            tree_height = self._tree_view.height()
-            button_size = 30
+        tree_width = self._tree_view.width()
+        tree_height = self._tree_view.height()
+        button_size = 30
 
-            # Position at bottom-right corner with margin
-            x = tree_width - button_size - 10
-            y = tree_height - button_size - 15
+        # Position at bottom-right corner with margin
+        x = tree_width - button_size - 10
+        y = tree_height - button_size - 15
 
-            self._search_toggle.setGeometry(x, y, button_size, button_size)
+        self._search_toggle.setGeometry(x, y, button_size, button_size)
 
     def _position_navigation_buttons(self):
         """Position the three navigation buttons vertically at top-right corner"""
-        if hasattr(self, "_tree_view"):
-            tree_width = self._tree_view.width()
-            button_size = 30
-            gap = 5
-            start_x = tree_width - button_size - 10
-            start_y = 10
+        tree_width = self._tree_view.width()
+        button_size = 30
+        gap = 5
+        start_x = tree_width - button_size - 10
+        start_y = 10
 
-            # Position 3D view button at top
-            if hasattr(self, "_view_3d_button"):
-                self._view_3d_button.setGeometry(start_x, start_y, button_size, button_size)
+        # Position 3D view button at top
+        self._view_3d_button.setGeometry(start_x, start_y, button_size, button_size)
 
-            # Position details button below 3D
-            if hasattr(self, "_view_details_button"):
-                y = start_y + button_size + gap
-                self._view_details_button.setGeometry(start_x, y, button_size, button_size)
+        # Position details button below 3D
+        y = start_y + button_size + gap
+        self._view_details_button.setGeometry(start_x, y, button_size, button_size)
 
-            # Position gallery button below details
-            if hasattr(self, "_view_gallery_button"):
-                y = start_y + 2 * (button_size + gap)
-                self._view_gallery_button.setGeometry(start_x, y, button_size, button_size)
+        # Position gallery button below details
+        y = start_y + 2 * (button_size + gap)
+        self._view_gallery_button.setGeometry(start_x, y, button_size, button_size)
 
     def eventFilter(self, obj, event):
         """Handle resize events to reposition floating elements and mouse hover events"""
@@ -559,10 +610,10 @@ class MainWidget(QWidget):
 
     def _filter_tree(self, text: str):
         """Filter the tree view based on search text"""
-        if hasattr(self, "_filter_model"):
+        if self._filter_model is not None:
             # Store currently expanded items before filtering
             expanded_items = []
-            if hasattr(self, "_tree_view") and self._tree_view.model() is not None:
+            if self._tree_view.model() is not None:
                 model = self._tree_view.model()
                 for row in range(model.rowCount()):
                     index = model.index(row, 0)
@@ -573,18 +624,7 @@ class MainWidget(QWidget):
             self._filter_model.setFilterFixedString(text)
 
             # Also apply filter to gallery widget if it exists
-            try:
-                session = self._copick.session
-                main_window = session.ui.main_window
-                stack_widget = main_window._stack
-
-                for i in range(stack_widget.count()):
-                    widget = stack_widget.widget(i)
-                    if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickGalleryWidget":
-                        widget.apply_search_filter(text)
-                        break
-            except Exception:
-                pass  # Silently handle errors
+            self._copick_gallery_widget.apply_search_filter(text)
 
             if text:
                 # Keep runs collapsed when filtering - don't auto-expand
@@ -593,7 +633,7 @@ class MainWidget(QWidget):
                 # When clearing search, restore previous expanded state
                 self._tree_view.collapseAll()
                 # Restore previously expanded items
-                if hasattr(self, "_tree_view") and self._tree_view.model() is not None:
+                if self._tree_view.model() is not None:
                     model = self._tree_view.model()
                     for row in expanded_items:
                         if row < model.rowCount():
@@ -606,7 +646,7 @@ class MainWidget(QWidget):
             return
 
         # Map proxy model index to source model index
-        if hasattr(self, "_filter_model") and self._filter_model is not None:
+        if self._filter_model:
             source_index = self._filter_model.mapToSource(proxy_index)
             if source_index.isValid():
                 self._copick.switch_volume(source_index)
@@ -617,7 +657,7 @@ class MainWidget(QWidget):
     def _clear_search(self):
         """Clear the search input and reset the filter"""
         self._search_input.clear()
-        if hasattr(self, "_filter_model"):
+        if self._filter_model:
             self._filter_model.setFilterFixedString("")
             self._tree_view.collapseAll()
 
@@ -632,7 +672,7 @@ class MainWidget(QWidget):
             return
 
         # Map proxy index to source index
-        if hasattr(self._picks_table, "_filter_model") and self._picks_table._filter_model:
+        if self._picks_table._filter_model:
             source_index = self._picks_table._filter_model.mapToSource(proxy_index)
             self._copick.show_particles(source_index)
         else:
@@ -644,7 +684,7 @@ class MainWidget(QWidget):
             return
 
         # Map proxy index to source index
-        if hasattr(self._picks_table, "_filter_model") and self._picks_table._filter_model:
+        if self._picks_table._filter_model:
             source_index = self._picks_table._filter_model.mapToSource(proxy_index)
             self._copick.activate_particles(source_index)
         else:
@@ -656,7 +696,7 @@ class MainWidget(QWidget):
             return
 
         # Map proxy index to source index
-        if hasattr(self._meshes_table, "_filter_model") and self._meshes_table._filter_model:
+        if self._meshes_table._filter_model:
             source_index = self._meshes_table._filter_model.mapToSource(proxy_index)
             self._copick.show_mesh(source_index)
         else:
@@ -668,7 +708,7 @@ class MainWidget(QWidget):
             return
 
         # Map proxy index to source index
-        if hasattr(self._segmentations_table, "_filter_model") and self._segmentations_table._filter_model:
+        if self._segmentations_table._filter_model:
             source_index = self._segmentations_table._filter_model.mapToSource(proxy_index)
             self._copick.show_segmentation(source_index)
         else:
@@ -709,7 +749,7 @@ class MainWidget(QWidget):
 
     def _position_shared_settings_overlay(self, overlay):
         """Position the settings overlay relative to the shared settings button"""
-        if hasattr(self, "_shared_settings_button"):
+        if self._shared_settings_button:
             # Get button position in global coordinates
             button_global_pos = self._shared_settings_button.mapToGlobal(self._shared_settings_button.rect().topLeft())
 
@@ -752,54 +792,23 @@ class MainWidget(QWidget):
     def _on_gallery_run_selected(self, run):
         """Handle run selection from gallery widget"""
         try:
-            # Add debug logging
-            # with open("/tmp/copick_gallery_debug.log", "a") as f:
-            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: START for run {run.name}\n")
-
             # Update current run
             self._current_run = run
-
-            # with open("/tmp/copick_gallery_debug.log", "a") as f:
-            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling set_current_run\n")
-
             self.set_current_run(run)
-
-            # with open("/tmp/copick_gallery_debug.log", "a") as f:
-            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling _select_best_tomogram_from_run\n")
 
             # Find and load the best tomogram from this run
             best_tomogram = self._select_best_tomogram_from_run(run)
 
-            # with open("/tmp/copick_gallery_debug.log", "a") as f:
-            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Selected tomogram: {best_tomogram.tomo_type if best_tomogram else 'None'}\n")
-            #
             if best_tomogram:
-                # with open("/tmp/copick_gallery_debug.log", "a") as f:
-                #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling _load_tomogram_and_switch_view\n")
-
                 self._load_tomogram_and_switch_view(best_tomogram)
-
-                # with open("/tmp/copick_gallery_debug.log", "a") as f:
-                #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Returned from _load_tomogram_and_switch_view\n")
             else:
-                # with open("/tmp/copick_gallery_debug.log", "a") as f:
-                #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: No tomogram, switching to 3D view\n")
-
                 # If no tomogram found, just switch to 3D view
                 session = self._copick.session
                 main_window = session.ui.main_window
                 stack_widget = main_window._stack
                 stack_widget.setCurrentIndex(0)
 
-                # with open("/tmp/copick_gallery_debug.log", "a") as f:
-                #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Switched to 3D view\n")
-
-            # with open("/tmp/copick_gallery_debug.log", "a") as f:
-            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: END SUCCESS\n")
-
         except Exception as e:
-            # with open("/tmp/copick_gallery_debug.log", "a") as f:
-            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: EXCEPTION: {e}\n")
             print(f"Error handling gallery run selection: {e}")
 
     def _select_best_tomogram_from_run(self, run):
@@ -819,7 +828,7 @@ class MainWidget(QWidget):
             preferred_types = ["denoised", "wbp", "ribo", "defocus"]
 
             # Group by voxel spacing (highest first)
-            voxel_spacings = sorted(set(tomo.voxel_spacing.voxel_size for tomo in all_tomograms), reverse=True)
+            voxel_spacings = sorted({tomo.voxel_spacing.voxel_size for tomo in all_tomograms}, reverse=True)
 
             # Try each voxel spacing, starting with highest
             for vs_size in voxel_spacings:
@@ -844,266 +853,195 @@ class MainWidget(QWidget):
     def _load_tomogram_and_switch_view(self, tomogram):
         """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior"""
         try:
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: START for tomogram {tomogram.tomo_type}\n"
-                )
-
             # Get the copick tool
             copick_tool = self._copick
-
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Got copick_tool\n"
-                )
 
             # Get the main window and stack widget for view switching
             session = self._copick.session
             main_window = session.ui.main_window
             stack_widget = main_window._stack
 
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Got stack_widget\n"
-                )
-
             # Switch to OpenGL view (index 0)
             stack_widget.setCurrentIndex(0)
 
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Set stack widget index to 0\n"
-                )
-
             # Find the tomogram in the tree and get its QModelIndex
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Calling _find_tomogram_in_tree\n"
-                )
-
             tomogram_index = self._find_tomogram_in_tree(tomogram, copick_tool)
 
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Found tomogram index: {tomogram_index.isValid() if tomogram_index else 'None'}\n"
-                )
-
             if tomogram_index and tomogram_index.isValid():
-                with open("/tmp/copick_gallery_debug.log", "a") as f:
-                    f.write(
-                        f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: About to call copick_tool.switch_volume\n"
-                    )
-
                 # This is exactly what _on_tree_double_click does - just call switch_volume
                 copick_tool.switch_volume(tomogram_index)
-
-                with open("/tmp/copick_gallery_debug.log", "a") as f:
-                    f.write(
-                        f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Called copick_tool.switch_volume successfully\n"
-                    )
-
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: About to call _expand_run_in_tree\n"
-                )
 
             # Expand the run in the tree widget
             self._expand_run_in_tree(copick_tool)
 
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: END SUCCESS\n"
-                )
-
         except Exception as e:
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(
-                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: EXCEPTION: {e}\n"
-                )
             print(f"Error loading tomogram: {e}")
 
     def _find_tomogram_in_tree(self, tomogram, copick_tool):
         """Find the tomogram in the tree model and return its QModelIndex"""
-        try:
-            # Use our own tree view instead of accessing copick_tool._mw._tree_view
-            tree_view = self._tree_view
-            model = tree_view.model()
+        # Use our own tree view instead of accessing copick_tool._mw._tree_view
+        tree_view = self._tree_view
+        model = tree_view.model()
 
-            if not model:
-                return None
-
-            # Navigate the tree structure: Root -> Run -> VoxelSpacing -> Tomogram
-            for run_row in range(model.rowCount()):
-                run_index = model.index(run_row, 0)
-                if not run_index.isValid():
-                    continue
-
-                # Get the actual item (handling proxy model if present)
-                if hasattr(model, "mapToSource"):
-                    source_run_index = model.mapToSource(run_index)
-                    run_item = source_run_index.internalPointer()
-                else:
-                    run_item = run_index.internalPointer()
-
-                if not run_item:
-                    continue
-
-                # Check if this is the right run
-                if hasattr(run_item, "run"):
-                    if run_item.run.name != self._current_run.name:
-                        continue
-                elif hasattr(run_item, "name"):
-                    if run_item.name != self._current_run.name:
-                        continue
-                else:
-                    continue
-
-                # Force lazy loading by accessing the children property directly
-                if hasattr(run_item, "children"):
-                    vs_children = run_item.children  # This triggers lazy loading
-                    vs_count = len(vs_children)
-                else:
-                    vs_count = model.rowCount(run_index)
-
-                for vs_row in range(vs_count):
-                    vs_index = model.index(vs_row, 0, run_index)
-                    if not vs_index.isValid():
-                        continue
-
-                    # Get voxel spacing item
-                    if hasattr(model, "mapToSource"):
-                        source_vs_index = model.mapToSource(vs_index)
-                        vs_item = source_vs_index.internalPointer()
-                    else:
-                        vs_item = vs_index.internalPointer()
-
-                    if not vs_item:
-                        continue
-
-                    # Check if this voxel spacing contains our tomogram
-                    if hasattr(vs_item, "voxel_spacing"):
-                        vs_obj = vs_item.voxel_spacing
-                        if vs_obj.voxel_size != tomogram.voxel_spacing.voxel_size:
-                            continue
-                    else:
-                        continue
-
-                    # Force lazy loading by accessing the children property directly
-                    if hasattr(vs_item, "children"):
-                        tomo_children = vs_item.children  # This triggers lazy loading
-                        tomo_count = len(tomo_children)
-                    else:
-                        tomo_count = model.rowCount(vs_index)
-
-                    for tomo_row in range(tomo_count):
-                        tomo_index = model.index(tomo_row, 0, vs_index)
-                        if not tomo_index.isValid():
-                            continue
-
-                        # Get tomogram item
-                        if hasattr(model, "mapToSource"):
-                            source_tomo_index = model.mapToSource(tomo_index)
-                            tomo_item = source_tomo_index.internalPointer()
-                            final_index = source_tomo_index  # Return source index, not proxy index
-                        else:
-                            tomo_item = tomo_index.internalPointer()
-                            final_index = tomo_index
-
-                        if not tomo_item:
-                            continue
-
-                        # Check if this is our tomogram
-                        if hasattr(tomo_item, "tomogram"):
-                            tomo_obj = tomo_item.tomogram
-                            if tomo_obj.tomo_type == tomogram.tomo_type:
-                                return final_index
-
+        if not model:
             return None
 
-        except Exception:
-            return None
+        # Navigate the tree structure: Root -> Run -> VoxelSpacing -> Tomogram
+        for run_row in range(model.rowCount()):
+            run_index = model.index(run_row, 0)
+            if not run_index.isValid():
+                continue
 
-    def _expand_run_in_tree(self, copick_tool):
-        """Expand the current run and all voxel spacings in the tree widget"""
-        try:
-            # Use our own tree view instead of accessing copick_tool._mw._tree_view
-            tree_view = self._tree_view
-            model = tree_view.model()
-
-            if not model or not self._current_run:
-                return
-
-            # Find and expand the run
-            for run_row in range(model.rowCount()):
-                run_index = model.index(run_row, 0)
-                if not run_index.isValid():
-                    continue
-
-                # Get the actual item (handling proxy model if present)
-                if hasattr(model, "mapToSource"):
-                    source_run_index = model.mapToSource(run_index)
-                    run_item = source_run_index.internalPointer()
-                else:
-                    run_item = run_index.internalPointer()
-
-                if not run_item:
-                    continue
-
-                # Check if this is the right run
-                if hasattr(run_item, "run"):
-                    if run_item.run.name == self._current_run.name:
-                        tree_view.expand(run_index)
-                        tree_view.setCurrentIndex(run_index)
-
-                        # Also expand all voxel spacings within this run
-                        self._expand_all_voxel_spacings(tree_view, model, run_index)
-                        break
-                elif hasattr(run_item, "name"):
-                    if run_item.name == self._current_run.name:
-                        tree_view.expand(run_index)
-                        tree_view.setCurrentIndex(run_index)
-
-                        # Also expand all voxel spacings within this run
-                        self._expand_all_voxel_spacings(tree_view, model, run_index)
-                        break
-
-        except Exception:
-            pass
-
-    def _expand_all_voxel_spacings(self, tree_view, model, run_index):
-        """Expand all voxel spacings under the given run"""
-        try:
-            # Force lazy loading of voxel spacings
+            # Get the actual item (handling proxy model if present)
             if hasattr(model, "mapToSource"):
                 source_run_index = model.mapToSource(run_index)
                 run_item = source_run_index.internalPointer()
             else:
                 run_item = run_index.internalPointer()
 
-            vs_children = run_item.children  # Force lazy loading
-            vs_count = len(vs_children)
+            if not run_item:
+                continue
 
-            # Expand each voxel spacing
+            # Check if this is the right run
+            if hasattr(run_item, "run"):
+                if run_item.run.name != self._current_run.name:
+                    continue
+            elif hasattr(run_item, "name"):
+                if run_item.name != self._current_run.name:
+                    continue
+            else:
+                continue
+
+            # Force lazy loading by accessing the children property directly
+            if hasattr(run_item, "children"):
+                vs_children = run_item.children  # This triggers lazy loading
+                vs_count = len(vs_children)
+            else:
+                vs_count = model.rowCount(run_index)
+
             for vs_row in range(vs_count):
                 vs_index = model.index(vs_row, 0, run_index)
-                if vs_index.isValid():
-                    tree_view.expand(vs_index)
+                if not vs_index.isValid():
+                    continue
 
-        except Exception:
-            pass
+                # Get voxel spacing item
+                if hasattr(model, "mapToSource"):
+                    source_vs_index = model.mapToSource(vs_index)
+                    vs_item = source_vs_index.internalPointer()
+                else:
+                    vs_item = vs_index.internalPointer()
+
+                if not vs_item:
+                    continue
+
+                # Check if this voxel spacing contains our tomogram
+                if hasattr(vs_item, "voxel_spacing"):
+                    vs_obj = vs_item.voxel_spacing
+                    if vs_obj.voxel_size != tomogram.voxel_spacing.voxel_size:
+                        continue
+                else:
+                    continue
+
+                # Force lazy loading by accessing the children property directly
+                if hasattr(vs_item, "children"):
+                    tomo_children = vs_item.children  # This triggers lazy loading
+                    tomo_count = len(tomo_children)
+                else:
+                    tomo_count = model.rowCount(vs_index)
+
+                for tomo_row in range(tomo_count):
+                    tomo_index = model.index(tomo_row, 0, vs_index)
+                    if not tomo_index.isValid():
+                        continue
+
+                    # Get tomogram item
+                    if hasattr(model, "mapToSource"):
+                        source_tomo_index = model.mapToSource(tomo_index)
+                        tomo_item = source_tomo_index.internalPointer()
+                        final_index = source_tomo_index  # Return source index, not proxy index
+                    else:
+                        tomo_item = tomo_index.internalPointer()
+                        final_index = tomo_index
+
+                    if not tomo_item:
+                        continue
+
+                    # Check if this is our tomogram
+                    if hasattr(tomo_item, "tomogram"):
+                        tomo_obj = tomo_item.tomogram
+                        if tomo_obj.tomo_type == tomogram.tomo_type:
+                            return final_index
+
+        return None
+
+    def _expand_run_in_tree(self, copick_tool):
+        """Expand the current run and all voxel spacings in the tree widget"""
+        # Use our own tree view instead of accessing copick_tool._mw._tree_view
+        tree_view = self._tree_view
+        model = tree_view.model()
+
+        if not model or not self._current_run:
+            return
+
+        # Find and expand the run
+        for run_row in range(model.rowCount()):
+            run_index = model.index(run_row, 0)
+            if not run_index.isValid():
+                continue
+
+            # Get the actual item (handling proxy model if present)
+            if hasattr(model, "mapToSource"):
+                source_run_index = model.mapToSource(run_index)
+                run_item = source_run_index.internalPointer()
+            else:
+                run_item = run_index.internalPointer()
+
+            if not run_item:
+                continue
+
+            # Check if this is the right run
+            if hasattr(run_item, "run"):
+                if run_item.run.name == self._current_run.name:
+                    tree_view.expand(run_index)
+                    tree_view.setCurrentIndex(run_index)
+
+                    # Also expand all voxel spacings within this run
+                    self._expand_all_voxel_spacings(tree_view, model, run_index)
+                    break
+            elif hasattr(run_item, "name") and run_item.name == self._current_run.name:
+                tree_view.expand(run_index)
+                tree_view.setCurrentIndex(run_index)
+
+                # Also expand all voxel spacings within this run
+                self._expand_all_voxel_spacings(tree_view, model, run_index)
+                break
+
+    def _expand_all_voxel_spacings(self, tree_view, model, run_index):
+        """Expand all voxel spacings under the given run"""
+        # Force lazy loading of voxel spacings
+        if hasattr(model, "mapToSource"):
+            source_run_index = model.mapToSource(run_index)
+            run_item = source_run_index.internalPointer()
+        else:
+            run_item = run_index.internalPointer()
+
+        vs_children = run_item.children  # Force lazy loading
+        vs_count = len(vs_children)
+
+        # Expand each voxel spacing
+        for vs_row in range(vs_count):
+            vs_index = model.index(vs_row, 0, run_index)
+            if vs_index.isValid():
+                tree_view.expand(vs_index)
 
     def _on_gallery_info_requested(self, run):
         """Handle info request from gallery widget - switch to info view with selected run"""
-        try:
-            # Update current run
-            self._current_run = run
-            self.set_current_run(run)
+        # Update current run
+        self._current_run = run
+        self.set_current_run(run)
 
-            # Navigate to details/info view
-            self._navigate_to_details()
-
-        except Exception as e:
-            print(f"Error handling gallery info request: {e}")
+        # Navigate to details/info view
+        self._navigate_to_details()
 
     def _navigate_to_3d(self):
         """Navigate to 3D/OpenGL view"""
@@ -1125,33 +1063,8 @@ class MainWidget(QWidget):
             main_window = session.ui.main_window
             stack_widget = main_window._stack
 
-            # Check if our copick info widget is already in the stack
-            copick_widget = None
-            for i in range(stack_widget.count()):
-                widget = stack_widget.widget(i)
-                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickInfoWidget":
-                    copick_widget = widget
-                    break
-
-            # If no copick widget exists, create one
-            if copick_widget is None:
-                from .copick_info_widget import CopickInfoWidget
-
-                copick_widget = CopickInfoWidget(session)
-
-                # Update with current run if one is selected
-                if hasattr(self, "_current_run") and self._current_run:
-                    copick_widget.set_run(self._current_run)
-                elif hasattr(self, "_current_run_name") and self._current_run_name:
-                    copick_widget.set_run_name(self._current_run_name)
-
-                stack_widget.addWidget(copick_widget)
-
-                # Store reference for cleanup
-                self._copick_html_widget = copick_widget
-
             # Switch to copick info view
-            stack_widget.setCurrentWidget(copick_widget)
+            stack_widget.setCurrentWidget(self._copick_info_widget)
 
         except Exception as e:
             print(f"Error navigating to details view: {e}")
@@ -1163,80 +1076,25 @@ class MainWidget(QWidget):
             main_window = session.ui.main_window
             stack_widget = main_window._stack
 
-            # Check if our gallery widget is already in the stack
-            gallery_widget = None
-            for i in range(stack_widget.count()):
-                widget = stack_widget.widget(i)
-                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickGalleryWidget":
-                    gallery_widget = widget
-                    break
-
-            # If no gallery widget exists, create one
-            if gallery_widget is None:
-                gallery_widget = CopickGalleryWidget(session)
-
-                # Set copick root if available
-                if hasattr(self, "_root") and self._root:
-                    gallery_widget.set_copick_root(self._root)
-
-                # Connect gallery run selection to main widget
-                gallery_widget.run_selected.connect(self._on_gallery_run_selected)
-                gallery_widget.info_requested.connect(self._on_gallery_info_requested)
-
-                stack_widget.addWidget(gallery_widget)
-
-                # Store reference for cleanup
-                self._copick_gallery_widget = gallery_widget
-
             # Switch to gallery view
-            stack_widget.setCurrentWidget(gallery_widget)
+            stack_widget.setCurrentWidget(self._copick_gallery_widget)
 
             # Apply current search filter to gallery
-            if hasattr(self, "_search_input") and self._search_input.text():
-                gallery_widget.apply_search_filter(self._search_input.text())
+            if self._search_input and self._search_input.text():
+                self._copick_gallery_widget.apply_search_filter(self._search_input.text())
 
         except Exception as e:
             print(f"Error navigating to gallery view: {e}")
 
     def _update_gallery_widget_root(self, root):
         """Update gallery and info widgets when copick root changes"""
-        try:
-            session = self._copick.session
-            main_window = session.ui.main_window
-            stack_widget = main_window._stack
-
-            # Update widgets in the stack
-            for i in range(stack_widget.count()):
-                widget = stack_widget.widget(i)
-                if hasattr(widget, "__class__"):
-                    if widget.__class__.__name__ == "CopickGalleryWidget":
-                        # Update the gallery widget with the new root
-                        widget.set_copick_root(root)
-                        print(f"Updated gallery widget with new copick root")
-                    elif widget.__class__.__name__ == "CopickInfoWidget":
-                        # Clear the info widget when root changes (no specific run selected yet)
-                        widget.set_run(None)
-                        print(f"Cleared info widget for new copick root")
-        except Exception as e:
-            print(f"Error updating widgets for new root: {e}")
+        self._copick_gallery_widget.set_copick_root(root)
+        self._copick_info_widget.set_run(None)
 
     def set_current_run_name(self, run_name: str):
         """Update the current run name and notify the HTML widget if it exists"""
         self._current_run_name = run_name
-
-        # Update info widget if it exists
-        try:
-            session = self._copick.session
-            main_window = session.ui.main_window
-            stack_widget = main_window._stack
-
-            for i in range(stack_widget.count()):
-                widget = stack_widget.widget(i)
-                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickInfoWidget":
-                    widget.set_run_name(run_name)
-                    break
-        except:
-            pass  # Silently handle errors
+        self._copick_info_widget.set_run(run_name)
 
     def set_current_run(self, run):
         """Update the current run object and notify the HTML widget if it exists"""
@@ -1246,19 +1104,7 @@ class MainWidget(QWidget):
         else:
             self._current_run_name = None
 
-        # Update info widget if it exists
-        try:
-            session = self._copick.session
-            main_window = session.ui.main_window
-            stack_widget = main_window._stack
-
-            for i in range(stack_widget.count()):
-                widget = stack_widget.widget(i)
-                if hasattr(widget, "__class__") and widget.__class__.__name__ == "CopickInfoWidget":
-                    widget.set_run(run)
-                    break
-        except:
-            pass  # Silently handle errors
+        self._copick_info_widget.set_run(run)
 
     def _on_tree_selection_changed(self, selected, deselected):
         """Handle tree selection changes to update run object in HTML widget"""
@@ -1272,7 +1118,7 @@ class MainWidget(QWidget):
                 return
 
             # Map proxy model index to source model index
-            if hasattr(self, "_filter_model") and self._filter_model is not None:
+            if self._filter_model:
                 source_index = self._filter_model.mapToSource(proxy_index)
             else:
                 source_index = proxy_index
@@ -1289,40 +1135,4 @@ class MainWidget(QWidget):
                 self.set_current_run(item.run)
 
         except Exception as e:
-            # Silently handle errors to avoid breaking the selection
             print(f"Error handling tree selection: {e}")
-
-    def cleanup(self):
-        """Clean up resources, especially the info widget"""
-        try:
-            # Clean up info and gallery widgets if they exist
-            if hasattr(self, "_copick_html_widget"):
-                self._copick_html_widget.delete()
-                delattr(self, "_copick_html_widget")
-
-            if hasattr(self, "_copick_gallery_widget"):
-                self._copick_gallery_widget.delete()
-                delattr(self, "_copick_gallery_widget")
-
-            # Also remove from ChimeraX stack if it exists
-            session = self._copick.session
-            main_window = session.ui.main_window
-            stack_widget = main_window._stack
-
-            # Remove any CopickInfoWidget and CopickGalleryWidget from the stack
-            widgets_to_remove = []
-            for i in range(stack_widget.count()):
-                widget = stack_widget.widget(i)
-                if hasattr(widget, "__class__") and widget.__class__.__name__ in [
-                    "CopickInfoWidget",
-                    "CopickGalleryWidget",
-                ]:
-                    widgets_to_remove.append(widget)
-
-            for widget in widgets_to_remove:
-                stack_widget.removeWidget(widget)
-                widget.delete()
-
-        except Exception:
-            # Silently handle cleanup errors
-            pass

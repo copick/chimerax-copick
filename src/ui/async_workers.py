@@ -1,9 +1,9 @@
 """Shared async workers for copick UI components."""
 
-from typing import Optional
 import numpy as np
 import zarr
-from Qt.QtCore import QRunnable, Signal, QObject
+from Qt.QtCore import QObject, QRunnable, Signal
+
 from ..io.thumbnail_cache import get_global_cache
 
 
@@ -82,12 +82,8 @@ class ThumbnailLoadWorker(QRunnable):
             if not self.force_regenerate and cache.has_thumbnail(cache_key):
                 cached_pixmap = cache.load_thumbnail(cache_key)
                 if cached_pixmap is not None:
-                    # print(f"Loaded thumbnail from cache for {self.thumbnail_id}")
                     self.signals.thumbnail_loaded.emit(self.thumbnail_id, cached_pixmap, None)
                     return
-
-            # Load from copick data if not in cache or force regenerate
-            # print(f"Generating thumbnail from copick data for {self.thumbnail_id}")
 
             # Try all available zarr groups from lowest to highest resolution
             zarr_groups_to_try = ["2", "1", "0"]  # Start with lowest resolution first
@@ -121,12 +117,6 @@ class ThumbnailLoadWorker(QRunnable):
             # Generate thumbnail from data slice
             pixmap = self._array_to_pixmap(data_slice)
 
-            # Save to cache
-            # if cache.save_thumbnail(cache_key, pixmap):
-            # print(f"Saved thumbnail to cache for {self.thumbnail_id}")
-            # else:
-            # print(f"Failed to save thumbnail to cache for {self.thumbnail_id}")
-
             self.signals.thumbnail_loaded.emit(self.thumbnail_id, pixmap, None)
 
         except Exception as e:
@@ -135,7 +125,7 @@ class ThumbnailLoadWorker(QRunnable):
 
     def _array_to_pixmap(self, data_array):
         """Convert numpy array to QPixmap for display"""
-        from Qt.QtGui import QPixmap, QImage
+        from Qt.QtGui import QImage, QPixmap
 
         # Normalize to 0-255 range
         min_val = np.min(data_array)
@@ -178,7 +168,10 @@ class RunThumbnailWorker(QRunnable):
 
             # Load thumbnail for the selected tomogram
             thumbnail_worker = ThumbnailLoadWorker(
-                self.signals, best_tomogram, self.thumbnail_id, self.force_regenerate
+                self.signals,
+                best_tomogram,
+                self.thumbnail_id,
+                self.force_regenerate,
             )
             thumbnail_worker.run()
 
@@ -202,7 +195,7 @@ class RunThumbnailWorker(QRunnable):
             preferred_types = ["denoised", "wbp", "ribo", "defocus"]
 
             # Group by voxel spacing (highest first)
-            voxel_spacings = sorted(set(tomo.voxel_spacing.voxel_size for tomo in all_tomograms), reverse=True)
+            voxel_spacings = sorted({tomo.voxel_spacing.voxel_size for tomo in all_tomograms}, reverse=True)
 
             # Try each voxel spacing, starting with highest
             for vs_size in voxel_spacings:

@@ -1,24 +1,22 @@
-from typing import Optional, Dict, List, Any
-from Qt.QtCore import QAbstractItemModel
-from Qt.QtWidgets import QTreeView
-from Qt.QtCore import QObject, QThreadPool, QUrl, Qt, Slot, QVariant, QModelIndex
+# Import copick models only when needed to avoid circular import issues
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from Qt.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QThreadPool, QUrl, QVariant, Slot
+from Qt.QtGui import QDesktopServices, QFont, QPixmap
 from Qt.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
-    QFrame,
-    QSizePolicy,
     QPushButton,
-    QGridLayout,
+    QScrollArea,
+    QSizePolicy,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
 )
-from Qt.QtGui import QFont, QPixmap, QDesktopServices
 
 from .async_workers import AsyncWorkerSignals, DataLoadWorker, ThumbnailLoadWorker
-
-# Import copick models only when needed to avoid circular import issues
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram, CopickVoxelSpacing
@@ -203,14 +201,12 @@ class CopickInfoWidget(QWidget):
                         item = index.internalPointer()
 
                     # Check if this is the right run
-                    if hasattr(item, "run") and item.run == self.current_run:
-                        tree_view.expand(index)
-                        tree_view.setCurrentIndex(index)
-
-                        # Also expand all voxel spacings within this run
-                        self._expand_all_voxel_spacings(tree_view, model, index)
-                        break
-                    elif hasattr(item, "name") and item.name == self.current_run.name:
+                    if (
+                        hasattr(item, "run")
+                        and item.run == self.current_run
+                        or hasattr(item, "name")
+                        and item.name == self.current_run.name
+                    ):
                         tree_view.expand(index)
                         tree_view.setCurrentIndex(index)
 
@@ -245,9 +241,7 @@ class CopickInfoWidget(QWidget):
         """Handle app quit trigger to ensure proper cleanup"""
         if not self._is_destroyed:
             # Clear thread pool immediately on app quit
-            if hasattr(self, "_thread_pool"):
-                self._thread_pool.clear()
-                # Don't wait for completion during app quit to avoid hanging
+            self._thread_pool.clear()
             self.deleteLater()
 
     def delete(self) -> None:
@@ -315,7 +309,8 @@ class CopickInfoWidget(QWidget):
         # Back to gallery button
         self._back_to_gallery_button = QPushButton("📸 Back to Gallery")
         self._back_to_gallery_button.setToolTip("Return to gallery view")
-        self._back_to_gallery_button.setStyleSheet("""
+        self._back_to_gallery_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: #007AFF;
                 color: white;
@@ -331,9 +326,10 @@ class CopickInfoWidget(QWidget):
             QPushButton:pressed {
                 background-color: #004499;
             }
-        """)
+        """,
+        )
         self._back_to_gallery_button.clicked.connect(self._on_back_to_gallery)
-        
+
         # Title
         title_label = QLabel("Copick Run Details")
         title_font = QFont()
@@ -348,12 +344,12 @@ class CopickInfoWidget(QWidget):
         top_row.addStretch()  # Center the title
         top_row.addWidget(title_label)
         top_row.addStretch()  # Balance the layout
-        
+
         # Add invisible placeholder widget to balance the button on the left
         placeholder = QWidget()
         placeholder.setFixedSize(self._back_to_gallery_button.sizeHint())
         top_row.addWidget(placeholder)
-        
+
         header_layout.addLayout(top_row)
 
         # Run name
@@ -384,7 +380,7 @@ class CopickInfoWidget(QWidget):
                 font-size: 10px;
                 color: #999;
             }
-        """
+        """,
         )
         layout.addWidget(footer_label, 0)  # No stretch
 
@@ -413,7 +409,7 @@ class CopickInfoWidget(QWidget):
             QScrollBar::handle:vertical:hover {
                 background: #666;
             }
-        """
+        """,
         )
 
     def set_run_name(self, run_name: str) -> None:
@@ -707,7 +703,7 @@ class CopickInfoWidget(QWidget):
                 border-radius: 8px;
                 border: 1px solid #444;
             }
-        """
+        """,
         )
         return frame
 
@@ -728,7 +724,7 @@ class CopickInfoWidget(QWidget):
                     font-size: 10px;
                     font-weight: bold;
                 }
-            """
+            """,
             )
         elif status == "loaded":
             count = len(self._loaded_data.get(data_type, []))
@@ -743,7 +739,7 @@ class CopickInfoWidget(QWidget):
                     font-size: 10px;
                     font-weight: bold;
                 }
-            """
+            """,
             )
         elif status.startswith("error:"):
             error_msg = status[6:]  # Remove "error:" prefix
@@ -758,7 +754,7 @@ class CopickInfoWidget(QWidget):
                     font-size: 10px;
                     font-weight: bold;
                 }
-            """
+            """,
             )
         else:
             label.setText("Pending...")
@@ -772,7 +768,7 @@ class CopickInfoWidget(QWidget):
                     font-size: 10px;
                     font-weight: bold;
                 }
-            """
+            """,
             )
 
         return label
@@ -820,7 +816,9 @@ class CopickInfoWidget(QWidget):
         return content_widget
 
     def _create_voxel_spacing_widget(
-        self, voxel_spacing: "CopickVoxelSpacing", tomograms: List["CopickTomogram"]
+        self,
+        voxel_spacing: "CopickVoxelSpacing",
+        tomograms: List["CopickTomogram"],
     ) -> QFrame:
         """Create a widget for a voxel spacing with its tomograms"""
         frame = QFrame()
@@ -832,7 +830,7 @@ class CopickInfoWidget(QWidget):
                 border-radius: 6px;
                 border: 1px solid #444;
             }
-        """
+        """,
         )
 
         layout = QVBoxLayout()
@@ -904,7 +902,7 @@ class CopickInfoWidget(QWidget):
                 border: 1px solid #007AFF;
                 background-color: #4d4d4d;
             }
-        """
+        """,
         )
 
         layout = QVBoxLayout()
@@ -924,7 +922,7 @@ class CopickInfoWidget(QWidget):
                 border-radius: 6px;
                 border: 1px solid #444;
             }
-        """
+        """,
         )
 
         # Create unique ID for this tomogram thumbnail
@@ -937,7 +935,10 @@ class CopickInfoWidget(QWidget):
             # Scale thumbnail to fit nicely in card (leaving some margin)
             max_size = min(card.minimumSize().width() - 40, card.minimumSize().height() - 80)
             scaled_pixmap = pixmap.scaled(
-                max_size, max_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+                max_size,
+                max_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
             )
             thumbnail_label.setPixmap(scaled_pixmap)
         else:
@@ -986,7 +987,7 @@ class CopickInfoWidget(QWidget):
             card.styleSheet().rstrip("}")
             + """
             cursor: pointer;
-        }"""
+        }""",
         )
 
         card.setLayout(layout)
@@ -1022,7 +1023,7 @@ class CopickInfoWidget(QWidget):
                 background-color: #3d3d3d;
                 border-radius: 4px;
             }
-        """
+        """,
         )
         return widget
 
@@ -1037,7 +1038,7 @@ class CopickInfoWidget(QWidget):
                 border-radius: 4px;
                 border: 1px solid #444;
             }
-        """
+        """,
         )
 
         layout = QVBoxLayout()
@@ -1125,7 +1126,9 @@ class CopickInfoWidget(QWidget):
             details = f"User: {item.user_id} | Session: {item.session_id}"
         elif data_type == "segmentations":
             seg_name = getattr(
-                item, "name", item.pickable_object_name if hasattr(item, "pickable_object_name") else "Unknown"
+                item,
+                "name",
+                item.pickable_object_name if hasattr(item, "pickable_object_name") else "Unknown",
             )
             name = f"🖌 {seg_name}"
             details = f"User: {item.user_id} | Session: {item.session_id}"
@@ -1159,64 +1162,58 @@ class CopickInfoWidget(QWidget):
                 background-color: #3d3d3d;
                 border-radius: 4px;
             }
-        """
+        """,
         )
         return widget
 
     def _create_cryoet_link_button(self, item: Any) -> Optional[QPushButton]:
         """Create a CryoET Data Portal link button for an item if applicable"""
-        try:
-            # Import here to avoid circular imports
-            from copick.impl.cryoet_data_portal import (
-                CopickRunCDP,
-                CopickTomogramCDP,
-                CopickPicksCDP,
-                CopickSegmentationCDP,
-            )
+        # Import here to avoid circular imports
+        from copick.impl.cryoet_data_portal import (
+            CopickRunCDP,
+        )
 
-            # Check if this is a CryoET Data Portal project
-            if hasattr(item, "run") and isinstance(item.run, CopickRunCDP):
-                run_id = item.run.portal_run_id
+        # Check if this is a CryoET Data Portal project
+        if hasattr(item, "run") and isinstance(item.run, CopickRunCDP):
+            run_id = item.run.portal_run_id
 
-                if hasattr(item, "meta") and hasattr(item.meta, "portal_tomo_id"):
-                    # Tomogram link
-                    url = f"https://cryoetdataportal.czscience.com/runs/{run_id}?table-tab=Tomograms"
-                elif hasattr(item, "meta") and hasattr(item.meta, "portal_annotation_id"):
-                    # Annotation link (picks, segmentations)
-                    url = f"https://cryoetdataportal.czscience.com/runs/{run_id}?table-tab=Annotations"
-                elif (
-                    hasattr(item, "voxel_spacing")
-                    and hasattr(item.voxel_spacing, "run")
-                    and isinstance(item.voxel_spacing.run, CopickRunCDP)
-                ):
-                    # Voxel spacing or tomogram via voxel spacing
-                    run_id = item.voxel_spacing.run.portal_run_id
-                    url = f"https://cryoetdataportal.czscience.com/runs/{run_id}"
-                else:
-                    # General run link
-                    url = f"https://cryoetdataportal.czscience.com/runs/{run_id}"
+            if hasattr(item, "meta") and hasattr(item.meta, "portal_tomo_id"):
+                # Tomogram link
+                url = f"https://cryoetdataportal.czscience.com/runs/{run_id}?table-tab=Tomograms"
+            elif hasattr(item, "meta") and hasattr(item.meta, "portal_annotation_id"):
+                # Annotation link (picks, segmentations)
+                url = f"https://cryoetdataportal.czscience.com/runs/{run_id}?table-tab=Annotations"
+            elif (
+                hasattr(item, "voxel_spacing")
+                and hasattr(item.voxel_spacing, "run")
+                and isinstance(item.voxel_spacing.run, CopickRunCDP)
+            ):
+                # Voxel spacing or tomogram via voxel spacing
+                run_id = item.voxel_spacing.run.portal_run_id
+                url = f"https://cryoetdataportal.czscience.com/runs/{run_id}"
+            else:
+                # General run link
+                url = f"https://cryoetdataportal.czscience.com/runs/{run_id}"
 
-                # Create button
-                button = QPushButton("🌐 Portal")
-                button.setStyleSheet(
-                    """
-                    QPushButton {
-                        background-color: rgba(0, 122, 255, 0.1);
-                        color: #007AFF;
-                        border: none;
-                        border-radius: 3px;
-                        padding: 2px 6px;
-                        font-size: 9px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: rgba(0, 122, 255, 0.2);
-                    }
+            # Create button
+            button = QPushButton("🌐 Portal")
+            button.setStyleSheet(
                 """
-                )
-                button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
-                return button
+                QPushButton {
+                    background-color: rgba(0, 122, 255, 0.1);
+                    color: #007AFF;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 2px 6px;
+                    font-size: 9px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: rgba(0, 122, 255, 0.2);
+                }
+            """,
+            )
+            button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
+            return button
 
-            return None
-        except Exception:
-            return None
+        return None

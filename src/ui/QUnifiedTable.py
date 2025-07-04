@@ -1,7 +1,7 @@
 from typing import Literal, Union
 
 from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
-from Qt.QtCore import QModelIndex, Signal, QSortFilterProxyModel, Qt, QEvent
+from Qt.QtCore import QEvent, QModelIndex, QSortFilterProxyModel, Qt, Signal
 from Qt.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
@@ -13,11 +13,12 @@ from Qt.QtWidgets import (
     QWidget,
 )
 
+from ..misc.validation import generate_smart_copy_name
+
+from .DuplicateDialog import DuplicateDialog
+from .DuplicateSettingsOverlay import DuplicateSettingsOverlay
 from .NewPickDialog import NewPickDialog
 from .QUnifiedTableModel import QUnifiedTableModel
-from .DuplicateSettingsOverlay import DuplicateSettingsOverlay
-from .DuplicateDialog import DuplicateDialog
-from .validation import generate_smart_copy_name
 
 
 class TableFilterProxyModel(QSortFilterProxyModel):
@@ -92,7 +93,7 @@ class QUnifiedTable(QWidget):
                 border: 1px solid rgba(100, 100, 100, 180);
                 border-radius: 6px;
             }
-        """
+        """,
         )
 
         # Search overlay layout
@@ -118,7 +119,7 @@ class QUnifiedTable(QWidget):
                 border: 2px solid rgba(70, 130, 200, 200);
                 background-color: rgba(255, 255, 255, 255);
             }
-        """
+        """,
         )
 
         # Clear/Close button
@@ -139,7 +140,7 @@ class QUnifiedTable(QWidget):
                 background-color: rgba(220, 220, 220, 200);
                 color: #333;
             }
-        """
+        """,
         )
 
         overlay_layout.addWidget(self._search_input)
@@ -174,7 +175,7 @@ class QUnifiedTable(QWidget):
         self._search_toggle.setToolTip(f"Search {self.item_type}")
         self._search_toggle.setStyleSheet(button_style)
         self._search_toggle.hide()
-        
+
         # Settings button (will be moved to top bar by parent widget)
         self._settings_button = QPushButton("⚙")
         self._settings_button.setToolTip("Table settings")
@@ -186,7 +187,7 @@ class QUnifiedTable(QWidget):
         # Add table to container
         table_container_layout.addWidget(self._table)
         table_container.setLayout(table_container_layout)
-        
+
         # Create floating action buttons (overlaid on table)
         self._new_button = QPushButton("📄")
         self._new_button.setParent(self._table)
@@ -194,7 +195,7 @@ class QUnifiedTable(QWidget):
         self._new_button.setToolTip("Create a new entity")
         self._new_button.setStyleSheet(button_style)
         self._new_button.hide()
-        
+
         # Copy button
         self._duplicate_button = QPushButton("📋")
         self._duplicate_button.setParent(self._table)
@@ -203,7 +204,7 @@ class QUnifiedTable(QWidget):
         self._duplicate_button.setEnabled(False)  # Disabled until selection
         self._duplicate_button.setStyleSheet(button_style)
         self._duplicate_button.hide()
-        
+
         # Delete button
         self._delete_button = QPushButton("❌")
         self._delete_button.setParent(self._table)
@@ -217,7 +218,7 @@ class QUnifiedTable(QWidget):
         self._settings_overlay = DuplicateSettingsOverlay(None)
         self._settings_overlay.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self._settings_overlay.hide()
-        
+
         # Track delete confirmation setting
         self._delete_confirmation = True  # Show confirmation dialog by default
 
@@ -279,24 +280,21 @@ class QUnifiedTable(QWidget):
         """Handle table selection changes"""
         selected_rows = self._table.selectionModel().selectedRows()
         has_selection = len(selected_rows) > 0
-        
+
         # Enable duplicate button if there's any selection
         self._duplicate_button.setEnabled(has_selection)
-        
+
         # Enable delete button only if selection exists AND entity is not read-only
         can_delete = False
         if has_selection and self._source_model:
             proxy_index = selected_rows[0]
             # Map proxy index to source index if using filter model
-            if self._filter_model:
-                source_index = self._filter_model.mapToSource(proxy_index)
-            else:
-                source_index = proxy_index
-                
+            source_index = self._filter_model.mapToSource(proxy_index) if self._filter_model else proxy_index
+
             entity = self._source_model.get_entity(source_index)
-            if entity and not getattr(entity, 'from_tool', False):
+            if entity and not getattr(entity, "from_tool", False):
                 can_delete = True
-        
+
         self._delete_button.setEnabled(can_delete)
 
     def _on_duplicate_clicked(self):
@@ -307,10 +305,7 @@ class QUnifiedTable(QWidget):
 
         proxy_index = selected_rows[0]
         # Map proxy index to source index
-        if self._filter_model:
-            source_index = self._filter_model.mapToSource(proxy_index)
-        else:
-            source_index = proxy_index
+        source_index = self._filter_model.mapToSource(proxy_index) if self._filter_model else proxy_index
 
         # Get the entity to determine current session ID
         entity = self._source_model.get_entity(source_index) if self._source_model else None
@@ -322,29 +317,29 @@ class QUnifiedTable(QWidget):
         if self._duplicate_mode == "ask":
             # Show dialog for session ID input
             suggested_name = f"{original_session_id}-copy1"
-            
+
             # Get object name and color information for the dialog
             object_name = ""
             object_color = (128, 128, 128, 255)  # Default gray
-            
-            if hasattr(entity, 'pickable_object_name'):
+
+            if hasattr(entity, "pickable_object_name"):
                 object_name = entity.pickable_object_name
-            elif hasattr(entity, 'name'):
+            elif hasattr(entity, "name"):
                 object_name = entity.name
-                
-            if hasattr(entity, 'color'):
+
+            if hasattr(entity, "color"):
                 # Convert color to RGBA format with full alpha
                 entity_color = list(entity.color)
                 if len(entity_color) == 3:
                     entity_color.append(255)  # Add alpha if missing
                 object_color = tuple(entity_color)
-            
+
             dialog = DuplicateDialog(
-                original_session_id, 
-                suggested_name, 
-                self, 
-                object_name=object_name, 
-                object_color=object_color
+                original_session_id,
+                suggested_name,
+                self,
+                object_name=object_name,
+                object_color=object_color,
             )
             if dialog.exec_() == DuplicateDialog.Accepted:
                 new_session_id = dialog.get_session_id()
@@ -407,7 +402,7 @@ class QUnifiedTable(QWidget):
             # For meshes and segmentations, we could implement similar dialogs
             # For now, emit with default values
             self.newClicked.emit("", "", "")
-    
+
     def _on_delete_clicked(self):
         """Handle delete button click with optional confirmation dialog"""
         selected_rows = self._table.selectionModel().selectedRows()
@@ -416,10 +411,7 @@ class QUnifiedTable(QWidget):
 
         proxy_index = selected_rows[0]
         # Map proxy index to source index
-        if self._filter_model:
-            source_index = self._filter_model.mapToSource(proxy_index)
-        else:
-            source_index = proxy_index
+        source_index = self._filter_model.mapToSource(proxy_index) if self._filter_model else proxy_index
 
         # Get the entity to show in confirmation dialog
         entity = self._source_model.get_entity(source_index) if self._source_model else None
@@ -428,17 +420,19 @@ class QUnifiedTable(QWidget):
 
         # Show confirmation dialog if enabled
         if self._delete_confirmation:
-            entity_type = self.item_type.rstrip('s')  # Remove 's' from 'picks', 'meshes', 'segmentations'
-            
+            entity_type = self.item_type.rstrip("s")  # Remove 's' from 'picks', 'meshes', 'segmentations'
+
             # Get object type information
             object_type = ""
-            if hasattr(entity, 'pickable_object_name'):
+            if hasattr(entity, "pickable_object_name"):
                 object_type = f" ({entity.pickable_object_name})"
-            elif hasattr(entity, 'name'):
+            elif hasattr(entity, "name"):
                 object_type = f" ({entity.name})"
-            
-            entity_info = f"{getattr(entity, 'user_id', 'Unknown')} - {getattr(entity, 'session_id', 'Unknown')}{object_type}"
-            
+
+            entity_info = (
+                f"{getattr(entity, 'user_id', 'Unknown')} - {getattr(entity, 'session_id', 'Unknown')}{object_type}"
+            )
+
             msg_box = QMessageBox(self)
             msg_box.setIcon(QMessageBox.Icon.Warning)
             msg_box.setWindowTitle(f"Delete {entity_type.title()}")
@@ -446,10 +440,10 @@ class QUnifiedTable(QWidget):
             msg_box.setInformativeText(f"{entity_info}\n\nThis action cannot be undone.")
             msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             msg_box.setDefaultButton(QMessageBox.StandardButton.No)
-            
+
             if msg_box.exec_() != QMessageBox.StandardButton.Yes:
                 return
-        
+
         # Emit the delete signal
         self.deleteClicked.emit(source_index)
 
@@ -510,7 +504,7 @@ class QUnifiedTable(QWidget):
             y = table_height - button_size - 15
 
             self._search_toggle.setGeometry(x, y, button_size, button_size)
-    
+
     def _position_action_buttons(self):
         """Position the floating action buttons in a vertical stack above search toggle"""
         if hasattr(self, "_table"):
@@ -522,18 +516,18 @@ class QUnifiedTable(QWidget):
 
             # Position from bottom-right, stacking upward
             x = table_width - button_size - margin
-            
+
             # Start with search toggle position and stack upward
             search_y = table_height - button_size - 15
-            
+
             # Delete button (above search)
             delete_y = search_y - button_size - spacing
             self._delete_button.setGeometry(x, delete_y, button_size, button_size)
-            
+
             # Copy button (above delete)
             copy_y = delete_y - button_size - spacing
             self._duplicate_button.setGeometry(x, copy_y, button_size, button_size)
-            
+
             # New button (above copy)
             new_y = copy_y - button_size - spacing
             self._new_button.setGeometry(x, new_y, button_size, button_size)
@@ -551,23 +545,23 @@ class QUnifiedTable(QWidget):
                 if not self._search_overlay.isVisible():
                     self._search_toggle.show()
                     self._position_search_toggle()
-                
+
                 # Always show action buttons on hover
                 self._new_button.show()
                 self._duplicate_button.show()
                 self._delete_button.show()
                 self._position_action_buttons()
-                
+
             elif event.type() == QEvent.Type.Leave:
                 # Hide search toggle when mouse leaves table view (unless search is active)
                 if not self._search_overlay.isVisible():
                     self._search_toggle.hide()
-                
+
                 # Hide action buttons when mouse leaves
                 self._new_button.hide()
                 self._duplicate_button.hide()
                 self._delete_button.hide()
-                
+
         return super().eventFilter(obj, event)
 
     def resizeEvent(self, event):
@@ -649,15 +643,15 @@ class QUnifiedTable(QWidget):
         self._settings_overlay.set_current_mode(mode)
         custom_suffix = self._settings_overlay.get_custom_suffix()
         self._on_settings_changed(mode, custom_suffix)
-        
+
     def get_delete_confirmation(self) -> bool:
         """Get current delete confirmation setting"""
         return self._delete_confirmation
-    
+
     def set_delete_confirmation(self, enabled: bool):
         """Set delete confirmation setting"""
         self._delete_confirmation = enabled
-    
+
     def get_settings_button(self) -> QPushButton:
         """Get the settings button for placement in parent layout"""
         return self._settings_button

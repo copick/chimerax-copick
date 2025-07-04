@@ -1,13 +1,13 @@
 """Cross-platform thumbnail caching system for ChimeraX-copick."""
 
-import os
 import hashlib
 import json
-from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
-from Qt.QtGui import QPixmap
-from Qt.QtCore import QStandardPaths
+import os
 import platform
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from Qt.QtGui import QPixmap
 
 
 class ThumbnailCache:
@@ -84,7 +84,10 @@ class ThumbnailCache:
                 json.dump(metadata, f, indent=2)
 
     def get_cache_key(
-        self, run_name: str, tomogram_type: Optional[str] = None, voxel_spacing: Optional[float] = None
+        self,
+        run_name: str,
+        tomogram_type: Optional[str] = None,
+        voxel_spacing: Optional[float] = None,
     ) -> str:
         """Generate a cache key for a thumbnail.
 

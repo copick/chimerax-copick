@@ -1,42 +1,27 @@
 """Gallery widget for displaying copick runs in a grid layout with thumbnails."""
 
-import datetime
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
-from Qt.QtCore import QThreadPool, Signal, Slot, QModelIndex
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from chimerax.core.session import Session
+from Qt.QtCore import QModelIndex, Qt, QThreadPool, Signal, Slot
+from Qt.QtGui import QPixmap
 from Qt.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
-    QFrame,
-    QSizePolicy,
-    QGridLayout,
-    QPushButton,
     QLineEdit,
-    QTreeView,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
 )
-from Qt.QtGui import QPixmap
-from Qt.QtCore import Qt
 
 from .async_workers import AsyncWorkerSignals, RunThumbnailWorker
 
 # Import copick models only when needed to avoid circular import issues
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram
-
-
-def _debug_log(message: str) -> None:
-    """Write debug message to file and console"""
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
-    log_message = f"[{timestamp}] {message}\n"
-
-    try:
-        with open("/tmp/copick_gallery_debug.log", "a") as f:
-            f.write(log_message)
-        print(f"DEBUG: {message}")
-    except Exception:
-        print(f"DEBUG (file write failed): {message}")
 
 
 class RunCard(QFrame):
@@ -74,7 +59,7 @@ class RunCard(QFrame):
                 border-radius: 4px;
                 color: #999;
             }
-        """
+        """,
         )
         self.thumbnail_label.setText("Loading...")
 
@@ -98,7 +83,7 @@ class RunCard(QFrame):
             QPushButton:pressed {
                 background-color: rgba(70, 130, 200, 255);
             }
-        """
+        """,
         )
         self.info_button.move(170, 6)  # Position in top-right corner with margin
         self.info_button.clicked.connect(lambda: self.info_requested.emit(self.run))
@@ -117,7 +102,7 @@ class RunCard(QFrame):
                 font-size: 12px;
                 padding: 4px;
             }
-        """
+        """,
         )
         layout.addWidget(self.name_label)
 
@@ -132,7 +117,7 @@ class RunCard(QFrame):
                 font-size: 10px;
                 padding: 2px;
             }
-        """
+        """,
         )
         layout.addWidget(self.status_label)
 
@@ -150,7 +135,7 @@ class RunCard(QFrame):
                 border: 2px solid #007AFF;
                 background-color: #444;
             }
-        """
+        """,
         )
         self.setCursor(Qt.PointingHandCursor)
 
@@ -172,9 +157,7 @@ class RunCard(QFrame):
 
     def mousePressEvent(self, event: Any) -> None:
         """Handle mouse click"""
-        # _debug_log(f"RunCard.mousePressEvent: Button {event.button()}, run={self.run.name}")
         if event.button() == Qt.LeftButton:
-            # _debug_log(f"RunCard: Emitting clicked signal for run {self.run.name}")
             self.clicked.emit(self.run)
         super().mousePressEvent(event)
 
@@ -191,12 +174,11 @@ class CopickGalleryWidget(QWidget):
         # Initialize debug log file
         try:
             with open("/tmp/copick_gallery_debug.log", "w") as f:
-                f.write(f"=== CopickGalleryWidget Debug Log Started ===\n")
+                f.write("=== CopickGalleryWidget Debug Log Started ===\n")
         except Exception:
             pass
-        # _debug_log("CopickGalleryWidget.__init__: Starting initialization")
 
-        self.session: Any = session
+        self.session: Session = session
         self.copick_root: Optional[Any] = None
         self.runs: List["CopickRun"] = []
         self.filtered_runs: List["CopickRun"] = []
@@ -218,10 +200,7 @@ class CopickGalleryWidget(QWidget):
         self._setup_ui()
 
         # Register for app quit trigger
-        if hasattr(session, "triggers"):
-            session.triggers.add_handler("app quit", self._app_quit)
-
-        # _debug_log("CopickGalleryWidget.__init__: Initialization complete")
+        session.triggers.add_handler("app quit", self._app_quit)
 
     def _setup_ui(self) -> None:
         """Setup the gallery UI"""
@@ -241,7 +220,7 @@ class CopickGalleryWidget(QWidget):
                 font-weight: bold;
                 padding: 8px;
             }
-        """
+        """,
         )
         header_layout.addWidget(title_label)
 
@@ -268,7 +247,7 @@ class CopickGalleryWidget(QWidget):
             QPushButton:pressed {
                 background-color: #CC4E24;
             }
-        """
+        """,
         )
         self.regenerate_button.clicked.connect(self._on_regenerate_thumbnails)
         header_layout.addWidget(self.regenerate_button)
@@ -289,7 +268,7 @@ class CopickGalleryWidget(QWidget):
             QLineEdit:focus {
                 border-color: #007AFF;
             }
-        """
+        """,
         )
         self.search_box.textChanged.connect(self._on_search_changed)
         header_layout.addWidget(self.search_box)
@@ -307,7 +286,7 @@ class CopickGalleryWidget(QWidget):
                 border: none;
                 background-color: #1a1a1a;
             }
-        """
+        """,
         )
         layout.addWidget(self.scroll_area)
 
@@ -328,7 +307,7 @@ class CopickGalleryWidget(QWidget):
                 font-size: 14px;
                 padding: 40px;
             }
-        """
+        """,
         )
         self.empty_label.setVisible(False)
         layout.addWidget(self.empty_label)
@@ -337,10 +316,8 @@ class CopickGalleryWidget(QWidget):
         """Handle app quit trigger"""
         if not self._is_destroyed:
             # Clear thread pool immediately on app quit
-            if hasattr(self, "_thread_pool"):
-                print("Gallery: Clearing thread pool on app quit")
-                self._thread_pool.clear()
-                # Don't wait for completion during app quit to avoid hanging
+            self._thread_pool.clear()
+            # Don't wait for completion during app quit to avoid hanging
             self.deleteLater()
 
     def delete(self) -> None:
@@ -350,30 +327,18 @@ class CopickGalleryWidget(QWidget):
 
         self._is_destroyed = True
 
-        try:
-            if hasattr(self, "_thread_pool"):
-                self._thread_pool.clear()
-                self._thread_pool.waitForDone(3000)
+        self._thread_pool.clear()
+        self._thread_pool.waitForDone(3000)
 
-            # Clear caches
-            if hasattr(self, "all_run_cards"):
-                self.all_run_cards.clear()
-            if hasattr(self, "visible_run_cards"):
-                self.visible_run_cards.clear()
-            if hasattr(self, "thumbnail_cache"):
-                self.thumbnail_cache.clear()
-        except Exception:
-            pass
+        # Clear caches
+        self.all_run_cards.clear()
+        self.visible_run_cards.clear()
+        self.thumbnail_cache.clear()
 
     def set_copick_root(self, copick_root: Optional[Any]) -> None:
         """Set the copick root and load runs"""
-        print(f"Gallery: Setting new copick root with {len(list(copick_root.runs)) if copick_root else 0} runs")
-
         # Clear thread pool to cancel any pending thumbnail loads from previous session
-        if hasattr(self, "_thread_pool"):
-            print("Gallery: Clearing thread pool to cancel old thumbnail workers")
-            self._thread_pool.clear()
-            # Don't wait for completion as old workers may be stuck
+        self._thread_pool.clear()
 
         # Clear caches when root changes
         self.all_run_cards.clear()
@@ -408,7 +373,7 @@ class CopickGalleryWidget(QWidget):
 
     def _filter_runs(self) -> None:
         """Filter runs based on search text"""
-        old_filtered = set(run.name for run in self.filtered_runs)
+        old_filtered = {run.name for run in self.filtered_runs}
 
         if not self.search_filter:
             self.filtered_runs = self.runs.copy()
@@ -416,7 +381,7 @@ class CopickGalleryWidget(QWidget):
             self.filtered_runs = [run for run in self.runs if self.search_filter in run.name.lower()]
 
         # Check if filtering actually changed the results
-        new_filtered = set(run.name for run in self.filtered_runs)
+        new_filtered = {run.name for run in self.filtered_runs}
         self._grid_dirty = old_filtered != new_filtered
 
     def _clear_grid(self) -> None:
@@ -521,22 +486,16 @@ class CopickGalleryWidget(QWidget):
     @Slot(object)
     def _on_run_card_clicked(self, run: "CopickRun") -> None:
         """Handle run card click - switch to 3D view and emit signal for main widget to handle"""
-        # _debug_log(f"Gallery._on_run_card_clicked: START for run {run.name}")
         try:
-            # _debug_log(f"Gallery._on_run_card_clicked: Switching to 3D view")
             # Switch to OpenGL view (index 0) - let main widget handle the volume loading
             main_window = self.session.ui.main_window
             stack_widget = main_window._stack
             stack_widget.setCurrentIndex(0)
-            # _debug_log(f"Gallery._on_run_card_clicked: Switched to 3D view")
 
-            # _debug_log(f"Gallery._on_run_card_clicked: Emitting run_selected signal")
             # Emit signal to let main widget handle tomogram loading and tree updates
             self.run_selected.emit(run)
-            # _debug_log(f"Gallery._on_run_card_clicked: END SUCCESS for run {run.name}")
 
         except Exception as e:
-            # _debug_log(f"Gallery._on_run_card_clicked: EXCEPTION: {e}")
             print(f"Gallery: Error handling run card click: {e}")
             # Still emit the signal as fallback
             self.run_selected.emit(run)
@@ -558,7 +517,7 @@ class CopickGalleryWidget(QWidget):
             preferred_types = ["denoised", "wbp"]
 
             # Group by voxel spacing (highest first)
-            voxel_spacings = sorted(set(tomo.voxel_spacing.voxel_size for tomo in all_tomograms), reverse=True)
+            voxel_spacings = sorted({tomo.voxel_spacing.voxel_size for tomo in all_tomograms}, reverse=True)
 
             # Try each voxel spacing, starting with highest
             for vs_size in voxel_spacings:
@@ -583,43 +542,27 @@ class CopickGalleryWidget(QWidget):
 
     def _load_tomogram_and_switch_view(self, tomogram: "CopickTomogram") -> None:
         """Load the tomogram and switch to OpenGL view - uses the same pattern as info widget"""
-        # _debug_log(f"Gallery._load_tomogram_and_switch_view: START for tomogram {tomogram.tomo_type}")
         try:
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: Getting copick_tool")
             copick_tool = self.session.copick
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: Got copick_tool: {copick_tool}")
 
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: Getting main window and stack widget")
             # Get the main window and stack widget for view switching
             main_window = self.session.ui.main_window
             stack_widget = main_window._stack
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: Got stack widget")
 
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: Switching to OpenGL view")
             # Switch to OpenGL view (index 0)
             stack_widget.setCurrentIndex(0)
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: Switched to OpenGL view")
 
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: Finding tomogram in tree")
             # Find the tomogram in the tree and get its QModelIndex using the safe approach
             tomogram_index = self._find_tomogram_in_tree(tomogram)
-            # _debug_log(
-            #     f"Gallery._load_tomogram_and_switch_view: Found tomogram index: {tomogram_index.isValid() if tomogram_index else 'None'}"
-            # )
 
             if tomogram_index and tomogram_index.isValid():
-                # _debug_log(f"Gallery._load_tomogram_and_switch_view: Calling copick_tool.switch_volume")
                 # This is exactly what _on_tree_double_click does - just call switch_volume
                 copick_tool.switch_volume(tomogram_index)
-                # _debug_log(f"Gallery._load_tomogram_and_switch_view: Called copick_tool.switch_volume successfully")
 
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: Expanding run in tree")
             # Expand the run in the tree widget
             self._expand_run_in_tree(tomogram)
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: END SUCCESS")
 
         except Exception as e:
-            # _debug_log(f"Gallery._load_tomogram_and_switch_view: EXCEPTION: {e}")
             print(f"Gallery: Error loading tomogram: {e}")
 
     def _find_tomogram_in_tree(self, tomogram: "CopickTomogram") -> Optional[QModelIndex]:
@@ -755,14 +698,12 @@ class CopickGalleryWidget(QWidget):
                         item = index.internalPointer()
 
                     # Check if this is the right run
-                    if hasattr(item, "run") and item.run == current_run:
-                        tree_view.expand(index)
-                        tree_view.setCurrentIndex(index)
-
-                        # Also expand all voxel spacings within this run
-                        self._expand_all_voxel_spacings(model, index)
-                        break
-                    elif hasattr(item, "name") and item.name == current_run.name:
+                    if (
+                        hasattr(item, "run")
+                        and item.run == current_run
+                        or hasattr(item, "name")
+                        and item.name == current_run.name
+                    ):
                         tree_view.expand(index)
                         tree_view.setCurrentIndex(index)
 
@@ -805,8 +746,6 @@ class CopickGalleryWidget(QWidget):
     @Slot()
     def _on_regenerate_thumbnails(self) -> None:
         """Handle regenerate thumbnails button click"""
-        print("Gallery: Regenerating all thumbnails")
-
         # Clear both memory and disk cache
         from ..io.thumbnail_cache import get_global_cache
 
@@ -825,7 +764,6 @@ class CopickGalleryWidget(QWidget):
         # Force regenerate all visible thumbnails
         for run in self.filtered_runs:
             if run.name in self.all_run_cards:
-                print(f"Gallery: Force regenerating thumbnail for {run.name}")
                 self._load_run_thumbnail(run, run.name, force_regenerate=True)
 
     @Slot(object)
@@ -837,6 +775,6 @@ class CopickGalleryWidget(QWidget):
         """Handle widget resize to update grid layout"""
         super().resizeEvent(event)
         # Mark grid as dirty and trigger update to recalculate cards per row
-        if hasattr(self, "filtered_runs") and self.filtered_runs:
+        if self.filtered_runs:
             self._grid_dirty = True
             self._update_grid()
