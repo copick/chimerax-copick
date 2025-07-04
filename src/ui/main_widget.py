@@ -388,7 +388,7 @@ class MainWidget(QWidget):
 
         # Update gallery widget with new root if it exists
         self._update_gallery_widget_root(root)
-        
+
         # Default to gallery view when new root is set
         self._navigate_to_gallery()
 
@@ -753,88 +753,88 @@ class MainWidget(QWidget):
         """Handle run selection from gallery widget"""
         try:
             # Add debug logging
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: START for run {run.name}\n")
-            
+            # with open("/tmp/copick_gallery_debug.log", "a") as f:
+            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: START for run {run.name}\n")
+
             # Update current run
             self._current_run = run
-            
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling set_current_run\n")
-            
+
+            # with open("/tmp/copick_gallery_debug.log", "a") as f:
+            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling set_current_run\n")
+
             self.set_current_run(run)
-            
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling _select_best_tomogram_from_run\n")
+
+            # with open("/tmp/copick_gallery_debug.log", "a") as f:
+            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling _select_best_tomogram_from_run\n")
 
             # Find and load the best tomogram from this run
             best_tomogram = self._select_best_tomogram_from_run(run)
-            
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Selected tomogram: {best_tomogram.tomo_type if best_tomogram else 'None'}\n")
-            
+
+            # with open("/tmp/copick_gallery_debug.log", "a") as f:
+            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Selected tomogram: {best_tomogram.tomo_type if best_tomogram else 'None'}\n")
+            #
             if best_tomogram:
-                with open("/tmp/copick_gallery_debug.log", "a") as f:
-                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling _load_tomogram_and_switch_view\n")
-                
+                # with open("/tmp/copick_gallery_debug.log", "a") as f:
+                #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Calling _load_tomogram_and_switch_view\n")
+
                 self._load_tomogram_and_switch_view(best_tomogram)
-                
-                with open("/tmp/copick_gallery_debug.log", "a") as f:
-                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Returned from _load_tomogram_and_switch_view\n")
+
+                # with open("/tmp/copick_gallery_debug.log", "a") as f:
+                #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Returned from _load_tomogram_and_switch_view\n")
             else:
-                with open("/tmp/copick_gallery_debug.log", "a") as f:
-                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: No tomogram, switching to 3D view\n")
-                
+                # with open("/tmp/copick_gallery_debug.log", "a") as f:
+                #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: No tomogram, switching to 3D view\n")
+
                 # If no tomogram found, just switch to 3D view
                 session = self._copick.session
                 main_window = session.ui.main_window
                 stack_widget = main_window._stack
                 stack_widget.setCurrentIndex(0)
-                
-                with open("/tmp/copick_gallery_debug.log", "a") as f:
-                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Switched to 3D view\n")
 
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: END SUCCESS\n")
+                # with open("/tmp/copick_gallery_debug.log", "a") as f:
+                #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: Switched to 3D view\n")
+
+            # with open("/tmp/copick_gallery_debug.log", "a") as f:
+            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: END SUCCESS\n")
 
         except Exception as e:
-            with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: EXCEPTION: {e}\n")
+            # with open("/tmp/copick_gallery_debug.log", "a") as f:
+            #     f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._on_gallery_run_selected: EXCEPTION: {e}\n")
             print(f"Error handling gallery run selection: {e}")
 
     def _select_best_tomogram_from_run(self, run):
         """Select the best tomogram from a run (prefer denoised, highest voxel spacing)"""
         try:
             all_tomograms = []
-            
+
             # Collect all tomograms from all voxel spacings
             for vs in run.voxel_spacings:
                 for tomo in vs.tomograms:
                     all_tomograms.append(tomo)
-            
+
             if not all_tomograms:
                 return None
 
             # Preference order for tomogram types (denoised first)
             preferred_types = ["denoised", "wbp", "ribo", "defocus"]
-            
+
             # Group by voxel spacing (highest first)
             voxel_spacings = sorted(set(tomo.voxel_spacing.voxel_size for tomo in all_tomograms), reverse=True)
-            
+
             # Try each voxel spacing, starting with highest
             for vs_size in voxel_spacings:
                 vs_tomograms = [tomo for tomo in all_tomograms if tomo.voxel_spacing.voxel_size == vs_size]
-                
+
                 # Try preferred types in order
                 for preferred_type in preferred_types:
                     for tomo in vs_tomograms:
                         if preferred_type.lower() in tomo.tomo_type.lower():
                             return tomo
-                
+
                 # If no preferred type found, return the first tomogram at this voxel spacing
                 if vs_tomograms:
                     return vs_tomograms[0]
-            
+
             # Fallback: return any tomogram
             return all_tomograms[0] if all_tomograms else None
 
@@ -845,59 +845,81 @@ class MainWidget(QWidget):
         """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior"""
         try:
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: START for tomogram {tomogram.tomo_type}\n")
-            
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: START for tomogram {tomogram.tomo_type}\n"
+                )
+
             # Get the copick tool
             copick_tool = self._copick
-            
+
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Got copick_tool\n")
-            
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Got copick_tool\n"
+                )
+
             # Get the main window and stack widget for view switching
             session = self._copick.session
             main_window = session.ui.main_window
             stack_widget = main_window._stack
 
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Got stack_widget\n")
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Got stack_widget\n"
+                )
 
             # Switch to OpenGL view (index 0)
             stack_widget.setCurrentIndex(0)
 
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Set stack widget index to 0\n")
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Set stack widget index to 0\n"
+                )
 
             # Find the tomogram in the tree and get its QModelIndex
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Calling _find_tomogram_in_tree\n")
-            
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Calling _find_tomogram_in_tree\n"
+                )
+
             tomogram_index = self._find_tomogram_in_tree(tomogram, copick_tool)
 
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Found tomogram index: {tomogram_index.isValid() if tomogram_index else 'None'}\n")
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Found tomogram index: {tomogram_index.isValid() if tomogram_index else 'None'}\n"
+                )
 
             if tomogram_index and tomogram_index.isValid():
                 with open("/tmp/copick_gallery_debug.log", "a") as f:
-                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: About to call copick_tool.switch_volume\n")
-                
+                    f.write(
+                        f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: About to call copick_tool.switch_volume\n"
+                    )
+
                 # This is exactly what _on_tree_double_click does - just call switch_volume
                 copick_tool.switch_volume(tomogram_index)
-                
+
                 with open("/tmp/copick_gallery_debug.log", "a") as f:
-                    f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Called copick_tool.switch_volume successfully\n")
+                    f.write(
+                        f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: Called copick_tool.switch_volume successfully\n"
+                    )
 
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: About to call _expand_run_in_tree\n")
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: About to call _expand_run_in_tree\n"
+                )
 
             # Expand the run in the tree widget
             self._expand_run_in_tree(copick_tool)
-            
+
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: END SUCCESS\n")
-            
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: END SUCCESS\n"
+                )
+
         except Exception as e:
             with open("/tmp/copick_gallery_debug.log", "a") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: EXCEPTION: {e}\n")
+                f.write(
+                    f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] MainWidget._load_tomogram_and_switch_view: EXCEPTION: {e}\n"
+                )
             print(f"Error loading tomogram: {e}")
 
     def _find_tomogram_in_tree(self, tomogram, copick_tool):
@@ -997,7 +1019,7 @@ class MainWidget(QWidget):
                                 return final_index
 
             return None
-            
+
         except Exception:
             return None
 
@@ -1032,7 +1054,7 @@ class MainWidget(QWidget):
                     if run_item.run.name == self._current_run.name:
                         tree_view.expand(run_index)
                         tree_view.setCurrentIndex(run_index)
-                        
+
                         # Also expand all voxel spacings within this run
                         self._expand_all_voxel_spacings(tree_view, model, run_index)
                         break
@@ -1040,11 +1062,11 @@ class MainWidget(QWidget):
                     if run_item.name == self._current_run.name:
                         tree_view.expand(run_index)
                         tree_view.setCurrentIndex(run_index)
-                        
+
                         # Also expand all voxel spacings within this run
                         self._expand_all_voxel_spacings(tree_view, model, run_index)
                         break
-                        
+
         except Exception:
             pass
 
@@ -1066,7 +1088,7 @@ class MainWidget(QWidget):
                 vs_index = model.index(vs_row, 0, run_index)
                 if vs_index.isValid():
                     tree_view.expand(vs_index)
-                    
+
         except Exception:
             pass
 

@@ -4,6 +4,7 @@ from typing import Optional
 import numpy as np
 import zarr
 from Qt.QtCore import QRunnable, Signal, QObject
+from ..io.thumbnail_cache import get_global_cache
 
 
 class AsyncWorkerSignals(QObject):
@@ -56,16 +57,38 @@ class DataLoadWorker(QRunnable):
 class ThumbnailLoadWorker(QRunnable):
     """Worker for loading tomogram thumbnails in background thread"""
 
-    def __init__(self, signals, tomogram, thumbnail_id):
+    def __init__(self, signals, tomogram, thumbnail_id, force_regenerate=False):
         super().__init__()
         self.signals = signals
         self.tomogram = tomogram
         self.thumbnail_id = thumbnail_id
+        self.force_regenerate = force_regenerate
         self.setAutoDelete(True)
 
     def run(self):
         """Load thumbnail and update widget via signals"""
         try:
+            # Get the thumbnail cache
+            cache = get_global_cache()
+
+            # Generate cache key for this tomogram
+            cache_key = cache.get_cache_key(
+                run_name=self.tomogram.voxel_spacing.run.name,
+                tomogram_type=self.tomogram.tomo_type,
+                voxel_spacing=self.tomogram.voxel_spacing.voxel_size,
+            )
+
+            # Try to load from cache first (unless force regenerate)
+            if not self.force_regenerate and cache.has_thumbnail(cache_key):
+                cached_pixmap = cache.load_thumbnail(cache_key)
+                if cached_pixmap is not None:
+                    # print(f"Loaded thumbnail from cache for {self.thumbnail_id}")
+                    self.signals.thumbnail_loaded.emit(self.thumbnail_id, cached_pixmap, None)
+                    return
+
+            # Load from copick data if not in cache or force regenerate
+            # print(f"Generating thumbnail from copick data for {self.thumbnail_id}")
+
             # Try all available zarr groups from lowest to highest resolution
             zarr_groups_to_try = ["2", "1", "0"]  # Start with lowest resolution first
             zarr_array = None
@@ -97,6 +120,13 @@ class ThumbnailLoadWorker(QRunnable):
 
             # Generate thumbnail from data slice
             pixmap = self._array_to_pixmap(data_slice)
+
+            # Save to cache
+            # if cache.save_thumbnail(cache_key, pixmap):
+            # print(f"Saved thumbnail to cache for {self.thumbnail_id}")
+            # else:
+            # print(f"Failed to save thumbnail to cache for {self.thumbnail_id}")
+
             self.signals.thumbnail_loaded.emit(self.thumbnail_id, pixmap, None)
 
         except Exception as e:
@@ -128,11 +158,12 @@ class ThumbnailLoadWorker(QRunnable):
 class RunThumbnailWorker(QRunnable):
     """Worker for selecting and loading best tomogram thumbnail for a run"""
 
-    def __init__(self, signals, run, thumbnail_id):
+    def __init__(self, signals, run, thumbnail_id, force_regenerate=False):
         super().__init__()
         self.signals = signals
         self.run = run
         self.thumbnail_id = thumbnail_id
+        self.force_regenerate = force_regenerate
         self.setAutoDelete(True)
 
     def run(self):
@@ -146,7 +177,9 @@ class RunThumbnailWorker(QRunnable):
                 return
 
             # Load thumbnail for the selected tomogram
-            thumbnail_worker = ThumbnailLoadWorker(self.signals, best_tomogram, self.thumbnail_id)
+            thumbnail_worker = ThumbnailLoadWorker(
+                self.signals, best_tomogram, self.thumbnail_id, self.force_regenerate
+            )
             thumbnail_worker.run()
 
         except Exception as e:

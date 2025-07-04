@@ -43,6 +43,7 @@ from .ui.EntityTable import TableMesh, TablePicks, TableSegmentation
 # This tool
 from .ui.main_widget import MainWidget
 from .ui.tree import TreeTomogram
+from .io import set_global_cache_config
 
 
 class CopickTool(ToolInstance):
@@ -138,6 +139,10 @@ class CopickTool(ToolInstance):
 
         self.config_file = config_file
         self.root = copick.from_file(config_file)
+        
+        # Initialize thumbnail cache with config file
+        set_global_cache_config(config_file)
+        
         self._mw.set_root(self.root)
         self.palette_command = palette_from_root(self.root)
 

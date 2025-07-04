@@ -950,7 +950,7 @@ class CopickInfoWidget(QWidget):
 
             # Start async thumbnail loading
             if not self._is_destroyed:
-                worker = ThumbnailLoadWorker(self._signals, tomogram, thumbnail_id)
+                worker = ThumbnailLoadWorker(self._signals, tomogram, thumbnail_id, force_regenerate=False)
                 self._thread_pool.start(worker)
 
         layout.addWidget(thumbnail_label)
