@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.0.0...chimerax-copick-v1.1.0) (2025-07-05)
+
+
+### ✨ Features
+
+* Preview and Gallery widgets for main viewport area. ([#42](https://github.com/copick/chimerax-copick/issues/42)) ([21dea5a](https://github.com/copick/chimerax-copick/commit/21dea5ad75ca641a1e958f274bb73f227aa5e76b))
+
 ## [1.0.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v0.6.0...chimerax-copick-v1.0.0) (2025-07-01)
 
 
