@@ -92,7 +92,7 @@ class QCoPickTreeModel(QAbstractItemModel):
         parentItem = self._root if not parent.isValid() else parent.internalPointer()
 
         if parentItem.childCount() == 0:
-            parentItem.children  # Trigger loading of children
+            _ = parentItem.children  # Trigger loading of children
 
     def headerData(self, section, orientation, role=...):
         if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:

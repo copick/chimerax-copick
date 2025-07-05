@@ -1,8 +1,8 @@
 # Python
+import json
 from copy import deepcopy
 from sys import platform
 from typing import Any, Tuple
-import json
 
 # Copick
 import copick
@@ -33,12 +33,13 @@ from Qt.QtCore import QModelIndex
 from Qt.QtGui import QFont
 from Qt.QtWidgets import QVBoxLayout
 
+from .io import set_global_cache_config
 from .misc.colorops import palette_from_root
 from .misc.meshops import ensure_mesh
 from .misc.pickops import append_no_duplicates
 
 # from .ui.pickstable import TablePicks
-from .ui.EntityTable import TableMesh, TablePicks, TableSegmentation
+from .ui.EntityTable import TablePicks
 
 # This tool
 from .ui.main_widget import MainWidget
@@ -53,6 +54,11 @@ class CopickTool(ToolInstance):
 
     # Let ChimeraX know about our help page
     def __init__(self, session, tool_name):
+        # Suppress SSH client logging to reduce console noise
+        import logging
+        logging.getLogger('asyncssh').setLevel(logging.WARNING)
+        logging.getLogger('asyncssh.sftp').setLevel(logging.WARNING)
+        
         # Initialize base class
         super().__init__(session, tool_name)
 
@@ -138,6 +144,10 @@ class CopickTool(ToolInstance):
 
         self.config_file = config_file
         self.root = copick.from_file(config_file)
+
+        # Initialize thumbnail cache with config file
+        set_global_cache_config(config_file)
+
         self._mw.set_root(self.root)
         self.palette_command = palette_from_root(self.root)
 
@@ -684,7 +694,9 @@ class CopickTool(ToolInstance):
 
             # Delete using the copick API
             run.delete_picks(
-                object_name=entity.pickable_object_name, user_id=entity.user_id, session_id=entity.session_id
+                object_name=entity.pickable_object_name,
+                user_id=entity.user_id,
+                session_id=entity.session_id,
             )
 
             # Remove from local tracking if it exists
@@ -718,7 +730,9 @@ class CopickTool(ToolInstance):
 
             # Delete using the copick API
             run.delete_meshes(
-                object_name=entity.pickable_object_name, user_id=entity.user_id, session_id=entity.session_id
+                object_name=entity.pickable_object_name,
+                user_id=entity.user_id,
+                session_id=entity.session_id,
             )
 
             # Remove from local tracking if it exists
@@ -752,7 +766,10 @@ class CopickTool(ToolInstance):
 
             # Delete using the copick API
             run.delete_segmentations(
-                user_id=entity.user_id, session_id=entity.session_id, name=entity.name, voxel_size=entity.voxel_size
+                user_id=entity.user_id,
+                session_id=entity.session_id,
+                name=entity.name,
+                voxel_size=entity.voxel_size,
             )
 
             # Remove from local tracking if it exists
@@ -957,7 +974,9 @@ class CopickTool(ToolInstance):
 
         from .ui.EditObjectTypesDialog import EditObjectTypesDialog
 
-        dialog = EditObjectTypesDialog(parent=self.tool_window.ui_area, existing_objects=self.root.config.pickable_objects)
+        dialog = EditObjectTypesDialog(
+            parent=self.tool_window.ui_area, existing_objects=self.root.config.pickable_objects,
+        )
 
         if dialog.exec_() == dialog.Accepted:
             try:
@@ -983,7 +1002,9 @@ class CopickTool(ToolInstance):
                 from Qt.QtWidgets import QMessageBox
 
                 QMessageBox.critical(
-                    self.tool_window.ui_area, "Error Updating Object Types", f"Failed to update object types: {str(e)}"
+                    self.tool_window.ui_area,
+                    "Error Updating Object Types",
+                    f"Failed to update object types: {str(e)}",
                 )
                 self.session.logger.error(f"Error updating object types: {e}")
 
