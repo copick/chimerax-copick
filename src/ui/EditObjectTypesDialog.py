@@ -131,7 +131,8 @@ class EditObjectTypesDialog(QDialog):
         # Dialog buttons
         self._button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self._ok_button = self._button_box.button(QDialogButtonBox.Ok)
-        self._ok_button.setText("Save Changes")
+        self._ok_button.setText("Save & Close")
+        self._ok_button.setEnabled(False)  # Initially disabled until changes are made
         self._ok_button.setStyleSheet(
             """
             QPushButton {
@@ -350,9 +351,9 @@ class EditObjectTypesDialog(QDialog):
         form_buttons_layout = QHBoxLayout()
         form_buttons_layout.setContentsMargins(0, 10, 0, 0)
 
-        self._apply_button = QPushButton("✅ Apply Changes")
+        self._apply_button = QPushButton("✅ Save Object")
         self._apply_button.setEnabled(False)
-        self._apply_button.setToolTip("Apply changes to the selected object or add new object")
+        self._apply_button.setToolTip("Save the current object to the list")
 
         self._cancel_edit_button = QPushButton("❌ Cancel")
         self._cancel_edit_button.setEnabled(False)
@@ -469,12 +470,15 @@ class EditObjectTypesDialog(QDialog):
     def _update_button_states(self):
         """Update button states based on current state"""
         has_selection = len(self._objects_table.selectionModel().selectedRows()) > 0
+        form_valid = self._is_form_valid()
+        
         self._edit_button.setEnabled(has_selection and not self._editing_mode)
         self._delete_button.setEnabled(has_selection and not self._editing_mode)
         self._new_button.setEnabled(not self._editing_mode)
 
         # Form buttons
-        self._apply_button.setEnabled(self._editing_mode and self._is_form_valid())
+        apply_enabled = self._editing_mode and form_valid
+        self._apply_button.setEnabled(apply_enabled)
         self._cancel_edit_button.setEnabled(self._editing_mode)
 
     def _edit_selected_object(self):
@@ -513,16 +517,38 @@ class EditObjectTypesDialog(QDialog):
             )
 
             if reply == QMessageBox.Yes:
+                deleted_name = obj_to_delete.name
                 self._existing_objects.pop(row)
                 self._populate_objects_table()
                 self._reset_form()
                 self._update_button_states()
+                
+                # Show feedback and enable OK button
+                self._form_status.setText(f"✅ Object '{deleted_name}' deleted successfully")
+                self._form_status.setStyleSheet("font-weight: bold; color: #28a745; padding: 5px;")
+                self._ok_button.setEnabled(True)
+                self._ok_button.setStyleSheet(
+                    """
+                    QPushButton {
+                        background-color: #28a745;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 6px 12px;
+                        font-weight: bold;
+                        min-width: 80px;
+                    }
+                    QPushButton:hover {
+                        background-color: #218838;
+                    }
+                """
+                )
 
     def _new_object(self):
         """Start creating a new object"""
         self._selected_object = None
         self._editing_mode = True
-        self._reset_form()
+        self._reset_form(keep_editing_mode=True)
         self._populate_initial_data()
         self._form_status.setText("Creating new object")
         self._form_status.setStyleSheet("font-weight: bold; color: #4A90E2; padding: 5px;")
@@ -535,30 +561,57 @@ class EditObjectTypesDialog(QDialog):
             return
 
         new_object = self._create_object_from_form()
+        object_name = new_object.name
 
         if self._selected_object:
             # Update existing object
             row = self._existing_objects.index(self._selected_object)
             self._existing_objects[row] = new_object
+            action = "updated"
         else:
             # Add new object
             self._existing_objects.append(new_object)
+            action = "added"
 
         self._populate_objects_table()
         self._reset_form()
         self._update_button_states()
+        
+        # Provide immediate visual feedback
+        self._form_status.setText(f"✅ Object '{object_name}' {action} successfully")
+        self._form_status.setStyleSheet("font-weight: bold; color: #28a745; padding: 5px;")
+        
+        # Enable the OK button to indicate changes are ready to be saved
+        self._ok_button.setEnabled(True)
+        self._ok_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """
+        )
 
     def _cancel_edit(self):
         """Cancel current editing operation"""
         self._reset_form()
         self._update_button_states()
 
-    def _reset_form(self):
+    def _reset_form(self, keep_editing_mode=False):
         """Reset form to default state"""
         self._selected_object = None
-        self._editing_mode = False
-        self._form_status.setText("Ready to add new object")
-        self._form_status.setStyleSheet("font-weight: bold; color: #4A90E2; padding: 5px;")
+        if not keep_editing_mode:
+            self._editing_mode = False
+            self._form_status.setText("Ready to add new object")
+            self._form_status.setStyleSheet("font-weight: bold; color: #4A90E2; padding: 5px;")
 
         # Clear form fields
         self._name_edit.clear()
@@ -715,7 +768,7 @@ class EditObjectTypesDialog(QDialog):
             obj.label for obj in self._existing_objects if obj != self._selected_object and obj.label is not None
         }
         label_valid = label_value not in existing_labels
-
+        
         return name_valid and label_valid and bool(name_text)
 
     def get_objects(self) -> List[PickableObject]:
