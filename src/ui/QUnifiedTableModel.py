@@ -1,13 +1,11 @@
-from typing import Any, Literal, Union
-import os
 from pathlib import Path
+from typing import Literal, Union
 
 from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
 from Qt.QtCore import QAbstractTableModel, QModelIndex, Qt
-from Qt.QtGui import QBrush, QColor, QIcon, QPixmap
-from Qt.QtWidgets import QApplication, QStyle
+from Qt.QtGui import QBrush, QColor, QIcon
 
-from .EntityTable import EntityTableRoot, TableEntity, TablePicks, TableMesh, TableSegmentation
+from .EntityTable import EntityTableRoot, TableEntity, TableMesh, TablePicks, TableSegmentation
 
 
 class QUnifiedTableModel(QAbstractTableModel):
@@ -32,10 +30,10 @@ class QUnifiedTableModel(QAbstractTableModel):
         # Get the path to the icons directory relative to this file
         current_dir = Path(__file__).parent.parent  # Go up to src directory
         icons_dir = current_dir / "icons"
-        
+
         eye_open_path = icons_dir / "eye_open.png"
         eye_closed_path = icons_dir / "eye_closed.png"
-        
+
         if eye_open_path.exists():
             self._eye_open_icon = QIcon(str(eye_open_path))
         if eye_closed_path.exists():
@@ -60,7 +58,6 @@ class QUnifiedTableModel(QAbstractTableModel):
 
         # Sort entities: tool entities first, then user entities
         self._entities.sort(key=lambda x: (not x.entity.from_tool, x.entity.user_id, self._get_object_name(x)))
-    
 
     def _get_object_name(self, table_entity: TableEntity) -> str:
         """Get object name from table entity"""

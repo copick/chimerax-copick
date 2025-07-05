@@ -1,15 +1,15 @@
 # vim: set expandtab shiftwidth=4 softtabstop=4:
 
 # ChimeraX
-from pathlib import Path
-from typing import Optional, List
 import json
+from pathlib import Path
+from typing import List, Optional
+
+from copick import from_czcdp_datasets
+from copick.impl.filesystem import CopickConfigFSSpec
 
 # Copick imports
 from copick.models import CopickConfig
-from copick.impl.filesystem import CopickConfigFSSpec
-from copick.impl.cryoet_data_portal import CopickConfigCDP
-from copick import from_czcdp_datasets
 
 
 def get_singleton(session, create=True):
@@ -108,7 +108,11 @@ def copick_new(
 
 
 def _create_filesystem_config(
-    session, config_path: Path, root_dir: Optional[str], name: Optional[str], description: Optional[str]
+    session,
+    config_path: Path,
+    root_dir: Optional[str],
+    name: Optional[str],
+    description: Optional[str],
 ):
     """Create a filesystem-based copick configuration"""
 
@@ -144,7 +148,11 @@ def _create_filesystem_config(
 
 
 def _create_portal_config(
-    session, config_path: Path, dataset_ids: Optional[List[int]], name: Optional[str], description: Optional[str]
+    session,
+    config_path: Path,
+    dataset_ids: Optional[List[int]],
+    name: Optional[str],
+    description: Optional[str],
 ):
     """Create a cryoet data portal-based copick configuration"""
 
@@ -156,7 +164,7 @@ def _create_portal_config(
     overlay_root = str(config_path.parent / "copick_overlay")
 
     # Create CopickRootCDP using the from_czcdp_datasets API
-    copick_root = from_czcdp_datasets(
+    from_czcdp_datasets(
         dataset_ids=dataset_ids,
         overlay_root=overlay_root,
         overlay_fs_args={"auto_mkdir": True},
@@ -168,7 +176,7 @@ def _create_portal_config(
 
 def register_copick(logger):
     """Register all commands with ChimeraX, and specify expected arguments."""
-    from chimerax.core.commands import CmdDesc, FileNameArg, StringArg, ListOf, IntArg, register
+    from chimerax.core.commands import CmdDesc, FileNameArg, IntArg, ListOf, StringArg, register
 
     def register_copick_start():
         desc = CmdDesc(
