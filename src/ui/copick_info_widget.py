@@ -27,6 +27,14 @@ from Qt.QtWidgets import (
 )
 
 from .async_workers import AsyncWorkerSignals, DataLoadWorker, ThumbnailLoadWorker
+from .theme_utils import (
+    get_theme_stylesheet,
+    get_button_stylesheet,
+    get_status_label_stylesheet,
+    get_input_stylesheet,
+    get_footer_stylesheet,
+    get_theme_colors,
+)
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram, CopickVoxelSpacing
@@ -301,6 +309,9 @@ class CopickInfoWidget(QWidget):
 
         # Apply styling
         self._apply_styling()
+        
+        # Connect to theme change events
+        self._connect_theme_events()
 
     def _create_header(self, layout: Any) -> None:
         """Create the header section"""
@@ -319,25 +330,7 @@ class CopickInfoWidget(QWidget):
         # Back to gallery button
         self._back_to_gallery_button = QPushButton("📸 Back to Gallery")
         self._back_to_gallery_button.setToolTip("Return to gallery view")
-        self._back_to_gallery_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #007AFF;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #0056CC;
-            }
-            QPushButton:pressed {
-                background-color: #004499;
-            }
-        """
-        )
+        # Style will be applied in _apply_styling method
         self._back_to_gallery_button.clicked.connect(self._on_back_to_gallery)
 
         # Title
@@ -370,7 +363,7 @@ class CopickInfoWidget(QWidget):
         self._run_name_label.setFont(name_font)
         self._run_name_label.setAlignment(Qt.AlignCenter)
         self._run_name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self._run_name_label.setStyleSheet("color: #007AFF; margin-bottom: 5px;")
+        # Style will be applied in _apply_styling method
         header_layout.addWidget(self._run_name_label)
 
         header_widget.setLayout(header_layout)
@@ -381,46 +374,44 @@ class CopickInfoWidget(QWidget):
         footer_label = QLabel("💡 Use the overlay button on the tree widget to switch between OpenGL and info views")
         footer_label.setAlignment(Qt.AlignCenter)
         footer_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        footer_label.setStyleSheet(
-            """
-            QLabel {
-                background-color: rgba(45, 45, 45, 100);
-                border-radius: 6px;
-                padding: 10px;
-                font-size: 10px;
-                color: #999;
-            }
-        """
-        )
+        # Style will be applied in _apply_styling method
+        self.footer_label = footer_label  # Store reference for styling
         layout.addWidget(footer_label, 0)  # No stretch
 
     def _apply_styling(self) -> None:
-        """Apply overall widget styling"""
-        self.setStyleSheet(
-            """
-            QWidget {
-                background-color: #1a1a1a;
-                color: #ffffff;
-            }
-            QScrollArea {
-                background-color: transparent;
-                border: none;
-            }
-            QScrollBar:vertical {
-                background: #2d2d2d;
-                width: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background: #555;
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #666;
-            }
-        """
-        )
+        """Apply overall widget styling with theme-aware colors"""
+        # Apply base theme stylesheet
+        self.setStyleSheet(get_theme_stylesheet(self))
+        
+        # Apply button styling
+        self._back_to_gallery_button.setStyleSheet(get_button_stylesheet("primary", self))
+        
+        # Apply theme-aware styling to run name label
+        colors = get_theme_colors(self)
+        self._run_name_label.setStyleSheet(f"color: {colors['accent_blue']}; margin-bottom: 5px;")
+        
+        # Apply footer styling
+        self._apply_footer_styling()
+        
+    def _apply_footer_styling(self) -> None:
+        """Apply theme-aware styling to footer"""
+        if hasattr(self, 'footer_label'):
+            self.footer_label.setStyleSheet(get_footer_stylesheet(self))
+            
+    def _connect_theme_events(self) -> None:
+        """Connect to theme change events"""
+        try:
+            # Connect to palette change events if available
+            from Qt.QtWidgets import QApplication
+            app = QApplication.instance()
+            if app and hasattr(app, 'paletteChanged'):
+                app.paletteChanged.connect(self._on_theme_changed)
+        except Exception:
+            pass  # Theme change detection not available
+            
+    def _on_theme_changed(self) -> None:
+        """Handle theme change by reapplying styles"""
+        self._apply_styling()
 
     def set_run_name(self, run_name: str) -> None:
         """Set the current run name and update the display"""
@@ -558,7 +549,8 @@ class CopickInfoWidget(QWidget):
             # Show empty state
             empty_label = QLabel("Select a run from the copick tree to view its contents.")
             empty_label.setAlignment(Qt.AlignCenter)
-            empty_label.setStyleSheet("color: #999; font-style: italic; padding: 40px;")
+            colors = get_theme_colors(self)
+            empty_label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; padding: 40px;")
             self._content_layout.addWidget(empty_label)
 
     def _add_voxel_spacings_section(self) -> None:
@@ -621,7 +613,8 @@ class CopickInfoWidget(QWidget):
                 empty_label = QLabel("No voxel spacings found")
                 empty_label.setAlignment(Qt.AlignCenter)
                 empty_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                empty_label.setStyleSheet("color: #999; font-style: italic; padding: 15px;")
+                colors = get_theme_colors(self)
+                empty_label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; padding: 15px;")
                 section_layout.addWidget(empty_label)
         else:
             # Show loading placeholder until both are loaded
@@ -709,80 +702,28 @@ class CopickInfoWidget(QWidget):
         """Create a styled frame for a section"""
         frame = QFrame(objectName="section_frame")
         frame.setFrameStyle(QFrame.StyledPanel)
-        frame.setStyleSheet(
-            """
-            QFrame {
-                background-color: #2d2d2d;
-                border-radius: 8px;
-                border: 1px solid #444;
-            }
-        """
-        )
+        # Style applied via main theme stylesheet
         return frame
 
     def _create_status_label(self, status: str, data_type: str) -> QLabel:
-        """Create a status indicator label"""
+        """Create a status indicator label with theme-aware styling"""
         label = QLabel()
         label.setAlignment(Qt.AlignCenter)
 
         if status == "loading":
             label.setText("Loading...")
-            label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #FFF3CD;
-                    color: #856404;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 10px;
-                    font-weight: bold;
-                }
-            """
-            )
+            label.setStyleSheet(get_status_label_stylesheet("loading", self))
         elif status == "loaded":
             count = len(self._loaded_data.get(data_type, []))
             label.setText(f"✓ Loaded ({count} items)")
-            label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #D4EDDA;
-                    color: #155724;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 10px;
-                    font-weight: bold;
-                }
-            """
-            )
+            label.setStyleSheet(get_status_label_stylesheet("loaded", self))
         elif status.startswith("error:"):
             error_msg = status[6:]  # Remove "error:" prefix
             label.setText(f"✗ Error: {error_msg[:20]}...")
-            label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #F8D7DA;
-                    color: #721C24;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 10px;
-                    font-weight: bold;
-                }
-            """
-            )
+            label.setStyleSheet(get_status_label_stylesheet("error", self))
         else:
             label.setText("Pending...")
-            label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #555;
-                    color: #ccc;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 10px;
-                    font-weight: bold;
-                }
-            """
-            )
+            label.setStyleSheet(get_status_label_stylesheet("pending", self))
 
         return label
 
@@ -797,7 +738,8 @@ class CopickInfoWidget(QWidget):
 
         label = QLabel(text)
         label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet("color: #999; font-style: italic; padding: 20px;")
+        colors = get_theme_colors(self)
+        label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; padding: 20px;")
         return label
 
     def _create_nested_voxel_tomogram_content(
@@ -836,15 +778,8 @@ class CopickInfoWidget(QWidget):
         """Create a widget for a voxel spacing with its tomograms"""
         frame = QFrame(objectName="vs_frame")
         frame.setFrameStyle(QFrame.StyledPanel)
-        frame.setStyleSheet(
-            """
-            QFrame {
-                background-color: #1a1a1a;
-                border-radius: 6px;
-                border: 1px solid #444;
-            }
-        """
-        )
+        frame.setObjectName("vs_frame")
+        # Style applied via main stylesheet
 
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 16, 16, 16)
@@ -891,7 +826,8 @@ class CopickInfoWidget(QWidget):
             layout.addWidget(tomo_grid_widget)
         else:
             empty_label = QLabel("No tomograms found")
-            empty_label.setStyleSheet("color: #999; font-style: italic; margin-left: 15px;")
+            colors = get_theme_colors(self)
+            empty_label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; margin-left: 15px;")
             layout.addWidget(empty_label)
 
         frame.setLayout(layout)
@@ -904,17 +840,19 @@ class CopickInfoWidget(QWidget):
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         card.setMinimumSize(200, 240)  # Reasonable minimum size
         # No maximum size - let cards expand to fill available space
+        # Apply theme-aware styling
+        colors = get_theme_colors(self)
         card.setStyleSheet(
-            """
-            QFrame {
-                background-color: #3d3d3d;
+            f"""
+            QFrame {{
+                background-color: {colors['bg_tertiary']};
                 border-radius: 8px;
-                border: 1px solid #555;
-            }
-            QFrame:hover {
-                border: 1px solid #007AFF;
-                background-color: #4d4d4d;
-            }
+                border: 1px solid {colors['border_secondary']};
+            }}
+            QFrame:hover {{
+                border: 1px solid {colors['border_accent']};
+                background-color: {colors['bg_quaternary']};
+            }}
         """
         )
 
@@ -928,13 +866,15 @@ class CopickInfoWidget(QWidget):
         thumbnail_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         thumbnail_label.setAlignment(Qt.AlignCenter)
         thumbnail_label.setScaledContents(False)  # We'll handle scaling manually
+        # Apply theme-aware styling for thumbnail
+        colors = get_theme_colors(self)
         thumbnail_label.setStyleSheet(
-            """
-            QLabel {
-                background-color: #2d2d2d;
+            f"""
+            QLabel {{
+                background-color: {colors['bg_secondary']};
                 border-radius: 6px;
-                border: 1px solid #444;
-            }
+                border: 1px solid {colors['border_primary']};
+            }}
         """
         )
 
@@ -957,15 +897,17 @@ class CopickInfoWidget(QWidget):
         else:
             # Show loading placeholder and start async loading
             thumbnail_label.setText("⏳")
+            # Apply theme-aware styling for loading state
+            colors = get_theme_colors(self)
             thumbnail_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #2d2d2d;
+                f"""
+                QLabel {{
+                    background-color: {colors['bg_secondary']};
                     border-radius: 6px;
-                    border: 1px solid #444;
-                    color: #999;
+                    border: 1px solid {colors['border_primary']};
+                    color: {colors['text_muted']};
                     font-size: 24px;
-                }
+                }}
             """
             )
 
@@ -987,7 +929,8 @@ class CopickInfoWidget(QWidget):
         # Tomogram name
         name_label = QLabel(tomogram.tomo_type)
         name_label.setAlignment(Qt.AlignCenter)
-        name_label.setStyleSheet("color: #fff; font-weight: bold; font-size: 10px;")
+        colors = get_theme_colors(self)
+        name_label.setStyleSheet(f"color: {colors['text_primary']}; font-weight: bold; font-size: 10px;")
         name_label.setWordWrap(True)
         info_layout.addWidget(name_label)
 
@@ -1021,7 +964,8 @@ class CopickInfoWidget(QWidget):
         layout.addWidget(icon_label)
 
         name_label = QLabel(tomogram.tomo_type)
-        name_label.setStyleSheet("color: #fff; font-size: 11px;")
+        colors = get_theme_colors(self)
+        name_label.setStyleSheet(f"color: {colors['text_primary']}; font-size: 11px;")
         layout.addWidget(name_label)
 
         layout.addStretch()
@@ -1032,12 +976,15 @@ class CopickInfoWidget(QWidget):
             layout.addWidget(link_button)
 
         widget.setLayout(layout)
+        
+        # Apply theme-aware styling
+        colors = get_theme_colors(self)
         widget.setStyleSheet(
-            """
-            QWidget {
-                background-color: #3d3d3d;
+            f"""
+            QWidget {{
+                background-color: {colors['bg_tertiary']};
                 border-radius: 4px;
-            }
+            }}
         """
         )
         return widget
@@ -1046,15 +993,7 @@ class CopickInfoWidget(QWidget):
         """Create an annotation subsection widget"""
         frame = QFrame(objectName="annotation_section")
         frame.setFrameStyle(QFrame.StyledPanel)
-        frame.setStyleSheet(
-            """
-            QFrame {
-                background-color: #1a1a1a;
-                border-radius: 4px;
-                border: 1px solid #444;
-            }
-        """
-        )
+        # Style applied via main theme stylesheet
 
         layout = QVBoxLayout()
         layout.setContentsMargins(8, 8, 8, 8)
@@ -1082,7 +1021,8 @@ class CopickInfoWidget(QWidget):
         else:
             status_label = QLabel("⏳")
 
-        status_label.setStyleSheet("color: #999; font-size: 10px;")
+        colors = get_theme_colors(self)
+        status_label.setStyleSheet(f"color: {colors['text_muted']}; font-size: 10px;")
         header_layout.addStretch()
         header_layout.addWidget(status_label)
 
@@ -1096,7 +1036,8 @@ class CopickInfoWidget(QWidget):
                 layout.addWidget(content_widget)
             else:
                 empty_label = QLabel("No items found")
-                empty_label.setStyleSheet("color: #999; font-style: italic; margin-left: 10px;")
+                colors = get_theme_colors(self)
+                empty_label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; margin-left: 10px;")
                 layout.addWidget(empty_label)
         else:
             content_label = self._create_content_placeholder(status)
@@ -1153,13 +1094,15 @@ class CopickInfoWidget(QWidget):
 
         # Name label
         name_label = QLabel(name)
-        name_label.setStyleSheet("color: #fff; font-weight: bold; font-size: 11px;")
+        colors = get_theme_colors(self)
+        name_label.setStyleSheet(f"color: {colors['text_primary']}; font-weight: bold; font-size: 11px;")
         info_layout.addWidget(name_label)
 
         # Details label
         if details:
             details_label = QLabel(details)
-            details_label.setStyleSheet("color: #999; font-size: 9px;")
+            colors = get_theme_colors(self)
+            details_label.setStyleSheet(f"color: {colors['text_muted']}; font-size: 9px;")
             info_layout.addWidget(details_label)
 
         layout.addLayout(info_layout)
@@ -1171,12 +1114,15 @@ class CopickInfoWidget(QWidget):
             layout.addWidget(link_button)
 
         widget.setLayout(layout)
+        
+        # Apply theme-aware styling
+        colors = get_theme_colors(self)
         widget.setStyleSheet(
-            """
-            QWidget {
-                background-color: #3d3d3d;
+            f"""
+            QWidget {{
+                background-color: {colors['bg_tertiary']};
                 border-radius: 4px;
-            }
+            }}
         """
         )
         return widget
@@ -1212,22 +1158,7 @@ class CopickInfoWidget(QWidget):
 
             # Create button
             button = QPushButton("🌐 Portal")
-            button.setStyleSheet(
-                """
-                QPushButton {
-                    background-color: rgba(0, 122, 255, 0.1);
-                    color: #007AFF;
-                    border: none;
-                    border-radius: 3px;
-                    padding: 2px 6px;
-                    font-size: 9px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: rgba(0, 122, 255, 0.2);
-                }
-            """
-            )
+            button.setStyleSheet(get_button_stylesheet("portal", self))
             button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
             return button
 

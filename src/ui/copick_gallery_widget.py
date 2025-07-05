@@ -18,6 +18,12 @@ from Qt.QtWidgets import (
 )
 
 from .async_workers import AsyncWorkerSignals, RunThumbnailWorker
+from .theme_utils import (
+    get_theme_stylesheet,
+    get_button_stylesheet,
+    get_input_stylesheet,
+    get_theme_colors,
+)
 
 # Import copick models only when needed to avoid circular import issues
 if TYPE_CHECKING:
@@ -52,40 +58,14 @@ class RunCard(QFrame):
         self.thumbnail_label = QLabel(thumbnail_container, objectName="run_card_thumbnail_label")
         self.thumbnail_label.setFixedSize(200, 200)
         self.thumbnail_label.setAlignment(Qt.AlignCenter)
-        self.thumbnail_label.setStyleSheet(
-            """
-            QLabel {
-                background-color: #2d2d2d;
-                border: 1px solid #444;
-                border-radius: 4px;
-                color: #999;
-            }
-        """
-        )
+        # Style will be applied via parent widget
         self.thumbnail_label.setText("Loading...")
 
         # Info button overlay (floating in top-right corner)
         self.info_button = QPushButton("ℹ️", thumbnail_container, objectName="run_card_info_button")
         self.info_button.setFixedSize(24, 24)
         self.info_button.setToolTip("View run details")
-        self.info_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: rgba(70, 130, 200, 180);
-                border: none;
-                border-radius: 12px;
-                color: white;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(70, 130, 200, 220);
-            }
-            QPushButton:pressed {
-                background-color: rgba(70, 130, 200, 255);
-            }
-        """
-        )
+        # Style will be applied via parent widget
         self.info_button.move(170, 6)  # Position in top-right corner with margin
         self.info_button.clicked.connect(lambda: self.info_requested.emit(self.run))
 
@@ -95,50 +75,73 @@ class RunCard(QFrame):
         self.name_label = QLabel(self.run.name, objectName="run_card_name_label")
         self.name_label.setAlignment(Qt.AlignCenter)
         self.name_label.setWordWrap(True)
-        self.name_label.setStyleSheet(
-            """
-            QLabel {
-                color: #ffffff;
-                font-weight: bold;
-                font-size: 12px;
-                padding: 4px;
-            }
-        """
-        )
+        # Style will be applied via parent widget
         layout.addWidget(self.name_label)
 
         # Status label (for error display)
         self.status_label = QLabel(objectName="run_card_status_label")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setVisible(False)
-        self.status_label.setStyleSheet(
-            """
-            QLabel {
-                color: #ff6b6b;
-                font-size: 10px;
-                padding: 2px;
-            }
-        """
-        )
+        # Style will be applied via parent widget
         layout.addWidget(self.status_label)
 
     def _setup_style(self) -> None:
         """Setup the card styling"""
         self.setFixedSize(220, 260)
-        self.setStyleSheet(
-            """
-            RunCard {
-                background-color: #3d3d3d;
-                border: 1px solid #555;
-                border-radius: 8px;
-            }
-            RunCard:hover {
-                border: 2px solid #007AFF;
-                background-color: #444;
-            }
-        """
-        )
         self.setCursor(Qt.PointingHandCursor)
+        # Style will be applied by parent widget
+        
+    def _apply_card_styling(self, parent_widget: QWidget) -> None:
+        """Apply theme-aware styling to this card"""
+        colors = get_theme_colors(parent_widget)
+        
+        # Apply individual component styles
+        self.thumbnail_label.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {colors['bg_secondary']};
+                border: 1px solid {colors['border_primary']};
+                border-radius: 4px;
+                color: {colors['text_muted']};
+            }}
+        """)
+        
+        self.name_label.setStyleSheet(
+            f"""
+            QLabel {{
+                color: {colors['text_primary']};
+                font-weight: bold;
+                font-size: 12px;
+                padding: 4px;
+            }}
+        """)
+        
+        self.status_label.setStyleSheet(
+            f"""
+            QLabel {{
+                color: #ff6b6b;
+                font-size: 10px;
+                padding: 2px;
+            }}
+        """)
+        
+        self.info_button.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: rgba(70, 130, 200, 180);
+                border: none;
+                border-radius: 12px;
+                color: white;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(70, 130, 200, 220);
+            }}
+            QPushButton:pressed {{
+                background-color: rgba(70, 130, 200, 255);
+            }}
+        """)
 
     def set_thumbnail(self, pixmap: Optional[QPixmap]) -> None:
         """Set the thumbnail pixmap"""
@@ -199,6 +202,12 @@ class CopickGalleryWidget(QWidget):
         self._is_destroyed: bool = False
 
         self._setup_ui()
+        
+        # Apply theme-aware styling
+        self._apply_styling()
+        
+        # Connect to theme change events
+        self._connect_theme_events()
 
         # Register for app quit trigger
         session.triggers.add_handler("app quit", self._app_quit)
@@ -213,16 +222,7 @@ class CopickGalleryWidget(QWidget):
         header_layout = QHBoxLayout()
 
         title_label = QLabel("📸 Run Gallery", objectName="gallery_title_label")
-        title_label.setStyleSheet(
-            """
-            QLabel {
-                color: #ffffff;
-                font-size: 18px;
-                font-weight: bold;
-                padding: 8px;
-            }
-        """
-        )
+        # Style will be applied via parent widget
         header_layout.addWidget(title_label)
 
         header_layout.addStretch()
@@ -230,26 +230,7 @@ class CopickGalleryWidget(QWidget):
         # Regenerate thumbnails button
         self.regenerate_button = QPushButton("🔄 Regenerate Thumbnails", objectName="regenerate_thumbnails_button")
         self.regenerate_button.setToolTip("Clear cache and regenerate all thumbnails")
-        self.regenerate_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #FF6B35;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-size: 12px;
-                font-weight: bold;
-                margin-right: 8px;
-            }
-            QPushButton:hover {
-                background-color: #E55A2B;
-            }
-            QPushButton:pressed {
-                background-color: #CC4E24;
-            }
-        """
-        )
+        # Style will be applied via parent widget
         self.regenerate_button.clicked.connect(self._on_regenerate_thumbnails)
         header_layout.addWidget(self.regenerate_button)
 
@@ -257,20 +238,7 @@ class CopickGalleryWidget(QWidget):
         self.search_box = QLineEdit(objectName="gallery_search_input")
         self.search_box.setPlaceholderText("Search runs...")
         self.search_box.setFixedWidth(200)
-        self.search_box.setStyleSheet(
-            """
-            QLineEdit {
-                padding: 6px 8px;
-                border: 1px solid #555;
-                border-radius: 4px;
-                background-color: #2d2d2d;
-                color: #ffffff;
-            }
-            QLineEdit:focus {
-                border-color: #007AFF;
-            }
-        """
-        )
+        # Style will be applied via parent widget
         self.search_box.textChanged.connect(self._on_search_changed)
         header_layout.addWidget(self.search_box)
 
@@ -281,14 +249,7 @@ class CopickGalleryWidget(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.scroll_area.setStyleSheet(
-            """
-            QScrollArea {
-                border: none;
-                background-color: #1a1a1a;
-            }
-        """
-        )
+        # Style will be applied via parent widget
         layout.addWidget(self.scroll_area)
 
         # Grid widget
@@ -301,15 +262,7 @@ class CopickGalleryWidget(QWidget):
         # Empty state label
         self.empty_label = QLabel("No runs to display", objectName="gallery_empty_state_label")
         self.empty_label.setAlignment(Qt.AlignCenter)
-        self.empty_label.setStyleSheet(
-            """
-            QLabel {
-                color: #999;
-                font-size: 14px;
-                padding: 40px;
-            }
-        """
-        )
+        # Style will be applied via parent widget
         self.empty_label.setVisible(False)
         layout.addWidget(self.empty_label)
 
@@ -434,6 +387,7 @@ class CopickGalleryWidget(QWidget):
                 card = RunCard(run)
                 card.clicked.connect(self._on_run_card_clicked)
                 card.info_requested.connect(self._on_run_info_requested)
+                card._apply_card_styling(self)  # Apply theme-aware styling
                 self.all_run_cards[run.name] = card
 
                 # Check if we have a cached thumbnail
@@ -733,6 +687,110 @@ class CopickGalleryWidget(QWidget):
 
         except Exception as e:
             print(f"Gallery: Error expanding voxel spacings: {e}")
+            
+    def _apply_styling(self) -> None:
+        """Apply theme-aware styling to all components"""
+        # Apply main stylesheet
+        self.setStyleSheet(get_theme_stylesheet(self))
+        
+        colors = get_theme_colors(self)
+        
+        # Gallery-specific styles
+        gallery_styles = f"""
+            QLabel[objectName="gallery_title_label"] {{
+                color: {colors['text_primary']};
+                font-size: 18px;
+                font-weight: bold;
+                padding: 8px;
+            }}
+            
+            QLabel[objectName="gallery_empty_state_label"] {{
+                color: {colors['text_muted']};
+                font-size: 14px;
+                padding: 40px;
+            }}
+            
+            QScrollArea[objectName="gallery_scroll_area"] {{
+                border: none;
+                background-color: {colors['bg_primary']};
+            }}
+            
+            RunCard {{
+                background-color: {colors['bg_tertiary']};
+                border: 1px solid {colors['border_secondary']};
+                border-radius: 8px;
+            }}
+            
+            RunCard:hover {{
+                border: 2px solid {colors['border_accent']};
+                background-color: {colors['bg_quaternary']};
+            }}
+            
+            QLabel[objectName="run_card_thumbnail_label"] {{
+                background-color: {colors['bg_secondary']};
+                border: 1px solid {colors['border_primary']};
+                border-radius: 4px;
+                color: {colors['text_muted']};
+            }}
+            
+            QLabel[objectName="run_card_name_label"] {{
+                color: {colors['text_primary']};
+                font-weight: bold;
+                font-size: 12px;
+                padding: 4px;
+            }}
+            
+            QLabel[objectName="run_card_status_label"] {{
+                color: #ff6b6b;
+                font-size: 10px;
+                padding: 2px;
+            }}
+            
+            QPushButton[objectName="run_card_info_button"] {{
+                background-color: rgba(70, 130, 200, 180);
+                border: none;
+                border-radius: 12px;
+                color: white;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            
+            QPushButton[objectName="run_card_info_button"]:hover {{
+                background-color: rgba(70, 130, 200, 220);
+            }}
+            
+            QPushButton[objectName="run_card_info_button"]:pressed {{
+                background-color: rgba(70, 130, 200, 255);
+            }}
+        """
+        
+        # Apply combined styles
+        self.setStyleSheet(get_theme_stylesheet(self) + gallery_styles)
+        
+        # Apply button styles
+        self.regenerate_button.setStyleSheet(get_button_stylesheet("accent", self))
+        
+        # Apply input styles
+        self.search_box.setStyleSheet(get_input_stylesheet(self))
+        
+    def _connect_theme_events(self) -> None:
+        """Connect to theme change events"""
+        try:
+            # Connect to palette change events if available
+            from Qt.QtWidgets import QApplication
+            app = QApplication.instance()
+            if app and hasattr(app, 'paletteChanged'):
+                app.paletteChanged.connect(self._on_theme_changed)
+        except Exception:
+            pass  # Theme change detection not available
+            
+    def _on_theme_changed(self) -> None:
+        """Handle theme change by reapplying styles"""
+        self._apply_styling()
+        
+        # Update all existing run cards
+        for card in self.all_run_cards.values():
+            card._apply_card_styling(self)
 
     @Slot()
     def _on_regenerate_thumbnails(self) -> None:
