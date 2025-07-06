@@ -1,5 +1,5 @@
 # vim: set expandtab shiftwidth=4 softtabstop=4:
-
+from .version import __version__  # noqa
 from chimerax.core.toolshed import BundleAPI
 
 
