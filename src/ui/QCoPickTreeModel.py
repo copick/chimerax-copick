@@ -22,11 +22,9 @@ class QCoPickTreeModel(QAbstractItemModel):
             return None
 
         parentItem = self._root if not parent.isValid() else parent.internalPointer()
-        # print(f"row: {row}, column: {column}, parentItem: {parentItem}, child: {parentItem.child(row)}")
         childItem = parentItem.child(row)
 
         if childItem:
-            # print(f"createIndex({row}, {column}, {childItem})")
             return self.createIndex(row, column, childItem)
         else:
             return None
@@ -39,7 +37,6 @@ class QCoPickTreeModel(QAbstractItemModel):
         parentItem = childItem.parent
 
         if parentItem != self._root:
-            # print(f"createIndex({parentItem.childIndex()}, 0, {parentItem})")
             return self.createIndex(parentItem.childIndex(), 0, parentItem)
         else:
             return QModelIndex()

@@ -1013,24 +1013,6 @@ class MainWidget(QWidget):
                 # Also expand all voxel spacings within this run
                 self._expand_all_voxel_spacings(tree_view, model, run_index)
 
-            # if isinstance(run_item, TreeRun):
-            #     print("Is TreeRun")
-            #     if run_item.run.name == self._current_run.name:
-            #         tree_view.expand(run_index)
-            #         tree_view.setCurrentIndex(run_index)
-            #
-            #         # Also expand all voxel spacings within this run
-            #         self._expand_all_voxel_spacings(tree_view, model, run_index)
-            #         break
-            # elif isinstance(run_item, CopickRun) and run_item.name == self._current_run.name:
-            #     print("Is CopickRun")
-            #     tree_view.expand(run_index)
-            #     tree_view.setCurrentIndex(run_index)
-            #
-            #     # Also expand all voxel spacings within this run
-            #     self._expand_all_voxel_spacings(tree_view, model, run_index)
-            #     break
-
     def _expand_all_voxel_spacings(self, tree_view, model, run_index):
         """Expand all voxel spacings under the given run"""
         # Force lazy loading of voxel spacings
