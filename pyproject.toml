@@ -11,8 +11,8 @@ dependencies = [
     "pydantic",
     "hatchling",
     "s3fs>=2024.3.1",
-    "copick[all]@git+https://github.com/copick/copick.git@de80ec0",
-    "copick-shared-ui@file:///home/uermel/Documents/napari_improvement/copick-shared-ui",
+    "copick[all]>=1.5.0",
+    "copick-shared-ui==0.1.0",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
