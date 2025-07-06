@@ -27,6 +27,7 @@ from copick_shared_ui.core.models import (
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
+from copick_shared_ui.platform.chimerax_integration import ChimeraXWorkerInterface
 
 
 class ChimeraXInfoSessionInterface(AbstractInfoSessionInterface):
@@ -327,46 +328,6 @@ class ChimeraXImageInterface(AbstractImageInterface):
             return None
 
 
-class ChimeraXWorkerInterface(AbstractWorkerInterface):
-    """ChimeraX-specific worker interface using QThreadPool."""
-
-    def __init__(self, session: Any):
-        self.session = session
-        self._thread_pool: QThreadPool = QThreadPool()
-        self._thread_pool.setMaxThreadCount(4)  # Limit concurrent threads
-        self._signals: AsyncWorkerSignals = AsyncWorkerSignals()
-
-    def start_thumbnail_worker(
-        self,
-        item: Union["CopickRun", "CopickTomogram"],
-        thumbnail_id: str,
-        callback: callable,
-        force_regenerate: bool = False,
-    ) -> None:
-        """Start a thumbnail loading worker using ChimeraX's QThreadPool."""
-        from copick_shared_ui.workers.chimerax import ChimeraXThumbnailWorker, ChimeraXWorkerSignals
-        
-        # Use unified worker system
-        signals = ChimeraXWorkerSignals()
-        worker = ChimeraXThumbnailWorker(signals, item, thumbnail_id, force_regenerate)
-        
-        # Connect to callback
-        def on_thumbnail_loaded(loaded_id: str, pixmap: Any, error: Optional[str]):
-            if loaded_id == thumbnail_id:
-                callback(thumbnail_id, pixmap, error)
-        
-        signals.thumbnail_loaded.connect(on_thumbnail_loaded)
-        self._thread_pool.start(worker)
-
-    def clear_workers(self) -> None:
-        """Clear all pending workers."""
-        self._thread_pool.clear()
-
-    def shutdown_workers(self, timeout_ms: int = 3000) -> None:
-        """Shutdown all workers with timeout."""
-        self._thread_pool.clear()
-        self._thread_pool.waitForDone(timeout_ms)
-
 
 class ChimeraXCopickInfoWidget(CopickInfoWidget):
     """ChimeraX-specific copick info widget."""
@@ -377,7 +338,7 @@ class ChimeraXCopickInfoWidget(CopickInfoWidget):
         # Create platform interfaces
         session_interface = ChimeraXInfoSessionInterface(session)
         theme_interface = ChimeraXThemeInterface(self)
-        worker_interface = ChimeraXWorkerInterface(session)
+        worker_interface = ChimeraXWorkerInterface()
         image_interface = ChimeraXImageInterface()
 
         super().__init__(
