@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.1.0...chimerax-copick-v1.2.0) (2025-07-06)
+
+
+### ✨ Features
+
+* Use shared Gallery and Info widgets ([#44](https://github.com/copick/chimerax-copick/issues/44)) ([f54b19d](https://github.com/copick/chimerax-copick/commit/f54b19d8914a1f950664cfc78768436611f4c946))
+
+
+### 🐞 Bug Fixes
+
+* remove excessive debug messages ([#46](https://github.com/copick/chimerax-copick/issues/46)) ([656db05](https://github.com/copick/chimerax-copick/commit/656db054d116f9f75ae833cfa1ba5498d041489b))
+
 ## [1.1.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.0.0...chimerax-copick-v1.1.0) (2025-07-05)
 
 
