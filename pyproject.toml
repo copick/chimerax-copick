@@ -12,6 +12,7 @@ dependencies = [
     "hatchling",
     "s3fs>=2024.3.1",
     "copick[all]>=1.5.0",
+    "copick-shared-ui==0.1.0",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
@@ -379,6 +380,7 @@ select = [
     "SIM",  # simplify
 ]
 ignore = [
+    "G004",  # logging format
     "N815",  # Variable in class scope should not be mixedCase
     "N802",  # Function name should be lowercase
     "N806",  # Variable in function should be lowercase

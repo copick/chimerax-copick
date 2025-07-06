@@ -1,4 +1,5 @@
-# Import copick models only when needed to avoid circular import issues
+"""ChimeraX-specific implementation of the copick info widget using shared components."""
+
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from Qt.QtCore import (
@@ -7,81 +8,34 @@ from Qt.QtCore import (
     QObject,
     QSortFilterProxyModel,
     Qt,
-    QThreadPool,
-    QUrl,
-    QVariant,
-    Slot,
 )
-from Qt.QtGui import QDesktopServices, QFont, QPixmap
-from Qt.QtWidgets import (
-    QFrame,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QScrollArea,
-    QSizePolicy,
-    QTreeView,
-    QVBoxLayout,
-    QWidget,
-)
+from Qt.QtGui import QPixmap
+from Qt.QtWidgets import QTreeView, QWidget
 
-from .async_workers import AsyncWorkerSignals, DataLoadWorker, ThumbnailLoadWorker
-from .theme_utils import (
-    get_theme_stylesheet,
-    get_button_stylesheet,
-    get_status_label_stylesheet,
-    get_input_stylesheet,
-    get_footer_stylesheet,
-    get_theme_colors,
-)
+from .theme_utils import get_theme_colors
 
 if TYPE_CHECKING:
-    from copick.models import CopickRun, CopickTomogram, CopickVoxelSpacing
+    from copick.models import CopickRun, CopickTomogram
+
+# Import shared components - error out if not available
+from copick_shared_ui.core.models import (
+    AbstractImageInterface,
+    AbstractInfoSessionInterface,
+    AbstractThemeInterface,
+)
+from copick_shared_ui.platform.chimerax_integration import ChimeraXWorkerInterface
+from copick_shared_ui.widgets.info.info_widget import CopickInfoWidget
 
 
-class CopickInfoWidget(QWidget):
-    """Native Qt widget for displaying copick run information with async loading"""
+class ChimeraXInfoSessionInterface(AbstractInfoSessionInterface):
+    """ChimeraX-specific session interface for info widget."""
 
-    def __init__(self, session: Any, parent: Optional[QObject] = None) -> None:
-        super().__init__(parent)
-        self.session: Any = session
-        self.current_run_name: Optional[str] = None
+    def __init__(self, session: Any):
+        self.session = session
         self.current_run: Optional["CopickRun"] = None
-        self._is_destroyed: bool = False
-        self._thread_pool: QThreadPool = QThreadPool()
-        self._thread_pool.setMaxThreadCount(4)  # Limit concurrent threads
-        self._loading_states: Dict[str, str] = {}  # Track what's currently loading
-        self._loaded_data: Dict[str, List[Any]] = {}  # Cache loaded data
 
-        # Shared signals for async workers
-        self._signals: AsyncWorkerSignals = AsyncWorkerSignals()
-        self._signals.data_loaded.connect(self._handle_data_loaded)
-        self._signals.thumbnail_loaded.connect(self._handle_thumbnail_loaded)
-
-        # Register for app quit trigger to ensure proper cleanup
-        session.triggers.add_handler("app quit", self._app_quit)
-
-        self._setup_ui()
-        self._thumbnails: Dict[str, QPixmap] = {}  # Cache for loaded thumbnails
-        self._thumbnail_widgets: Dict[str, QFrame] = {}  # Map thumbnail_id to widget
-        self._update_display()
-
-    def _on_tomogram_card_clicked(self, tomogram: "CopickTomogram") -> None:
-        """Handle click on tomogram card - load tomogram and switch to OpenGL view"""
-        self._load_tomogram_and_switch_view(tomogram)
-
-    def _on_back_to_gallery(self) -> None:
-        """Handle back to gallery button click"""
-        try:
-            # Get the main widget and call its navigation method
-            copick_tool = self.session.copick
-            copick_tool._mw._navigate_to_gallery()
-        except Exception as e:
-            print(f"Error navigating back to gallery: {e}")
-
-    def _load_tomogram_and_switch_view(self, tomogram: "CopickTomogram") -> None:
-        """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior"""
+    def load_tomogram_and_switch_view(self, tomogram: "CopickTomogram") -> None:
+        """Load the tomogram and switch to OpenGL view - replicates tree double-click behavior."""
         # Get the main window and stack widget for view switching
         main_window = self.session.ui.main_window
         stack_widget = main_window._stack
@@ -100,8 +54,23 @@ class CopickInfoWidget(QWidget):
         # Expand the run in the tree widget
         self._expand_run_in_tree()
 
+    def navigate_to_gallery(self) -> None:
+        """Navigate back to gallery view."""
+        try:
+            # Get the main widget and call its navigation method
+            copick_tool = self.session.copick
+            copick_tool._mw._navigate_to_gallery()
+        except Exception as e:
+            print(f"Error navigating back to gallery: {e}")
+
+    def expand_run_in_tree(self, run: "CopickRun") -> None:
+        """Expand the run in the tree view."""
+        self._expand_run_in_tree()
+
+    # get_portal_link is now inherited from AbstractInfoSessionInterface
+
     def _find_tomogram_in_tree(self, tomogram: "CopickTomogram") -> Optional[QModelIndex]:
-        """Find the tomogram in the tree model and return its QModelIndex"""
+        """Find the tomogram in the tree model and return its QModelIndex."""
         copick_tool = self.session.copick
         tree_view = copick_tool._mw._tree_view
         model = tree_view.model()
@@ -127,10 +96,10 @@ class CopickInfoWidget(QWidget):
 
             # Check if this is the right run
             if hasattr(run_item, "run"):
-                if run_item.run.name != self.current_run.name:
+                if run_item.run.name != tomogram.voxel_spacing.run.name:
                     continue
             elif hasattr(run_item, "name"):
-                if run_item.name != self.current_run.name:
+                if run_item.name != tomogram.voxel_spacing.run.name:
                     continue
             else:
                 continue
@@ -201,7 +170,7 @@ class CopickInfoWidget(QWidget):
         return None
 
     def _expand_run_in_tree(self) -> None:
-        """Expand the current run and voxel spacing in the tree widget"""
+        """Expand the current run and voxel spacing in the tree widget."""
         copick_tool = self.session.copick
         tree_view = copick_tool._mw._tree_view
         model = tree_view.model()
@@ -238,7 +207,7 @@ class CopickInfoWidget(QWidget):
         model: QAbstractItemModel,
         run_index: QModelIndex,
     ) -> None:
-        """Expand all voxel spacings under the given run"""
+        """Expand all voxel spacings under the given run."""
         # Force lazy loading of voxel spacings
         if isinstance(model, QSortFilterProxyModel):
             source_run_index = model.mapToSource(run_index)
@@ -255,911 +224,172 @@ class CopickInfoWidget(QWidget):
             if vs_index.isValid():
                 tree_view.expand(vs_index)
 
+
+class ChimeraXThemeInterface(AbstractThemeInterface):
+    """ChimeraX-specific theme interface."""
+
+    def __init__(self, widget: Optional[QWidget] = None):
+        self.widget = widget
+        self._theme_change_callbacks: List[callable] = []
+
+    def get_theme_colors(self) -> Dict[str, str]:
+        """Get color scheme for current ChimeraX theme."""
+        colors = get_theme_colors(self.widget)
+        # Map ChimeraX colors to shared UI color names
+        return {
+            "bg_primary": colors["bg_primary"],
+            "bg_secondary": colors["bg_secondary"],
+            "bg_tertiary": colors["bg_tertiary"],
+            "bg_quaternary": colors["bg_quaternary"],
+            "border_primary": colors["border_primary"],
+            "border_secondary": colors["border_secondary"],
+            "border_accent": colors["border_accent"],
+            "text_primary": colors["text_primary"],
+            "text_secondary": colors["text_secondary"],
+            "text_muted": colors["text_muted"],
+            "accent_primary": colors["accent_blue"],
+            "success": colors["status_success_bg"],
+            "warning": colors["status_warning_bg"],
+            "error": colors["status_error_bg"],
+        }
+
+    def get_theme_stylesheet(self) -> str:
+        """Get base stylesheet for current ChimeraX theme."""
+        from .theme_utils import get_theme_stylesheet
+
+        return get_theme_stylesheet(self.widget)
+
+    def get_button_stylesheet(self, button_type: str = "primary") -> str:
+        """Get button stylesheet for current ChimeraX theme."""
+        from .theme_utils import get_button_stylesheet
+
+        return get_button_stylesheet(button_type, self.widget)
+
+    def get_input_stylesheet(self) -> str:
+        """Get input field stylesheet for current ChimeraX theme."""
+        from .theme_utils import get_input_stylesheet
+
+        return get_input_stylesheet(self.widget)
+
+    def connect_theme_changed(self, callback: callable) -> None:
+        """Connect to ChimeraX theme change events."""
+        self._theme_change_callbacks.append(callback)
+        try:
+            # Connect to palette change events if available
+            from Qt.QtWidgets import QApplication
+
+            app = QApplication.instance()
+            if app and hasattr(app, "paletteChanged"):
+                app.paletteChanged.connect(self._emit_theme_changed)
+        except Exception:
+            pass  # Theme change detection not available
+
+    def _emit_theme_changed(self) -> None:
+        """Emit theme changed to all callbacks."""
+        for callback in self._theme_change_callbacks:
+            try:
+                callback()
+            except Exception as e:
+                print(f"Error in theme change callback: {e}")
+
+
+class ChimeraXImageInterface(AbstractImageInterface):
+    """ChimeraX-specific image/pixmap interface."""
+
+    def scale_pixmap(self, pixmap: Any, size: tuple, smooth: bool = True) -> Any:
+        """Scale a pixmap to the specified size."""
+        try:
+            if pixmap is None:
+                return None
+
+            width, height = size
+            transform_mode = Qt.SmoothTransformation if smooth else Qt.FastTransformation
+            return pixmap.scaled(width, height, Qt.KeepAspectRatio, transform_mode)
+
+        except Exception as e:
+            print(f"Error scaling pixmap: {e}")
+            return pixmap
+
+    def save_pixmap(self, pixmap: Any, path: str) -> bool:
+        """Save pixmap to file."""
+        try:
+            if pixmap is None:
+                return False
+            return pixmap.save(path)
+        except Exception:
+            return False
+
+    def load_pixmap(self, path: str) -> Optional[Any]:
+        """Load pixmap from file."""
+        try:
+            pixmap = QPixmap(path)
+            return pixmap if not pixmap.isNull() else None
+        except Exception:
+            return None
+
+
+class ChimeraXCopickInfoWidget(CopickInfoWidget):
+    """ChimeraX-specific copick info widget."""
+
+    def __init__(self, session: Any, parent: Optional[QObject] = None) -> None:
+        self.session = session
+
+        # Create platform interfaces
+        session_interface = ChimeraXInfoSessionInterface(session)
+        theme_interface = ChimeraXThemeInterface(self)
+        worker_interface = ChimeraXWorkerInterface()
+        image_interface = ChimeraXImageInterface()
+
+        super().__init__(
+            session_interface=session_interface,
+            theme_interface=theme_interface,
+            worker_interface=worker_interface,
+            image_interface=image_interface,
+            parent=parent,
+        )
+
+        # Store reference to session interface for run tracking
+        self._session_interface = session_interface
+
+        # Register for app quit trigger to ensure proper cleanup
+        session.triggers.add_handler("app quit", self._app_quit)
+
+        # Connect tomogram clicked signal to load tomogram
+        self.tomogram_clicked.connect(self._on_tomogram_clicked)
+
     def _app_quit(self, *args: Any) -> None:
-        """Handle app quit trigger to ensure proper cleanup"""
+        """Handle app quit trigger to ensure proper cleanup."""
         if not self._is_destroyed:
             # Clear thread pool immediately on app quit
-            self._thread_pool.clear()
+            self.worker_interface.clear_workers()
             self.deleteLater()
 
+    def _on_tomogram_clicked(self, tomogram: "CopickTomogram") -> None:
+        """Handle tomogram click by loading it in ChimeraX."""
+        # Use the session interface to load tomogram and switch view
+        self.session_interface.load_tomogram_and_switch_view(tomogram)
+
+    def set_run(self, run: Optional["CopickRun"]) -> None:
+        """Set the current run object and make it available to session interface."""
+        # Store reference for session interface
+        self._session_interface.current_run = run
+
+        # Call parent implementation
+        super().set_run(run)
+
     def delete(self) -> None:
-        """Properly clean up the widget"""
+        """Properly clean up the widget."""
         if self._is_destroyed:
             return
 
         self._is_destroyed = True
 
         # Stop thread pool
-        self._thread_pool.clear()
-        self._thread_pool.waitForDone(3000)  # Wait up to 3 seconds
+        self.worker_interface.shutdown_workers(timeout_ms=3000)
 
-    def _setup_ui(self) -> None:
-        """Set up the UI components"""
-        layout = QVBoxLayout()
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(15)
+        # Call parent cleanup
+        super().delete()
 
-        # Header section - fixed size
-        self._create_header(layout)
 
-        # Scrollable content area
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameStyle(QFrame.NoFrame)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Content widget inside scroll area
-        self._content_widget = QWidget()
-        self._content_layout = QVBoxLayout()
-        self._content_layout.setContentsMargins(10, 10, 10, 10)
-        self._content_layout.setSpacing(12)
-        self._content_layout.setAlignment(Qt.AlignTop)  # Prevent excessive stretching
-        self._content_widget.setLayout(self._content_layout)
-        self._content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-
-        scroll_area.setWidget(self._content_widget)
-        layout.addWidget(scroll_area, 1)  # Give it stretch factor
-
-        # Footer hint - fixed size
-        self._create_footer(layout)
-
-        self.setLayout(layout)
-
-        # Apply styling
-        self._apply_styling()
-        
-        # Connect to theme change events
-        self._connect_theme_events()
-
-    def _create_header(self, layout: Any) -> None:
-        """Create the header section"""
-        header_widget = QWidget()
-        header_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        header_layout = QVBoxLayout()
-        header_layout.setContentsMargins(10, 10, 10, 15)
-        header_layout.setSpacing(8)
-        header_layout.setAlignment(Qt.AlignCenter)
-
-        # Top row with back button and title
-        top_row = QHBoxLayout()
-        top_row.setContentsMargins(0, 0, 0, 0)
-        top_row.setSpacing(10)
-
-        # Back to gallery button
-        self._back_to_gallery_button = QPushButton("📸 Back to Gallery")
-        self._back_to_gallery_button.setToolTip("Return to gallery view")
-        # Style will be applied in _apply_styling method
-        self._back_to_gallery_button.clicked.connect(self._on_back_to_gallery)
-
-        # Title
-        title_label = QLabel("Copick Run Details")
-        title_font = QFont()
-        title_font.setPointSize(16)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        # Add to top row
-        top_row.addWidget(self._back_to_gallery_button)
-        top_row.addStretch()  # Center the title
-        top_row.addWidget(title_label)
-        top_row.addStretch()  # Balance the layout
-
-        # Add invisible placeholder widget to balance the button on the left
-        placeholder = QWidget()
-        placeholder.setFixedSize(self._back_to_gallery_button.sizeHint())
-        top_row.addWidget(placeholder)
-
-        header_layout.addLayout(top_row)
-
-        # Run name
-        self._run_name_label = QLabel("No run selected")
-        name_font = QFont()
-        name_font.setPointSize(18)
-        name_font.setBold(True)
-        self._run_name_label.setFont(name_font)
-        self._run_name_label.setAlignment(Qt.AlignCenter)
-        self._run_name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # Style will be applied in _apply_styling method
-        header_layout.addWidget(self._run_name_label)
-
-        header_widget.setLayout(header_layout)
-        layout.addWidget(header_widget, 0)  # No stretch
-
-    def _create_footer(self, layout: Any) -> None:
-        """Create the footer hint"""
-        footer_label = QLabel("💡 Use the overlay button on the tree widget to switch between OpenGL and info views")
-        footer_label.setAlignment(Qt.AlignCenter)
-        footer_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # Style will be applied in _apply_styling method
-        self.footer_label = footer_label  # Store reference for styling
-        layout.addWidget(footer_label, 0)  # No stretch
-
-    def _apply_styling(self) -> None:
-        """Apply overall widget styling with theme-aware colors"""
-        # Apply base theme stylesheet
-        self.setStyleSheet(get_theme_stylesheet(self))
-        
-        # Apply button styling
-        self._back_to_gallery_button.setStyleSheet(get_button_stylesheet("primary", self))
-        
-        # Apply theme-aware styling to run name label
-        colors = get_theme_colors(self)
-        self._run_name_label.setStyleSheet(f"color: {colors['accent_blue']}; margin-bottom: 5px;")
-        
-        # Apply footer styling
-        self._apply_footer_styling()
-        
-    def _apply_footer_styling(self) -> None:
-        """Apply theme-aware styling to footer"""
-        if hasattr(self, 'footer_label'):
-            self.footer_label.setStyleSheet(get_footer_stylesheet(self))
-            
-    def _connect_theme_events(self) -> None:
-        """Connect to theme change events"""
-        try:
-            # Connect to palette change events if available
-            from Qt.QtWidgets import QApplication
-            app = QApplication.instance()
-            if app and hasattr(app, 'paletteChanged'):
-                app.paletteChanged.connect(self._on_theme_changed)
-        except Exception:
-            pass  # Theme change detection not available
-            
-    def _on_theme_changed(self) -> None:
-        """Handle theme change by reapplying styles"""
-        self._apply_styling()
-
-    def set_run_name(self, run_name: str) -> None:
-        """Set the current run name and update the display"""
-        self.current_run_name = run_name
-        self.current_run = None  # Will be set by set_run()
-        self._update_display()
-
-    def set_run(self, run: Optional["CopickRun"]) -> None:
-        """Set the current run object and start async loading"""
-        if self._is_destroyed:
-            return
-
-        self.current_run = run
-        if run:
-            self.current_run_name = run.name
-            # Clear previous data and loading states
-            self._loaded_data.clear()
-            self._loading_states.clear()
-
-            # Start async loading of all data types
-            self._start_async_loading()
-        else:
-            self.current_run_name = None
-            self._loaded_data.clear()
-            self._loading_states.clear()
-
-        self._update_display()
-
-    def _start_async_loading(self) -> None:
-        """Start asynchronous loading of all run data"""
-        if not self.current_run or self._is_destroyed:
-            return
-
-        data_types = ["voxel_spacings", "tomograms", "picks", "meshes", "segmentations"]
-
-        for data_type in data_types:
-            if data_type not in self._loading_states:
-                self._loading_states[data_type] = "loading"
-                worker = DataLoadWorker(self._signals, self.current_run, data_type)
-                self._thread_pool.start(worker)
-
-    def _handle_data_loaded(self, data_type: str, data: Optional[List[Any]], error: Optional[str]) -> None:
-        """Handle data loading completion"""
-        if self._is_destroyed:
-            return
-
-        if error:
-            self._loading_states[data_type] = f"error: {error}"
-        else:
-            self._loading_states[data_type] = "loaded"
-            self._loaded_data[data_type] = data
-
-        # Defer UI update to main thread to avoid cross-thread Qt warnings
-        from Qt.QtCore import QMetaObject, Qt
-
-        QMetaObject.invokeMethod(self, "_update_display", Qt.ConnectionType.QueuedConnection)
-
-    def _handle_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[QPixmap], error: Optional[str]) -> None:
-        """Handle thumbnail loading completion"""
-        if self._is_destroyed:
-            return
-
-        if error:
-            # Could show error placeholder, but for now just leave the loading placeholder
-            pass
-        else:
-            # Store the thumbnail
-            self._thumbnails[thumbnail_id] = pixmap
-
-            # Update the widget if it exists and is still valid
-            if thumbnail_id in self._thumbnail_widgets:
-                widget = self._thumbnail_widgets[thumbnail_id]
-                try:
-                    # Check if widget is still valid before accessing it
-                    if widget and not widget.isHidden():
-                        # Find the thumbnail label in the widget and update it
-                        thumbnail_label = widget.findChild(QLabel, "thumbnail_label")
-                        if thumbnail_label and not thumbnail_label.isHidden():
-                            # Use adaptive scaling based on widget size
-                            widget_size = thumbnail_label.size()
-                            # Leave some margin around the thumbnail
-                            max_size = min(widget_size.width() - 20, widget_size.height() - 20)
-                            if max_size > 0:
-                                scaled_pixmap = pixmap.scaled(
-                                    max_size,
-                                    max_size,
-                                    Qt.AspectRatioMode.KeepAspectRatio,
-                                    Qt.TransformationMode.SmoothTransformation,
-                                )
-                                thumbnail_label.setPixmap(scaled_pixmap)
-                    else:
-                        # Clean up the reference
-                        del self._thumbnail_widgets[thumbnail_id]
-                except RuntimeError:
-                    # Widget has been deleted - clean up the reference
-                    if thumbnail_id in self._thumbnail_widgets:
-                        del self._thumbnail_widgets[thumbnail_id]
-
-    def _on_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[QPixmap], error: Optional[str]) -> None:
-        """Qt slot method for handling thumbnail loading from worker threads"""
-        # This method is called by QMetaObject.invokeMethod from worker threads
-        self._handle_thumbnail_loaded(thumbnail_id, pixmap, error)
-
-    @Slot(str, QVariant, QVariant)
-    def _on_thumbnail_loaded_slot(self, thumbnail_id: str, pixmap: QVariant, error: QVariant) -> None:
-        """Properly decorated Qt slot for thumbnail loading"""
-        # Convert QVariant to proper types
-        pixmap_obj = pixmap if isinstance(pixmap, QPixmap) else None
-        error_str = str(error) if error is not None else None
-        self._handle_thumbnail_loaded(thumbnail_id, pixmap_obj, error_str)
-
-    @Slot()
-    def _update_display(self) -> None:
-        """Update the widget display"""
-        # Update run name
-        run_display = self.current_run_name or "No run selected"
-        self._run_name_label.setText(run_display)
-
-        # Clear existing content
-        while self._content_layout.count():
-            child = self._content_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-
-        # Clear thumbnail widget references since widgets are being deleted
-        self._thumbnail_widgets.clear()
-
-        if self.current_run:
-            # Add voxel spacings section with nested tomograms
-            self._add_voxel_spacings_section()
-
-            # Add annotations group (picks, meshes, segmentations)
-            self._add_annotations_section()
-        else:
-            # Show empty state
-            empty_label = QLabel("Select a run from the copick tree to view its contents.")
-            empty_label.setAlignment(Qt.AlignCenter)
-            colors = get_theme_colors(self)
-            empty_label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; padding: 40px;")
-            self._content_layout.addWidget(empty_label)
-
-    def _add_voxel_spacings_section(self) -> None:
-        """Add the voxel spacings section with nested tomograms"""
-        voxel_status = self._loading_states.get("voxel_spacings", "not_started")
-        tomo_status = self._loading_states.get("tomograms", "not_started")
-
-        # Create section frame
-        section_frame = self._create_section_frame()
-        section_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        section_layout = QVBoxLayout()
-        section_layout.setContentsMargins(15, 15, 15, 15)
-        section_layout.setSpacing(12)
-
-        # Section header
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-
-        title_label = QLabel("📏 Voxel Spacings & Tomograms")
-        title_font = QFont()
-        title_font.setPointSize(13)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        header_layout.addWidget(title_label)
-
-        # Status indicator - combine voxel spacing and tomogram status
-        if voxel_status == "loading" or tomo_status == "loading":
-            status_label = self._create_status_label("loading", "")
-            status_label.setText("Loading...")
-        elif voxel_status == "loaded" and tomo_status == "loaded":
-            vs_count = len(self._loaded_data.get("voxel_spacings", []))
-            tomo_count = len(self._loaded_data.get("tomograms", []))
-            status_label = self._create_status_label("loaded", "")
-            status_label.setText(f"✓ {vs_count} voxel spacings, {tomo_count} tomograms")
-        elif voxel_status.startswith("error:") or tomo_status.startswith("error:"):
-            status_label = self._create_status_label("error: Combined data error", "")
-            status_label.setText("✗ Error loading data")
-        else:
-            status_label = self._create_status_label("pending", "")
-            status_label.setText("Pending...")
-
-        status_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-
-        header_layout.addStretch()
-        header_layout.addWidget(status_label)
-
-        section_layout.addLayout(header_layout)
-
-        # Content - wait for both voxel spacings AND tomograms to load
-        if voxel_status == "loaded" and tomo_status == "loaded" and "voxel_spacings" in self._loaded_data:
-            voxel_spacings = self._loaded_data["voxel_spacings"]
-            tomograms = self._loaded_data.get("tomograms", [])
-
-            if voxel_spacings:
-                content_widget = self._create_nested_voxel_tomogram_content(voxel_spacings, tomograms)
-                content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-                section_layout.addWidget(content_widget)
-            else:
-                empty_label = QLabel("No voxel spacings found")
-                empty_label.setAlignment(Qt.AlignCenter)
-                empty_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-                colors = get_theme_colors(self)
-                empty_label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; padding: 15px;")
-                section_layout.addWidget(empty_label)
-        else:
-            # Show loading placeholder until both are loaded
-            if voxel_status == "loading" or tomo_status == "loading":
-                content_label = self._create_content_placeholder("loading")
-            elif voxel_status.startswith("error:") or tomo_status.startswith("error:"):
-                content_label = self._create_content_placeholder("error: Failed to load data")
-            else:
-                content_label = self._create_content_placeholder("pending")
-            content_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            section_layout.addWidget(content_label)
-
-        section_frame.setLayout(section_layout)
-        self._content_layout.addWidget(section_frame)
-
-    def _add_annotations_section(self) -> None:
-        """Add the annotations group section"""
-        picks_status = self._loading_states.get("picks", "not_started")
-        meshes_status = self._loading_states.get("meshes", "not_started")
-        seg_status = self._loading_states.get("segmentations", "not_started")
-
-        # Create section frame
-        section_frame = self._create_section_frame()
-        section_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        section_layout = QVBoxLayout()
-        section_layout.setContentsMargins(15, 15, 15, 15)
-        section_layout.setSpacing(12)
-
-        # Section header
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-
-        title_label = QLabel("📋 Annotations")
-        title_font = QFont()
-        title_font.setPointSize(13)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        header_layout.addWidget(title_label)
-
-        # Overall status
-        picks_count = len(self._loaded_data.get("picks", []))
-        meshes_count = len(self._loaded_data.get("meshes", []))
-        seg_count = len(self._loaded_data.get("segmentations", []))
-        total_count = picks_count + meshes_count + seg_count
-
-        all_loaded = all(status == "loaded" for status in [picks_status, meshes_status, seg_status])
-        any_loading = any(status == "loading" for status in [picks_status, meshes_status, seg_status])
-
-        if any_loading:
-            status_label = self._create_status_label("loading", "")
-            status_label.setText("Loading annotations...")
-        elif all_loaded:
-            status_label = self._create_status_label("loaded", "")
-            status_label.setText(f"✓ {total_count} annotations")
-        else:
-            status_label = self._create_status_label("pending", "")
-            status_label.setText("Pending...")
-
-        status_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        header_layout.addStretch()
-        header_layout.addWidget(status_label)
-
-        section_layout.addLayout(header_layout)
-
-        # Subsections
-        subsections_widget = QWidget()
-        subsections_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        subsections_layout = QVBoxLayout()
-        subsections_layout.setContentsMargins(10, 0, 0, 0)  # Reduced indent
-        subsections_layout.setSpacing(8)
-
-        # Add each annotation type
-        subsections_layout.addWidget(self._create_annotation_subsection("picks", "📍 Picks", picks_status))
-        subsections_layout.addWidget(self._create_annotation_subsection("meshes", "🕸 Meshes", meshes_status))
-        subsections_layout.addWidget(self._create_annotation_subsection("segmentations", "🖌 Segmentations", seg_status))
-
-        subsections_widget.setLayout(subsections_layout)
-        section_layout.addWidget(subsections_widget)
-
-        section_frame.setLayout(section_layout)
-        self._content_layout.addWidget(section_frame)
-
-    def _create_section_frame(self) -> QFrame:
-        """Create a styled frame for a section"""
-        frame = QFrame(objectName="section_frame")
-        frame.setFrameStyle(QFrame.StyledPanel)
-        # Style applied via main theme stylesheet
-        return frame
-
-    def _create_status_label(self, status: str, data_type: str) -> QLabel:
-        """Create a status indicator label with theme-aware styling"""
-        label = QLabel()
-        label.setAlignment(Qt.AlignCenter)
-
-        if status == "loading":
-            label.setText("Loading...")
-            label.setStyleSheet(get_status_label_stylesheet("loading", self))
-        elif status == "loaded":
-            count = len(self._loaded_data.get(data_type, []))
-            label.setText(f"✓ Loaded ({count} items)")
-            label.setStyleSheet(get_status_label_stylesheet("loaded", self))
-        elif status.startswith("error:"):
-            error_msg = status[6:]  # Remove "error:" prefix
-            label.setText(f"✗ Error: {error_msg[:20]}...")
-            label.setStyleSheet(get_status_label_stylesheet("error", self))
-        else:
-            label.setText("Pending...")
-            label.setStyleSheet(get_status_label_stylesheet("pending", self))
-
-        return label
-
-    def _create_content_placeholder(self, status: str) -> QLabel:
-        """Create a placeholder label for content"""
-        if status == "loading":
-            text = "Loading data..."
-        elif status.startswith("error:"):
-            text = "Failed to load data"
-        else:
-            text = "Not loaded yet"
-
-        label = QLabel(text)
-        label.setAlignment(Qt.AlignCenter)
-        colors = get_theme_colors(self)
-        label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; padding: 20px;")
-        return label
-
-    def _create_nested_voxel_tomogram_content(
-        self,
-        voxel_spacings: List["CopickVoxelSpacing"],
-        tomograms: List["CopickTomogram"],
-    ) -> QWidget:
-        """Create nested voxel spacing and tomogram content"""
-        content_widget = QWidget()
-        content_layout = QVBoxLayout()
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(10)
-
-        # Group tomograms by voxel spacing
-        voxel_to_tomos = {}
-        for vs in voxel_spacings:
-            voxel_to_tomos[vs.voxel_size] = []
-
-        for tomo in tomograms:
-            vs_size = tomo.voxel_spacing.voxel_size
-            if vs_size in voxel_to_tomos:
-                voxel_to_tomos[vs_size].append(tomo)
-
-        for vs in voxel_spacings:
-            vs_widget = self._create_voxel_spacing_widget(vs, voxel_to_tomos.get(vs.voxel_size, []))
-            content_layout.addWidget(vs_widget)
-
-        content_widget.setLayout(content_layout)
-        return content_widget
-
-    def _create_voxel_spacing_widget(
-        self,
-        voxel_spacing: "CopickVoxelSpacing",
-        tomograms: List["CopickTomogram"],
-    ) -> QFrame:
-        """Create a widget for a voxel spacing with its tomograms"""
-        frame = QFrame(objectName="vs_frame")
-        frame.setFrameStyle(QFrame.StyledPanel)
-        frame.setObjectName("vs_frame")
-        # Style applied via main stylesheet
-
-        layout = QVBoxLayout()
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(10)
-
-        # Header with voxel spacing info
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-
-        header_label = QLabel(f"📏 Voxel Spacing {voxel_spacing.voxel_size:.2f}Å")
-        header_font = QFont()
-        header_font.setPointSize(12)
-        header_font.setBold(True)
-        header_label.setFont(header_font)
-        header_layout.addWidget(header_label)
-
-        # Add CryoET link if applicable
-        link_button = self._create_cryoet_link_button(voxel_spacing)
-        if link_button:
-            header_layout.addStretch()
-            header_layout.addWidget(link_button)
-
-        layout.addLayout(header_layout)
-
-        # Tomograms grid
-        if tomograms:
-            # Create a grid layout for tomogram cards
-            tomo_grid_widget = QWidget()
-            tomo_grid_layout = QGridLayout()
-            tomo_grid_layout.setContentsMargins(15, 0, 0, 0)  # Indent tomograms
-            tomo_grid_layout.setSpacing(8)
-
-            # Calculate grid dimensions (3 columns)
-            cols = 3
-
-            for i, tomo in enumerate(tomograms):
-                row = i // cols
-                col = i % cols
-
-                tomo_card = self._create_tomogram_card(tomo)
-                tomo_grid_layout.addWidget(tomo_card, row, col)
-
-            tomo_grid_widget.setLayout(tomo_grid_layout)
-            layout.addWidget(tomo_grid_widget)
-        else:
-            empty_label = QLabel("No tomograms found")
-            colors = get_theme_colors(self)
-            empty_label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; margin-left: 15px;")
-            layout.addWidget(empty_label)
-
-        frame.setLayout(layout)
-        return frame
-
-    def _create_tomogram_card(self, tomogram: "CopickTomogram") -> QFrame:
-        """Create a card widget for a tomogram with thumbnail"""
-        card = QFrame(objectName="info_card")
-        card.setFrameStyle(QFrame.StyledPanel)
-        card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        card.setMinimumSize(200, 240)  # Reasonable minimum size
-        # No maximum size - let cards expand to fill available space
-        # Apply theme-aware styling
-        colors = get_theme_colors(self)
-        card.setStyleSheet(
-            f"""
-            QFrame {{
-                background-color: {colors['bg_tertiary']};
-                border-radius: 8px;
-                border: 1px solid {colors['border_secondary']};
-            }}
-            QFrame:hover {{
-                border: 1px solid {colors['border_accent']};
-                background-color: {colors['bg_quaternary']};
-            }}
-        """
-        )
-
-        layout = QVBoxLayout()
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
-
-        # Thumbnail area - adaptive size with proper centering
-        thumbnail_label = QLabel()
-        thumbnail_label.setObjectName("thumbnail_label")  # For finding later
-        thumbnail_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        thumbnail_label.setAlignment(Qt.AlignCenter)
-        thumbnail_label.setScaledContents(False)  # We'll handle scaling manually
-        # Apply theme-aware styling for thumbnail
-        colors = get_theme_colors(self)
-        thumbnail_label.setStyleSheet(
-            f"""
-            QLabel {{
-                background-color: {colors['bg_secondary']};
-                border-radius: 6px;
-                border: 1px solid {colors['border_primary']};
-            }}
-        """
-        )
-
-        # Create unique ID for this tomogram thumbnail
-        thumbnail_id = f"tomo_{id(tomogram)}"
-
-        # Check if thumbnail is already loaded
-        if thumbnail_id in self._thumbnails:
-            # Use cached thumbnail with adaptive scaling
-            pixmap = self._thumbnails[thumbnail_id]
-            # Scale thumbnail to fit nicely in card (leaving some margin)
-            max_size = min(card.minimumSize().width() - 40, card.minimumSize().height() - 80)
-            scaled_pixmap = pixmap.scaled(
-                max_size,
-                max_size,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            thumbnail_label.setPixmap(scaled_pixmap)
-        else:
-            # Show loading placeholder and start async loading
-            thumbnail_label.setText("⏳")
-            # Apply theme-aware styling for loading state
-            colors = get_theme_colors(self)
-            thumbnail_label.setStyleSheet(
-                f"""
-                QLabel {{
-                    background-color: {colors['bg_secondary']};
-                    border-radius: 6px;
-                    border: 1px solid {colors['border_primary']};
-                    color: {colors['text_muted']};
-                    font-size: 24px;
-                }}
-            """
-            )
-
-            # Store widget reference for later update
-            self._thumbnail_widgets[thumbnail_id] = card
-
-            # Start async thumbnail loading
-            if not self._is_destroyed:
-                worker = ThumbnailLoadWorker(self._signals, tomogram, thumbnail_id, force_regenerate=False)
-                self._thread_pool.start(worker)
-
-        layout.addWidget(thumbnail_label)
-
-        # Info section
-        info_layout = QVBoxLayout()
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(2)
-
-        # Tomogram name
-        name_label = QLabel(tomogram.tomo_type)
-        name_label.setAlignment(Qt.AlignCenter)
-        colors = get_theme_colors(self)
-        name_label.setStyleSheet(f"color: {colors['text_primary']}; font-weight: bold; font-size: 10px;")
-        name_label.setWordWrap(True)
-        info_layout.addWidget(name_label)
-
-        # CryoET link if applicable
-        link_button = self._create_cryoet_link_button(tomogram)
-        if link_button:
-            link_button.setFixedHeight(18)
-            link_button.setStyleSheet(link_button.styleSheet() + "font-size: 8px; padding: 1px 4px;")
-            info_layout.addWidget(link_button)
-
-        info_widget = QWidget()
-        info_widget.setLayout(info_layout)
-        layout.addWidget(info_widget)
-
-        # Make the card clickable
-        card.mousePressEvent = lambda event: self._on_tomogram_card_clicked(tomogram)
-
-        card.setLayout(layout)
-        return card
-
-    def _create_tomogram_widget(self, tomogram: "CopickTomogram") -> QWidget:
-        """Create a widget for a tomogram"""
-        widget = QWidget()
-        layout = QHBoxLayout()
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(8)
-
-        # Icon and name
-        icon_label = QLabel("🧊")
-        icon_label.setStyleSheet("font-size: 10px;")
-        layout.addWidget(icon_label)
-
-        name_label = QLabel(tomogram.tomo_type)
-        colors = get_theme_colors(self)
-        name_label.setStyleSheet(f"color: {colors['text_primary']}; font-size: 11px;")
-        layout.addWidget(name_label)
-
-        layout.addStretch()
-
-        # Add CryoET link if applicable
-        link_button = self._create_cryoet_link_button(tomogram)
-        if link_button:
-            layout.addWidget(link_button)
-
-        widget.setLayout(layout)
-        
-        # Apply theme-aware styling
-        colors = get_theme_colors(self)
-        widget.setStyleSheet(
-            f"""
-            QWidget {{
-                background-color: {colors['bg_tertiary']};
-                border-radius: 4px;
-            }}
-        """
-        )
-        return widget
-
-    def _create_annotation_subsection(self, data_type: str, title: str, status: str) -> QFrame:
-        """Create an annotation subsection widget"""
-        frame = QFrame(objectName="annotation_section")
-        frame.setFrameStyle(QFrame.StyledPanel)
-        # Style applied via main theme stylesheet
-
-        layout = QVBoxLayout()
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
-
-        # Subsection header
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-
-        title_label = QLabel(title)
-        title_font = QFont()
-        title_font.setPointSize(12)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        header_layout.addWidget(title_label)
-
-        # Status indicator
-        if status == "loading":
-            status_label = QLabel("⏳")
-        elif status == "loaded":
-            count = len(self._loaded_data.get(data_type, []))
-            status_label = QLabel(f"({count})")
-        elif status.startswith("error:"):
-            status_label = QLabel("⚠️")
-        else:
-            status_label = QLabel("⏳")
-
-        colors = get_theme_colors(self)
-        status_label.setStyleSheet(f"color: {colors['text_muted']}; font-size: 10px;")
-        header_layout.addStretch()
-        header_layout.addWidget(status_label)
-
-        layout.addLayout(header_layout)
-
-        # Content
-        if status == "loaded" and data_type in self._loaded_data:
-            data = self._loaded_data[data_type]
-            if data:
-                content_widget = self._create_annotation_items_widget(data_type, data)
-                layout.addWidget(content_widget)
-            else:
-                empty_label = QLabel("No items found")
-                colors = get_theme_colors(self)
-                empty_label.setStyleSheet(f"color: {colors['text_muted']}; font-style: italic; margin-left: 10px;")
-                layout.addWidget(empty_label)
-        else:
-            content_label = self._create_content_placeholder(status)
-            layout.addWidget(content_label)
-
-        frame.setLayout(layout)
-        return frame
-
-    def _create_annotation_items_widget(self, data_type: str, data: List[Any]) -> QWidget:
-        """Create a widget containing annotation items"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(10, 0, 0, 0)  # Indent content
-        layout.setSpacing(4)
-
-        # Show all items
-        for item in data:
-            item_widget = self._create_annotation_item_widget(data_type, item)
-            layout.addWidget(item_widget)
-
-        widget.setLayout(layout)
-        return widget
-
-    def _create_annotation_item_widget(self, data_type: str, item: Any) -> QWidget:
-        """Create a widget for a single annotation item"""
-        widget = QWidget()
-        layout = QHBoxLayout()
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(8)
-
-        # Info layout
-        info_layout = QVBoxLayout()
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(2)
-
-        if data_type == "picks":
-            name = f"📍 {item.pickable_object_name}"
-            point_count = len(item.points) if hasattr(item, "points") else "N/A"
-            details = f"User: {item.user_id} | Session: {item.session_id} | Points: {point_count}"
-        elif data_type == "meshes":
-            name = f"🕸 {item.pickable_object_name}"
-            details = f"User: {item.user_id} | Session: {item.session_id}"
-        elif data_type == "segmentations":
-            seg_name = getattr(
-                item,
-                "name",
-                item.pickable_object_name if hasattr(item, "pickable_object_name") else "Unknown",
-            )
-            name = f"🖌 {seg_name}"
-            details = f"User: {item.user_id} | Session: {item.session_id}"
-        else:
-            name = str(item)
-            details = ""
-
-        # Name label
-        name_label = QLabel(name)
-        colors = get_theme_colors(self)
-        name_label.setStyleSheet(f"color: {colors['text_primary']}; font-weight: bold; font-size: 11px;")
-        info_layout.addWidget(name_label)
-
-        # Details label
-        if details:
-            details_label = QLabel(details)
-            colors = get_theme_colors(self)
-            details_label.setStyleSheet(f"color: {colors['text_muted']}; font-size: 9px;")
-            info_layout.addWidget(details_label)
-
-        layout.addLayout(info_layout)
-        layout.addStretch()
-
-        # Add CryoET link if applicable
-        link_button = self._create_cryoet_link_button(item)
-        if link_button:
-            layout.addWidget(link_button)
-
-        widget.setLayout(layout)
-        
-        # Apply theme-aware styling
-        colors = get_theme_colors(self)
-        widget.setStyleSheet(
-            f"""
-            QWidget {{
-                background-color: {colors['bg_tertiary']};
-                border-radius: 4px;
-            }}
-        """
-        )
-        return widget
-
-    def _create_cryoet_link_button(self, item: Any) -> Optional[QPushButton]:
-        """Create a CryoET Data Portal link button for an item if applicable"""
-        # Import here to avoid circular imports
-        from copick.impl.cryoet_data_portal import (
-            CopickRunCDP,
-        )
-
-        # Check if this is a CryoET Data Portal project
-        if hasattr(item, "run") and isinstance(item.run, CopickRunCDP):
-            run_id = item.run.portal_run_id
-
-            if hasattr(item, "meta") and hasattr(item.meta, "portal_tomo_id"):
-                # Tomogram link
-                url = f"https://cryoetdataportal.czscience.com/runs/{run_id}?table-tab=Tomograms"
-            elif hasattr(item, "meta") and hasattr(item.meta, "portal_annotation_id"):
-                # Annotation link (picks, segmentations)
-                url = f"https://cryoetdataportal.czscience.com/runs/{run_id}?table-tab=Annotations"
-            elif (
-                hasattr(item, "voxel_spacing")
-                and hasattr(item.voxel_spacing, "run")
-                and isinstance(item.voxel_spacing.run, CopickRunCDP)
-            ):
-                # Voxel spacing or tomogram via voxel spacing
-                run_id = item.voxel_spacing.run.portal_run_id
-                url = f"https://cryoetdataportal.czscience.com/runs/{run_id}"
-            else:
-                # General run link
-                url = f"https://cryoetdataportal.czscience.com/runs/{run_id}"
-
-            # Create button
-            button = QPushButton("🌐 Portal")
-            button.setStyleSheet(get_button_stylesheet("portal", self))
-            button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
-            return button
-
-        return None
+# Alias for backward compatibility
+CopickInfoWidget = ChimeraXCopickInfoWidget

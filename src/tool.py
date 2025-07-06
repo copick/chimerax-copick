@@ -27,13 +27,13 @@ from chimerax.ome_zarr.open import open_ome_zarr_from_store
 from chimerax.ui import MainToolWindow
 from copick.impl.filesystem import CopickTomogramFSSpec
 from copick.models import CopickLocation, CopickMesh, CopickPicks, CopickPoint, CopickSegmentation
+from copick_shared_ui.core.thumbnail_cache import set_global_cache_config, set_global_cache_image_interface
 
 # Qt
 from Qt.QtCore import QModelIndex
 from Qt.QtGui import QFont
 from Qt.QtWidgets import QVBoxLayout
 
-from .io import set_global_cache_config
 from .misc.colorops import palette_from_root
 from .misc.meshops import ensure_mesh
 from .misc.pickops import append_no_duplicates
@@ -56,9 +56,10 @@ class CopickTool(ToolInstance):
     def __init__(self, session, tool_name):
         # Suppress SSH client logging to reduce console noise
         import logging
-        logging.getLogger('asyncssh').setLevel(logging.WARNING)
-        logging.getLogger('asyncssh.sftp').setLevel(logging.WARNING)
-        
+
+        logging.getLogger("asyncssh").setLevel(logging.WARNING)
+        logging.getLogger("asyncssh.sftp").setLevel(logging.WARNING)
+
         # Initialize base class
         super().__init__(session, tool_name)
 
@@ -146,7 +147,14 @@ class CopickTool(ToolInstance):
         self.root = copick.from_file(config_file)
 
         # Initialize thumbnail cache with config file
-        set_global_cache_config(config_file)
+        set_global_cache_config(config_file, app_name="copick")
+
+        # Set up image interface for thumbnail cache
+        from copick_shared_ui.core.image_interface import get_image_interface
+
+        image_interface = get_image_interface()
+        if image_interface:
+            set_global_cache_image_interface(image_interface, app_name="copick")
 
         self._mw.set_root(self.root)
         self.palette_command = palette_from_root(self.root)
@@ -972,10 +980,11 @@ class CopickTool(ToolInstance):
             )
             return
 
-        from .ui.EditObjectTypesDialog import EditObjectTypesDialog
+        from copick_shared_ui.ui.edit_object_types_dialog import EditObjectTypesDialog
 
         dialog = EditObjectTypesDialog(
-            parent=self.tool_window.ui_area, existing_objects=self.root.config.pickable_objects,
+            parent=self.tool_window.ui_area,
+            existing_objects=self.root.config.pickable_objects,
         )
 
         if dialog.exec_() == dialog.Accepted:

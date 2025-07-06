@@ -4,6 +4,7 @@ Base dialog class for object creation and editing with common validation functio
 
 from typing import Tuple
 
+from copick_shared_ui.util.validation import validate_copick_name
 from Qt.QtCore import Qt
 from Qt.QtGui import QColor, QFont
 from Qt.QtWidgets import (
@@ -18,8 +19,6 @@ from Qt.QtWidgets import (
     QPushButton,
     QVBoxLayout,
 )
-
-from ..misc.validation import validate_copick_name
 
 
 class ColoredComboBox(QComboBox):
