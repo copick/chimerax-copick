@@ -13,7 +13,7 @@ from Qt.QtWidgets import (
     QWidget,
 )
 
-from ..misc.validation import generate_smart_copy_name
+from copick_shared_ui.util.validation import generate_smart_copy_name
 
 from .DuplicateDialog import DuplicateDialog
 from .DuplicateSettingsOverlay import DuplicateSettingsOverlay

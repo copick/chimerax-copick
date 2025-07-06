@@ -19,7 +19,7 @@ from Qt.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..misc.validation import validate_copick_name
+from copick_shared_ui.util.validation import validate_copick_name
 
 
 class ColoredComboBox(QComboBox):
