@@ -972,7 +972,7 @@ class CopickTool(ToolInstance):
             )
             return
 
-        from .ui.EditObjectTypesDialog import EditObjectTypesDialog
+        from copick_shared_ui.ui.edit_object_types_dialog import EditObjectTypesDialog
 
         dialog = EditObjectTypesDialog(
             parent=self.tool_window.ui_area, existing_objects=self.root.config.pickable_objects,
