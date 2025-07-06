@@ -1033,6 +1033,10 @@ class MainWidget(QWidget):
 
     def _on_gallery_info_requested(self, run):
         """Handle info request from gallery widget - switch to info view with selected run"""
+        print(f"🔍 ChimeraX Main Widget: Info requested for run: {run}")
+        print(f"🔍 ChimeraX Main Widget: Run type: {type(run)}")
+        print(f"🔍 ChimeraX Main Widget: Run name: {getattr(run, 'name', 'NO NAME ATTRIBUTE')}")
+
         # Update current run
         self._current_run = run
         self.set_current_run(run)
