@@ -1,6 +1,6 @@
 """ChimeraX-specific implementation of the copick info widget using shared components."""
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from Qt.QtCore import (
     QAbstractItemModel,
@@ -8,26 +8,23 @@ from Qt.QtCore import (
     QObject,
     QSortFilterProxyModel,
     Qt,
-    QThreadPool,
 )
 from Qt.QtGui import QPixmap
-from Qt.QtWidgets import QLabel, QTreeView, QWidget
+from Qt.QtWidgets import QTreeView, QWidget
 
-from .async_workers import AsyncWorkerSignals, ThumbnailLoadWorker
 from .theme_utils import get_theme_colors
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram
 
 # Import shared components - error out if not available
-from copick_shared_ui.widgets.info.info_widget import CopickInfoWidget
 from copick_shared_ui.core.models import (
     AbstractImageInterface,
     AbstractInfoSessionInterface,
     AbstractThemeInterface,
-    AbstractWorkerInterface,
 )
 from copick_shared_ui.platform.chimerax_integration import ChimeraXWorkerInterface
+from copick_shared_ui.widgets.info.info_widget import CopickInfoWidget
 
 
 class ChimeraXInfoSessionInterface(AbstractInfoSessionInterface):
@@ -240,35 +237,38 @@ class ChimeraXThemeInterface(AbstractThemeInterface):
         colors = get_theme_colors(self.widget)
         # Map ChimeraX colors to shared UI color names
         return {
-            'bg_primary': colors['bg_primary'],
-            'bg_secondary': colors['bg_secondary'], 
-            'bg_tertiary': colors['bg_tertiary'],
-            'bg_quaternary': colors['bg_quaternary'],
-            'border_primary': colors['border_primary'],
-            'border_secondary': colors['border_secondary'],
-            'border_accent': colors['border_accent'],
-            'text_primary': colors['text_primary'],
-            'text_secondary': colors['text_secondary'],
-            'text_muted': colors['text_muted'],
-            'accent_primary': colors['accent_blue'],
-            'success': colors['status_success_bg'],
-            'warning': colors['status_warning_bg'],
-            'error': colors['status_error_bg'],
+            "bg_primary": colors["bg_primary"],
+            "bg_secondary": colors["bg_secondary"],
+            "bg_tertiary": colors["bg_tertiary"],
+            "bg_quaternary": colors["bg_quaternary"],
+            "border_primary": colors["border_primary"],
+            "border_secondary": colors["border_secondary"],
+            "border_accent": colors["border_accent"],
+            "text_primary": colors["text_primary"],
+            "text_secondary": colors["text_secondary"],
+            "text_muted": colors["text_muted"],
+            "accent_primary": colors["accent_blue"],
+            "success": colors["status_success_bg"],
+            "warning": colors["status_warning_bg"],
+            "error": colors["status_error_bg"],
         }
 
     def get_theme_stylesheet(self) -> str:
         """Get base stylesheet for current ChimeraX theme."""
         from .theme_utils import get_theme_stylesheet
+
         return get_theme_stylesheet(self.widget)
 
     def get_button_stylesheet(self, button_type: str = "primary") -> str:
         """Get button stylesheet for current ChimeraX theme."""
         from .theme_utils import get_button_stylesheet
+
         return get_button_stylesheet(button_type, self.widget)
 
     def get_input_stylesheet(self) -> str:
         """Get input field stylesheet for current ChimeraX theme."""
         from .theme_utils import get_input_stylesheet
+
         return get_input_stylesheet(self.widget)
 
     def connect_theme_changed(self, callback: callable) -> None:
@@ -277,8 +277,9 @@ class ChimeraXThemeInterface(AbstractThemeInterface):
         try:
             # Connect to palette change events if available
             from Qt.QtWidgets import QApplication
+
             app = QApplication.instance()
-            if app and hasattr(app, 'paletteChanged'):
+            if app and hasattr(app, "paletteChanged"):
                 app.paletteChanged.connect(self._emit_theme_changed)
         except Exception:
             pass  # Theme change detection not available
@@ -294,7 +295,6 @@ class ChimeraXThemeInterface(AbstractThemeInterface):
 
 class ChimeraXImageInterface(AbstractImageInterface):
     """ChimeraX-specific image/pixmap interface."""
-
 
     def scale_pixmap(self, pixmap: Any, size: tuple, smooth: bool = True) -> Any:
         """Scale a pixmap to the specified size."""
@@ -326,7 +326,6 @@ class ChimeraXImageInterface(AbstractImageInterface):
             return pixmap if not pixmap.isNull() else None
         except Exception:
             return None
-
 
 
 class ChimeraXCopickInfoWidget(CopickInfoWidget):
@@ -374,7 +373,7 @@ class ChimeraXCopickInfoWidget(CopickInfoWidget):
         """Set the current run object and make it available to session interface."""
         # Store reference for session interface
         self._session_interface.current_run = run
-        
+
         # Call parent implementation
         super().set_run(run)
 

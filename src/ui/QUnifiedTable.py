@@ -1,6 +1,7 @@
 from typing import Literal, Union
 
 from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
+from copick_shared_ui.util.validation import generate_smart_copy_name
 from Qt.QtCore import QEvent, QModelIndex, QSortFilterProxyModel, Qt, Signal
 from Qt.QtWidgets import (
     QHBoxLayout,
@@ -12,8 +13,6 @@ from Qt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from copick_shared_ui.util.validation import generate_smart_copy_name
 
 from .DuplicateDialog import DuplicateDialog
 from .DuplicateSettingsOverlay import DuplicateSettingsOverlay
@@ -93,7 +92,7 @@ class QUnifiedTable(QWidget):
                 border: 1px solid rgba(100, 100, 100, 180);
                 border-radius: 6px;
             }
-        """
+        """,
         )
 
         # Search overlay layout
@@ -119,7 +118,7 @@ class QUnifiedTable(QWidget):
                 border: 2px solid rgba(70, 130, 200, 200);
                 background-color: rgba(255, 255, 255, 255);
             }
-        """
+        """,
         )
 
         # Clear/Close button
@@ -140,7 +139,7 @@ class QUnifiedTable(QWidget):
                 background-color: rgba(220, 220, 220, 200);
                 color: #333;
             }
-        """
+        """,
         )
 
         overlay_layout.addWidget(self._search_input)

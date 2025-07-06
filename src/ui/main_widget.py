@@ -1,7 +1,7 @@
-from datetime import datetime
-from typing import List, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Union
 
-from chimerax.core.tools import ToolInstance
+# Import shared gallery widget - import directly from module to avoid __init__.py issues
+import copick_shared_ui.platform.chimerax_integration as chimerax_integration_module
 from copick.impl.filesystem import CopickRootFSSpec
 from copick.models import CopickMesh, CopickPicks, CopickSegmentation
 from Qt.QtCore import QEvent, QModelIndex, QObject, QSortFilterProxyModel, Qt
@@ -16,14 +16,12 @@ from Qt.QtWidgets import (
     QWidget,
 )
 
-from .copick_info_widget import CopickInfoWidget
 from ..ui.QCoPickTreeModel import QCoPickTreeModel
 from ..ui.step_widget import StepWidget
 from ..ui.tree import TreeRoot, TreeRun
+from .copick_info_widget import CopickInfoWidget
 from .QUnifiedTable import QUnifiedTable
 
-# Import shared gallery widget - import directly from module to avoid __init__.py issues
-import copick_shared_ui.platform.chimerax_integration as chimerax_integration_module
 ChimeraXGalleryIntegration = chimerax_integration_module.ChimeraXGalleryIntegration
 
 if TYPE_CHECKING:
@@ -214,7 +212,7 @@ class MainWidget(QWidget):
                 border: 1px solid rgba(100, 100, 100, 180);
                 border-radius: 6px;
             }
-        """
+        """,
         )
 
         # Search overlay layout
@@ -240,7 +238,7 @@ class MainWidget(QWidget):
                 border: 2px solid rgba(70, 130, 200, 200);
                 background-color: rgba(255, 255, 255, 255);
             }
-        """
+        """,
         )
 
         # Clear/Close button (does both clear and close)
@@ -261,7 +259,7 @@ class MainWidget(QWidget):
                 background-color: rgba(220, 220, 220, 200);
                 color: #333;
             }
-        """
+        """,
         )
 
         overlay_layout.addWidget(self._search_input)
@@ -287,7 +285,7 @@ class MainWidget(QWidget):
             QPushButton:hover {
                 background-color: rgba(220, 220, 220, 220);
             }
-        """
+        """,
         )
         # Hide search toggle initially - only show on tree hover
         self._search_toggle.hide()
@@ -401,7 +399,7 @@ class MainWidget(QWidget):
         # Use shared gallery widget
         gallery_integration = ChimeraXGalleryIntegration(session)
         gallery_widget = gallery_integration.create_gallery_widget()
-        
+
         # Set copick root if available
         if self._root:
             gallery_integration.session_interface.set_copick_root(self._root)
@@ -1056,7 +1054,7 @@ class MainWidget(QWidget):
         print(f"🔍 ChimeraX Main Widget: Info requested for run: {run}")
         print(f"🔍 ChimeraX Main Widget: Run type: {type(run)}")
         print(f"🔍 ChimeraX Main Widget: Run name: {getattr(run, 'name', 'NO NAME ATTRIBUTE')}")
-        
+
         # Update current run
         self._current_run = run
         self.set_current_run(run)
@@ -1109,7 +1107,7 @@ class MainWidget(QWidget):
 
     def _update_gallery_widget_root(self, root):
         """Update gallery and info widgets when copick root changes"""
-        if hasattr(self, '_gallery_integration'):
+        if hasattr(self, "_gallery_integration"):
             # Update shared gallery widget
             self._gallery_integration.session_interface.set_copick_root(root)
             self._copick_gallery_widget.set_copick_root(root)
@@ -1142,10 +1140,7 @@ class MainWidget(QWidget):
                 return
 
             # Map proxy model index to source model index
-            if self._filter_model:
-                source_index = self._filter_model.mapToSource(proxy_index)
-            else:
-                source_index = proxy_index
+            source_index = self._filter_model.mapToSource(proxy_index) if self._filter_model else proxy_index
 
             if not source_index.isValid():
                 return
