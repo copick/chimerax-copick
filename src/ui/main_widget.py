@@ -97,9 +97,6 @@ class MainWidget(QWidget):
         # UI components
         self._build()
         self._connect()
-
-        # Initialize gallery and info widgets
-        self._build_gallery_widget()
         self._build_info_widget()
 
     def _build(self):
@@ -400,11 +397,6 @@ class MainWidget(QWidget):
         gallery_integration = ChimeraXGalleryIntegration(session)
         gallery_widget = gallery_integration.create_gallery_widget()
 
-        # Set copick root if available
-        if self._root:
-            gallery_integration.session_interface.set_copick_root(self._root)
-            gallery_widget.set_copick_root(self._root)
-
         # Connect gallery run selection to main widget
         gallery_widget.run_selected.connect(self._on_gallery_run_selected)
         gallery_widget.info_requested.connect(self._on_gallery_info_requested)
@@ -414,6 +406,14 @@ class MainWidget(QWidget):
         # Store reference
         self._copick_gallery_widget = gallery_widget
         self._gallery_integration = gallery_integration
+
+        # Don't set copick root here - defer until gallery is actually displayed
+        # This prevents blocking UI thread with cache operations during construction
+
+    def _build_gallery_widget_deferred(self):
+        """Build the gallery widget after tool window is positioned and sized properly"""
+        # Now create the gallery widget after the tool window is properly positioned
+        self._build_gallery_widget()
 
     def _build_info_widget(self):
         session = self._copick.session
@@ -443,7 +443,6 @@ class MainWidget(QWidget):
         self._filter_model.setRecursiveFilteringEnabled(False)  # We handle filtering manually
         self._filter_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self._filter_model.setFilterRole(Qt.DisplayRole)
-
         self._tree_view.setModel(self._filter_model)
 
         # Connect selection model after setting the model
@@ -1077,6 +1076,14 @@ class MainWidget(QWidget):
             main_window = session.ui.main_window
             stack_widget = main_window._stack
 
+            # Check if gallery already has the same root to avoid duplicate processing
+            if (
+                self._root
+                and hasattr(self, "_copick_gallery_widget")
+                and getattr(self._copick_gallery_widget, "copick_root", None) != self._root
+            ):
+                self._copick_gallery_widget.set_copick_root(self._root)
+
             # Switch to gallery view
             stack_widget.setCurrentWidget(self._copick_gallery_widget)
 
@@ -1093,6 +1100,7 @@ class MainWidget(QWidget):
             # Update shared gallery widget
             self._gallery_integration.session_interface.set_copick_root(root)
             self._copick_gallery_widget.set_copick_root(root)
+
         self._copick_info_widget.set_run(None)
 
     def set_current_run_name(self, run_name: str):

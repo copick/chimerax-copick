@@ -83,7 +83,6 @@ class CopickTool(ToolInstance):
 
         # UI
         self.tool_window = MainToolWindow(self, close_destroys=False)
-        # self.tool_window.create_child_window("ABC")
         self._build_ui()
 
         self.root = None
@@ -133,8 +132,14 @@ class CopickTool(ToolInstance):
         self._mw = MainWidget(self)
         self._layout.addWidget(self._mw)
 
-        tw.ui_area.setLayout(self._layout)
+        # Position the tool window first
         tw.manage("left")
+
+        # Set the main widget layout
+        tw.ui_area.setLayout(self._layout)
+
+        # Now create gallery widget after tool window is positioned and sized properly
+        self._mw._build_gallery_widget_deferred()
 
     def from_config_file(self, config_file: str):
         if self.root is not None:
@@ -863,8 +868,6 @@ class CopickTool(ToolInstance):
         if not isinstance(entity, CopickMesh):
             return
 
-        print(self.mesh_map)
-        print(entity)
         if entity in self.mesh_map:
             surf = self.mesh_map[entity]
             surf.display = not surf.display
