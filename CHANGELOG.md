@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.2.0...chimerax-copick-v1.3.0) (2025-07-07)
+
+
+### ✨ Features
+
+* Fix performance issues with large projects ([#47](https://github.com/copick/chimerax-copick/issues/47)) ([bec70f4](https://github.com/copick/chimerax-copick/commit/bec70f494a0b085ef2a0200407cea9a561982f5a))
+
 ## [1.2.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.1.0...chimerax-copick-v1.2.0) (2025-07-06)
 
 
