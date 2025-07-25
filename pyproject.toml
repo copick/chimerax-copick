@@ -11,7 +11,7 @@ dependencies = [
     "pydantic",
     "hatchling",
     "s3fs>=2024.3.1",
-    "copick[all]>=1.5.0",
+    "copick[all]>=1.11.0",
     "copick-shared-ui==0.2.0",
 ]
 authors = [
