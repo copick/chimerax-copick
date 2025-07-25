@@ -310,7 +310,7 @@ class CopickTool(ToolInstance):
         if pick_obj is not None:
             partlist.color = np.array(pick_obj.color)
 
-            if pick_obj.zarr() is not None:
+            if pick_obj.zarr() is not None and len(pick_obj.zarr()) > 0:
                 model, msg = open_ome_zarr_from_store(self.session, pick_obj.zarr(), name)
                 model = model[0]
                 volume = model.child_models()[0]
