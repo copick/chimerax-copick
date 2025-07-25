@@ -85,7 +85,7 @@ class QUnifiedTableModel(QAbstractTableModel):
         if role == Qt.DisplayRole:
             if column == 0:
                 # Show user/tool name with lock/unlock indicator
-                access_indicator = "🔒" if entity.entity.from_tool else "✏️"
+                access_indicator = "🔒" if (entity.entity.from_tool or entity.entity.read_only) else "✏️"
                 return f"{access_indicator} {entity.data(0)}"
             elif column == 1:
                 return entity.data(1)
@@ -106,7 +106,7 @@ class QUnifiedTableModel(QAbstractTableModel):
 
         elif role == Qt.ToolTipRole:
             if column == 0:
-                if entity.entity.from_tool:
+                if entity.entity.from_tool or entity.entity.read_only:
                     return f"Tool-generated entity (read-only): {entity.data(0)}"
                 else:
                     return f"User-generated entity (editable): {entity.data(0)}"
