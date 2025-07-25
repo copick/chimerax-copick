@@ -291,7 +291,7 @@ class QUnifiedTable(QWidget):
             source_index = self._filter_model.mapToSource(proxy_index) if self._filter_model else proxy_index
 
             entity = self._source_model.get_entity(source_index)
-            if entity and not getattr(entity, "from_tool", False):
+            if entity and not (entity.from_tool or entity.read_only):
                 can_delete = True
 
         self._delete_button.setEnabled(can_delete)

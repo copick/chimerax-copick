@@ -183,7 +183,7 @@ class CopickTool(ToolInstance):
 
     def store(self):
         for pick, pl in self.picks_map.items():
-            if pick.from_tool:
+            if pick.from_tool or pick.read_only:
                 continue
 
             points = []
@@ -318,7 +318,7 @@ class CopickTool(ToolInstance):
                 volume = None
 
         # Have to call this now to set before OPTIONS_PARTLIST_CHANGED is triggered
-        partlist.editing_locked = picks.from_tool
+        partlist.editing_locked = picks.from_tool or picks.read_only
 
         self.session.ArtiaX.add_particlelist(partlist)
 
@@ -345,7 +345,7 @@ class CopickTool(ToolInstance):
             partlist.hide_markers()
             partlist.hide_axes()
 
-        if picks.from_tool:
+        if picks.from_tool or picks.read_only:
             lock_particlelist([partlist], True, "all", True)
 
         run(self.session, "artiax cap true", log=False)
