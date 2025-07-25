@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.3.0...chimerax-copick-v1.3.1) (2025-07-25)
+
+
+### 🐞 Bug Fixes
+
+* Fix behavior when reading from static source ([#49](https://github.com/copick/chimerax-copick/issues/49)) ([33b8401](https://github.com/copick/chimerax-copick/commit/33b8401fdba1e4b0a03d397398a57f6a5ebe1901))
+
 ## [1.3.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.2.0...chimerax-copick-v1.3.0) (2025-07-07)
 
 
