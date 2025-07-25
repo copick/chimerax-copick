@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.4.0...chimerax-copick-v1.4.1) (2025-07-25)
+
+
+### 🐞 Bug Fixes
+
+* Don't attempt loading map for object when it doesn't exist. ([#53](https://github.com/copick/chimerax-copick/issues/53)) ([b97cd77](https://github.com/copick/chimerax-copick/commit/b97cd771416d91905b2bcbb868148724f82018af))
+
 ## [1.4.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.3.1...chimerax-copick-v1.4.0) (2025-07-25)
 
 
