@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.3.1...chimerax-copick-v1.4.0) (2025-07-25)
+
+
+### ✨ Features
+
+* Bump copick requirement to 1.11.0 to enable object metadata.  ([#51](https://github.com/copick/chimerax-copick/issues/51)) ([054aaf0](https://github.com/copick/chimerax-copick/commit/054aaf0b3c6278f9821f8acc66960ea9a82146ae))
+
 ## [1.3.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.3.0...chimerax-copick-v1.3.1) (2025-07-25)
 
 
