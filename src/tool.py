@@ -851,7 +851,12 @@ class CopickTool(ToolInstance):
         else:
             obj_name = seg.name
             pick_obj = root.get_object(obj_name)
-            seg_vol.color = np.array(pick_obj.color)
+            mods = [seg_vol]
+            mods.extend(seg_vol.child_models())
+            for m in mods:
+                m.color = np.array(pick_obj.color)
+            #seg_vol.color = np.array(pick_obj.color)
+            #print(seg_vol.child_models())
 
     ################
     # Mesh actions #
