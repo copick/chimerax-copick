@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.4.1...chimerax-copick-v1.4.2) (2025-10-20)
+
+
+### 🐞 Bug Fixes
+
+* Correct segmentation coloring. ([#55](https://github.com/copick/chimerax-copick/issues/55)) ([25e00f3](https://github.com/copick/chimerax-copick/commit/25e00f341f413605ed1081ee3e77346739d12d36))
+
 ## [1.4.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.4.0...chimerax-copick-v1.4.1) (2025-07-25)
 
 
