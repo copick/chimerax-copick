@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.4.2...chimerax-copick-v1.4.3) (2025-12-03)
+
+
+### 🐞 Bug Fixes
+
+* bump version to create zenodo DOI ([#57](https://github.com/copick/chimerax-copick/issues/57)) ([01d1dcd](https://github.com/copick/chimerax-copick/commit/01d1dcd05bb3a698051d23539996ae9daeb4674a))
+
 ## [1.4.2](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.4.1...chimerax-copick-v1.4.2) (2025-10-20)
 
 
