@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.4.3...chimerax-copick-v1.5.0) (2026-02-13)
+
+
+### ✨ Features
+
+* Update dependencies.  ([#59](https://github.com/copick/chimerax-copick/issues/59)) ([d5bd66b](https://github.com/copick/chimerax-copick/commit/d5bd66b08c203fddaeac40f9c31c59fdd4e2676e))
+
 ## [1.4.3](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.4.2...chimerax-copick-v1.4.3) (2025-12-03)
 
 
