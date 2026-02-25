@@ -37,6 +37,7 @@ from Qt.QtWidgets import QVBoxLayout
 from .misc.colorops import palette_from_root
 from .misc.meshops import ensure_mesh
 from .misc.pickops import append_no_duplicates
+from .misc.settings import CoPickSettings
 
 # from .ui.pickstable import TablePicks
 from .ui.EntityTable import TablePicks
@@ -78,7 +79,7 @@ class CopickTool(ToolInstance):
         else:
             self.font = QFont("Arial", 7)
 
-        # self.settings = CoPickSettings(session, "copick", version="1")
+        self.settings = CoPickSettings(session, "copick", version="1")
         """Settings."""
 
         # UI
@@ -209,7 +210,14 @@ class CopickTool(ToolInstance):
     def load_tomo(self, tomo: CopickTomogramFSSpec):
         """Load a tomogram from the copick backend system."""
         name = f"{tomo.voxel_spacing.run.name} - {tomo.voxel_spacing.voxel_size}"
-        mods, msg = open_ome_zarr_from_store(self.session, tomo.zarr(), name)
+
+        # Get preferred zarr level from persistent settings
+        zarr_level = self.settings.zarr_level
+        scales = [str(zarr_level)]
+
+        mods, msg = open_ome_zarr_from_store(
+            self.session, tomo.zarr(), name, scales=scales, initial_step=(1, 1, 1)
+        )
 
         vol = mods[0].child_models()[0]
         self.session.models.add([vol])

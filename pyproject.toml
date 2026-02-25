@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=45"]
 
 [project]
 name = "ChimeraX-copick"
@@ -10,6 +10,7 @@ dependencies = [
     "ChimeraX-OME-Zarr>=0.5.4",
     "pydantic",
     "hatchling",
+    "aiohttp>=3.13.0",
     "s3fs>=2024.3.1",
     "copick[all]>=1.11.0",
     "copick-shared-ui==0.3.0",

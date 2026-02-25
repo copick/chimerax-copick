@@ -15,8 +15,8 @@ from Qt.QtWidgets import (
 )
 
 from .DuplicateDialog import DuplicateDialog
-from .DuplicateSettingsOverlay import DuplicateSettingsOverlay
 from .NewPickDialog import NewPickDialog
+from .SettingsOverlay import SettingsOverlay
 from .QUnifiedTableModel import QUnifiedTableModel
 
 
@@ -214,7 +214,7 @@ class QUnifiedTable(QWidget):
         self._delete_button.hide()
 
         # Create settings overlay (hidden initially) - use None as parent so it's a top-level window
-        self._settings_overlay = DuplicateSettingsOverlay(None)
+        self._settings_overlay = SettingsOverlay(None)
         self._settings_overlay.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self._settings_overlay.hide()
 

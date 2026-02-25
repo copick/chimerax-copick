@@ -492,6 +492,11 @@ class MainWidget(QWidget):
         self._segmentations_table.newClicked.connect(self._copick.new_segmentation)
         self._segmentations_table.deleteClicked.connect(self._copick.delete_segmentation)
 
+        # Zarr level settings - connect all table overlays to persistent settings
+        self._picks_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
+        self._meshes_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
+        self._segmentations_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
+
         self._picks_stepper.stateChanged.connect(self._copick._set_active_particle)
 
     def set_entity_active(self, picks: Union[CopickMesh, CopickPicks, CopickSegmentation], active: bool):
@@ -742,6 +747,10 @@ class MainWidget(QWidget):
             current_table = self._segmentations_table
 
         if current_table:
+            # Initialize zarr level from persistent settings before showing
+            zarr_level = self._copick.settings.zarr_level
+            current_table._settings_overlay.set_zarr_level(zarr_level)
+
             # Position the overlay relative to the shared settings button
             self._position_shared_settings_overlay(current_table._settings_overlay)
 
@@ -752,6 +761,10 @@ class MainWidget(QWidget):
                 current_table._settings_overlay.show()
                 current_table._settings_overlay.raise_()
                 current_table._settings_overlay.activateWindow()
+
+    def _on_zarr_level_changed(self, level: int):
+        """Handle zarr level change from settings overlay - persist to settings"""
+        self._copick.settings.zarr_level = level
 
     def _position_shared_settings_overlay(self, overlay):
         """Position the settings overlay relative to the shared settings button"""
