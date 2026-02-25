@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.5.0...chimerax-copick-v1.6.0) (2026-02-25)
+
+
+### ✨ Features
+
+* Allow setting default zarr level to load. ([#61](https://github.com/copick/chimerax-copick/issues/61)) ([7909ba6](https://github.com/copick/chimerax-copick/commit/7909ba6e0d0c922632a9d69295c0e74beba7e5d0))
+
 ## [1.5.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.4.3...chimerax-copick-v1.5.0) (2026-02-13)
 
 
