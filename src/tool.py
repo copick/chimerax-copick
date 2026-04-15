@@ -211,12 +211,15 @@ class CopickTool(ToolInstance):
         """Load a tomogram from the copick backend system."""
         name = f"{tomo.voxel_spacing.run.name} - {tomo.voxel_spacing.voxel_size}"
 
-        # Get preferred zarr level from persistent settings
+        # Get preferred zarr level from persistent settings and convert to initial step.
+        # Loading with scales=None preserves all resolution levels in a WrappedZarrGrid,
+        # which allows ChimeraX's step UI to switch between them dynamically.
         zarr_level = self.settings.zarr_level
-        scales = [str(zarr_level)]
+        step = 2**zarr_level
+        initial_step = (step, step, step)
 
         mods, msg = open_ome_zarr_from_store(
-            self.session, tomo.zarr(), name, scales=scales, initial_step=(1, 1, 1)
+            self.session, tomo.zarr(), name, initial_step=initial_step
         )
 
         vol = mods[0].child_models()[0]
