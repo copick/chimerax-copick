@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.7.0...chimerax-copick-v1.7.1) (2026-04-15)
+
+
+### 🐞 Bug Fixes
+
+* Fix behavior in relation to changing sampling steps for Zarr files. ([#65](https://github.com/copick/chimerax-copick/issues/65)) ([35ad02b](https://github.com/copick/chimerax-copick/commit/35ad02b97ff7109381e7212cc1989e8339f1bd2d))
+
 ## [1.7.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.6.0...chimerax-copick-v1.7.0) (2026-03-27)
 
 
