@@ -100,13 +100,17 @@ class TreeVoxelSpacing:
         self.parent = parent
         self._children = None
 
+    def _build_children(self):
+        sorted_tomograms = sorted(self.voxel_spacing.tomograms, key=lambda t: t.tomo_type.lower())
+        return [TreeTomogram(tomogram, self) for tomogram in sorted_tomograms]
+
     @property
     def children(self):
         if self._children is None:
-            self._children = [TreeTomogram(tomogram, self) for tomogram in self.voxel_spacing.tomograms]
+            self._children = self._build_children()
 
         if len(self._children) != len(self.voxel_spacing.tomograms):
-            self._children = [TreeTomogram(tomogram, self) for tomogram in self.voxel_spacing.tomograms]
+            self._children = self._build_children()
 
         return self._children
 
@@ -150,7 +154,7 @@ class TreeTomogram:
         return 0
 
     def childIndex(self) -> Union[int, None]:
-        return self.tomogram.voxel_spacing.tomograms.index(self.tomogram)
+        return self.parent.children.index(self)
 
     def data(self, column: int) -> str:
         if column == 0:
