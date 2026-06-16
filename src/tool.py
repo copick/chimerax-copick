@@ -165,6 +165,15 @@ class CopickTool(ToolInstance):
         self._mw.set_root(self.root)
         self.palette_command = palette_from_root(self.root)
 
+        # The previous copick session (root + runs + objects) is a self-contained reference
+        # cycle once the UI models and tomograms referencing it have been torn down above.
+        # Clear the undo history (which pins deleted models via view snapshots) and collect so
+        # a reloaded project does not keep the old, dead session in memory.
+        import gc
+
+        self._clear_undo_history()
+        gc.collect()
+
     def close_all(self):
         for _p, pl in self.picks_map.items():
             pl.delete()
@@ -206,6 +215,33 @@ class CopickTool(ToolInstance):
         # Close the active volume
         if self.active_volume and not self.active_volume.deleted:
             self.active_volume.delete()
+
+        # Clear the undo history so the just-deleted Tomogram is not pinned in memory by the
+        # view command's NamedView snapshots (see _clear_undo_history). Then force a collection
+        # so the Tomogram (whose own trigger handler forms a reference cycle) is reclaimed
+        # promptly instead of lingering with its (large) volume data until the next cyclic GC.
+        import gc
+
+        self._clear_undo_history()
+        gc.collect()
+
+    def _clear_undo_history(self):
+        """Clear ChimeraX's undo/redo stacks.
+
+        The ``view`` command records UndoView actions whose NamedView snapshots hold every
+        model (tomograms included) as dict keys. Because copick deletes tomograms directly
+        when switching/reloading, those heavy deleted volumes stay pinned in the bounded
+        undo stack until they age out, causing memory pressure and sluggish slicing. Neither
+        copick nor ArtiaX uses the undo system, so clearing it here is safe and releases them.
+        """
+        undo = getattr(self.session, "undo", None)
+        if undo is None:
+            return
+        try:
+            undo.undo_stack.clear()
+            undo.redo_stack.clear()
+        except AttributeError:
+            pass
 
     def load_tomo(self, tomo: CopickTomogramFSSpec):
         """Load a tomogram from the copick backend system."""

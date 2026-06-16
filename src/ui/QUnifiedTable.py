@@ -248,6 +248,20 @@ class QUnifiedTable(QWidget):
     def set_view(self, run: CopickRun):
         """Set the run data and update the table model"""
         self._run = run
+
+        # Tear down the previous models and selection model before replacing them.
+        # Qt parents the QItemSelectionModel to the view and keeps the old source/filter
+        # models alive otherwise, so every tomogram/run switch would leak a model set and
+        # pin the old CopickRun/root it references (a source of progressive slowdown).
+        old_selection_model = self._table.selectionModel()
+        if old_selection_model is not None:
+            try:
+                old_selection_model.selectionChanged.disconnect(self._on_selection_changed)
+            except (RuntimeError, TypeError):
+                pass
+        old_source_model = self._source_model
+        old_filter_model = self._filter_model
+
         self._source_model = QUnifiedTableModel(run, self.item_type)
 
         # Set up filter proxy model for search functionality
@@ -260,6 +274,14 @@ class QUnifiedTable(QWidget):
 
         # Connect selection model after model is set
         self._table.selectionModel().selectionChanged.connect(self._on_selection_changed)
+
+        # Delete the now-detached models/selection model so they don't accumulate.
+        if old_selection_model is not None:
+            old_selection_model.deleteLater()
+        if old_filter_model is not None:
+            old_filter_model.deleteLater()
+        if old_source_model is not None:
+            old_source_model.deleteLater()
 
         # Resize columns to content
         self._table.resizeColumnsToContents()
