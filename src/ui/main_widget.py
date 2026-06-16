@@ -435,6 +435,19 @@ class MainWidget(QWidget):
 
     def set_root(self, root: CopickRootFSSpec):
         self._root = root
+
+        # Tear down the previous tree model/proxy/selection model before replacing them,
+        # otherwise each reload leaks the old QCoPickTreeModel (and its TreeRoot/TreeRun
+        # items), which keeps the previous CopickRoot alive in memory.
+        old_selection_model = self._tree_view.selectionModel()
+        if old_selection_model is not None:
+            try:
+                old_selection_model.selectionChanged.disconnect(self._on_tree_selection_changed)
+            except (RuntimeError, TypeError):
+                pass
+        old_tree_model = self._model
+        old_filter_model = self._filter_model
+
         self._model = QCoPickTreeModel(root)
 
         # Set up filter proxy model for search functionality
@@ -448,6 +461,14 @@ class MainWidget(QWidget):
         # Connect selection model after setting the model
         if self._tree_view.selectionModel():
             self._tree_view.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
+
+        # Delete the now-detached models/selection model so they don't accumulate.
+        if old_selection_model is not None:
+            old_selection_model.deleteLater()
+        if old_filter_model is not None:
+            old_filter_model.deleteLater()
+        if old_tree_model is not None:
+            old_tree_model.deleteLater()
 
         # Update gallery widget with new root if it exists
         self._update_gallery_widget_root(root)
@@ -511,23 +532,29 @@ class MainWidget(QWidget):
         self._picks_table.update()
 
     def clear_all_tables(self):
-        """Clear all table models by setting them to None"""
-        self._picks_table._table.setModel(None)
-        self._meshes_table._table.setModel(None)
-        self._segmentations_table._table.setModel(None)
+        """Clear all table models, deleting them so they don't leak."""
+        for table in (self._picks_table, self._meshes_table, self._segmentations_table):
+            # Disconnect and delete the selection model created for the current model.
+            selection_model = table._table.selectionModel()
+            if selection_model is not None:
+                try:
+                    selection_model.selectionChanged.disconnect(table._on_selection_changed)
+                except (RuntimeError, TypeError):
+                    pass
 
-        # Reset internal state
-        self._picks_table._run = None
-        self._picks_table._source_model = None
-        self._picks_table._filter_model = None
+            table._table.setModel(None)
 
-        self._meshes_table._run = None
-        self._meshes_table._source_model = None
-        self._meshes_table._filter_model = None
+            if selection_model is not None:
+                selection_model.deleteLater()
+            if table._filter_model is not None:
+                table._filter_model.deleteLater()
+            if table._source_model is not None:
+                table._source_model.deleteLater()
 
-        self._segmentations_table._run = None
-        self._segmentations_table._source_model = None
-        self._segmentations_table._filter_model = None
+            # Reset internal state
+            table._run = None
+            table._source_model = None
+            table._filter_model = None
 
     def picks_stepper(self, pick_list: List[str]):
         self._picks_stepper.set(len(pick_list), 0)
