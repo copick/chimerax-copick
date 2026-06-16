@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.7.1...chimerax-copick-v1.8.0) (2026-06-16)
+
+
+### ✨ Features
+
+* Bump artiax requirement for perf fixes ([#70](https://github.com/copick/chimerax-copick/issues/70)) ([dc078cb](https://github.com/copick/chimerax-copick/commit/dc078cbf84e1b94b29d519b9951445d30bfe97bb))
+* Fix garbage collection of tomograms for performance ([#69](https://github.com/copick/chimerax-copick/issues/69)) ([a0fed89](https://github.com/copick/chimerax-copick/commit/a0fed89ee38a00b4b1e7528573b6bcff060c5677))
+* Sort tomograms alphabetically by tomogram type ([#67](https://github.com/copick/chimerax-copick/issues/67)) ([d22cb73](https://github.com/copick/chimerax-copick/commit/d22cb73931adae44330ce1abce7841299012403e))
+
 ## [1.7.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.7.0...chimerax-copick-v1.7.1) (2026-04-15)
 
 
