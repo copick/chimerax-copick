@@ -757,19 +757,22 @@ class MainWidget(QWidget):
         self._copick.edit_object_types()
 
     def _on_new_picks(self, object_name: str, user_id: str, session_id: str):
-        """Handle new-picks request from the table, echoing the equivalent command."""
+        """Handle new-picks request from the table, logging the equivalent command."""
+        from chimerax.core.commands import log_equivalent_command
+
         from ..tool import build_command
 
-        self._copick.session.logger.info(
+        log_equivalent_command(
+            self._copick.session,
             build_command("copick new picks", object_name, user_id=user_id, session_id=session_id),
         )
         self._copick.new_particles(object_name, user_id, session_id)
 
     def _on_reload(self):
         """Handle Reload button click"""
-        from ..tool import build_command
+        from chimerax.core.commands import log_equivalent_command
 
-        self._copick.session.logger.info(build_command("copick reload"))
+        log_equivalent_command(self._copick.session, "copick reload")
         self._copick.reload_session()
 
     def _on_shared_settings_clicked(self):

@@ -16,7 +16,7 @@ from chimerax.artiax.particle.ParticleList import (
     ParticleList,
     lock_particlelist,
 )
-from chimerax.core.commands import run
+from chimerax.core.commands import log_equivalent_command, run
 from chimerax.core.models import Surface
 
 # ChimeraX
@@ -316,11 +316,12 @@ class CopickTool(ToolInstance):
 
         tomo = item.tomogram
 
-        # Log the equivalent command so the UI action is scriptable.
-        self.session.logger.info(
-            build_command("copick open run", tomo.voxel_spacing.run.name, tomoType=tomo.tomo_type),
+        # Log the equivalent command (ChimeraX "log equivalent command" behavior) so the
+        # user can see/copy the scriptable form, then perform the action directly.
+        log_equivalent_command(
+            self.session,
+            build_command("copick open run", tomo.voxel_spacing.run.name, tomo_type=tomo.tomo_type),
         )
-
         self.open_tomogram(tomo)
 
     def open_tomogram(self, tomo: CopickTomogramFSSpec, zarr_level: int = None):
@@ -368,15 +369,11 @@ class CopickTool(ToolInstance):
         # Store all the picks
         self.store()
 
-        # Determine the resulting visibility so we can echo the equivalent command.
+        # Log the equivalent command, then toggle visibility directly.
         will_show = not self.picks_map[entity].display if entity in self.picks_map else True
         verb = "copick open picks" if will_show else "copick hide picks"
-        self.session.logger.info(build_command(verb, serialize_copick_uri(entity)))
-
-        if will_show:
-            self._show_picks_entity(entity)
-        else:
-            self._hide_picks_entity(entity)
+        log_equivalent_command(self.session, build_command(verb, serialize_copick_uri(entity)))
+        (self._show_picks_entity if will_show else self._hide_picks_entity)(entity)
 
     def _show_picks_entity(self, picks: CopickPicks):
         """Load (if needed) and show a picks entity. Shared by UI + ``copick open picks``."""
@@ -928,12 +925,8 @@ class CopickTool(ToolInstance):
 
         will_show = not self.seg_map[entity].display if entity in self.seg_map else True
         verb = "copick open segmentation" if will_show else "copick hide segmentation"
-        self.session.logger.info(build_command(verb, serialize_copick_uri(entity)))
-
-        if will_show:
-            self._show_segmentation_entity(entity)
-        else:
-            self._hide_segmentation_entity(entity)
+        log_equivalent_command(self.session, build_command(verb, serialize_copick_uri(entity)))
+        (self._show_segmentation_entity if will_show else self._hide_segmentation_entity)(entity)
 
     def _show_segmentation_entity(self, seg: CopickSegmentation):
         """Load (if needed) and show a segmentation. Shared by UI + ``copick open segmentation``."""
@@ -1004,12 +997,8 @@ class CopickTool(ToolInstance):
 
         will_show = not self.mesh_map[entity].display if entity in self.mesh_map else True
         verb = "copick open mesh" if will_show else "copick hide mesh"
-        self.session.logger.info(build_command(verb, serialize_copick_uri(entity)))
-
-        if will_show:
-            self._show_mesh_entity(entity)
-        else:
-            self._hide_mesh_entity(entity)
+        log_equivalent_command(self.session, build_command(verb, serialize_copick_uri(entity)))
+        (self._show_mesh_entity if will_show else self._hide_mesh_entity)(entity)
 
     def _show_mesh_entity(self, mesh: CopickMesh):
         """Load (if needed) and show a mesh. Shared by UI + ``copick open mesh``."""
