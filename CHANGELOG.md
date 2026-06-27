@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.8.0...chimerax-copick-v1.9.0) (2026-06-27)
+
+
+### ✨ Features
+
+* Add commands to allow automation via scripts ([#71](https://github.com/copick/chimerax-copick/issues/71)) ([9d19c26](https://github.com/copick/chimerax-copick/commit/9d19c26c80e0804d6903158d63d8fdb0286f4f25))
+
 ## [1.8.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.7.1...chimerax-copick-v1.8.0) (2026-06-16)
 
 
