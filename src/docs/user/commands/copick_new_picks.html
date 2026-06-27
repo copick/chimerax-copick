@@ -1,0 +1,52 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Command: copick new picks</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#commands">Command</a>: copick new picks</h3>
+    <h3 class="usage"><a href="usageconventions.html">Usage</a>:
+    <br><b>copick new picks</b> <i>object-name</i>
+    [ <b>user_id</b> <i>id</i> ]
+    [ <b>session_id</b> <i>id</i> ]</h3>
+
+    <p>
+    The <b>copick new picks</b> command creates a new, empty set of picks for the pickable object
+    <i>object-name</i> in the <b>active run</b>, shows it, and switches the right mouse button to
+    the <em>mark plane</em> picking mode so points can be placed immediately. This is the command
+    equivalent of the <b>New</b> button on the Picks tab.
+    </p>
+
+    <table border="1" cellpadding="4" cellspacing="0">
+      <tbody>
+        <tr><td><em><strong>option</strong></em></td><td><em><strong>meaning</strong></em></td></tr>
+        <tr><td><b>user_id</b></td>
+          <td>User ID for the new picks. Defaults to the project's user ID (or <code>ArtiaX</code>
+            if none is set).</td></tr>
+        <tr><td><b>session_id</b></td>
+          <td>Session ID for the new picks. Defaults to the next available
+            <code>manual-N</code> identifier in the run.</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+    <i>object-name</i> must be a pickable object defined in the project configuration (manage these
+    via <b>Edit Object Types</b>). A run must be open first
+    (see <a href="copick_open_run.html"><b>copick open run</b></a>).
+    </p>
+
+    <p> Examples: </p>
+    <blockquote> <b>copick new picks ribosome<br>
+      copick new picks ribosome user_id alice session_id manual-2</b> </blockquote>
+
+    <p>See also:
+      <a href="copick_open.html"><b>copick open / show / hide</b></a>,
+      <a href="../general/copick_uris.html"><b>Copick URIs</b></a>.</p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>

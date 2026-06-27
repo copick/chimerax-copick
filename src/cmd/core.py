@@ -10,6 +10,7 @@ from copick.impl.filesystem import CopickConfigFSSpec
 
 # Copick imports
 from copick.models import CopickConfig
+from copick.util.uri import resolve_copick_objects
 
 
 def get_singleton(session, create=True):
@@ -174,6 +175,180 @@ def _create_portal_config(
     session.logger.info(f"Created portal config for datasets: {dataset_ids} at {config_path}")
 
 
+# ============================================================================
+# Scripting commands for UI actions (open/show/hide entities, new picks, reload)
+# ============================================================================
+
+
+def _get_running_tool(session):
+    """Return the running CopickTool with a loaded project, or None (with a warning)."""
+    tool = getattr(session, "copick", None)
+    if tool is None or tool.root is None:
+        session.logger.warning("Copick is not running. Run 'copick start <config>' first.")
+        return None
+    return tool
+
+
+def _active_run(session, tool):
+    """Return the run of the active tomogram, or None (with a warning)."""
+    if tool.active_volume is None:
+        session.logger.warning("No run is open. Open a run first, e.g. 'copick open run <name>'.")
+        return None
+    return tool.active_volume.copick_tomo.voxel_spacing.run
+
+
+def _find_tomogram_by_type(run, tomo_type: str):
+    """Find a tomogram of the given type in a run, preferring the largest voxel spacing.
+
+    The largest voxel spacing is the most downsampled (fastest to load), matching the
+    gallery's default selection behavior.
+    """
+    matches = []
+    for vs in run.voxel_spacings:
+        for tomo in vs.tomograms:
+            if tomo.tomo_type == tomo_type:
+                matches.append(tomo)
+    if not matches:
+        return None
+    matches.sort(key=lambda t: t.voxel_spacing.voxel_size, reverse=True)
+    return matches[0]
+
+
+def _next_session_id(run) -> str:
+    """Generate the next available 'manual-X' session id for a run (see NewPickDialog)."""
+    existing = {p.session_id.lower() for p in run.picks if p.session_id}
+    counter = 1
+    while f"manual-{counter}" in existing:
+        counter += 1
+    return f"manual-{counter}"
+
+
+def _resolve_entities(session, tool, run, uri: Optional[str], object_type: str) -> List:
+    """Resolve a copick URI to entities scoped to the active run (empty list on error)."""
+    try:
+        return resolve_copick_objects(uri or "*", tool.root, object_type, run_name=run.name)
+    except ValueError as e:
+        session.logger.error(f"Invalid copick URI '{uri}': {e}")
+        return []
+
+
+def _apply_to_entities(session, object_type: str, uri: Optional[str], method_name: str, verb: str):
+    """Resolve a URI and apply a CopickTool show/hide method to each matching entity."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    run = _active_run(session, tool)
+    if run is None:
+        return
+
+    entities = _resolve_entities(session, tool, run, uri, object_type)
+    if not entities:
+        session.logger.warning(f"No {object_type} matching '{uri or '*'}' found in run '{run.name}'.")
+        return
+
+    method = getattr(tool, method_name)
+    for entity in entities:
+        method(entity)
+
+    noun = object_type if len(entities) == 1 else f"{object_type} entities"
+    session.logger.info(f"{verb} {len(entities)} {noun} in run '{run.name}'.")
+
+
+def copick_open_run(session, run_name: str, tomo_type: Optional[str] = None, zarr_level: Optional[int] = None):
+    """Open a run's tomogram in the copick session."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+
+    crun = tool.root.get_run(run_name)
+    if crun is None:
+        session.logger.error(f"Run '{run_name}' not found.")
+        return
+
+    if zarr_level is not None and zarr_level not in (0, 1, 2):
+        clamped = max(0, min(2, zarr_level))
+        session.logger.warning(f"zarr_level {zarr_level} out of range [0, 2]; using {clamped}.")
+        zarr_level = clamped
+
+    if tomo_type:
+        tomo = _find_tomogram_by_type(crun, tomo_type)
+        if tomo is None:
+            session.logger.error(f"No tomogram of type '{tomo_type}' in run '{run_name}'.")
+            return
+    else:
+        tomo = tool._mw._select_best_tomogram_from_run(crun)
+        if tomo is None:
+            session.logger.error(f"Run '{run_name}' has no tomograms.")
+            return
+
+    tool.open_tomogram(tomo, zarr_level=zarr_level)
+    session.logger.info(
+        f"Opened tomogram '{tomo.tomo_type}' (voxel {tomo.voxel_spacing.voxel_size}) for run '{run_name}'.",
+    )
+
+
+def copick_open_picks(session, uri: Optional[str] = None):
+    """Show picks in the active run matching the given copick URI (default: all)."""
+    _apply_to_entities(session, "picks", uri, "_show_picks_entity", "Showed")
+
+
+def copick_open_mesh(session, uri: Optional[str] = None):
+    """Show meshes in the active run matching the given copick URI (default: all)."""
+    _apply_to_entities(session, "mesh", uri, "_show_mesh_entity", "Showed")
+
+
+def copick_open_segmentation(session, uri: Optional[str] = None):
+    """Show segmentations in the active run matching the given copick URI (default: all)."""
+    _apply_to_entities(session, "segmentation", uri, "_show_segmentation_entity", "Showed")
+
+
+def copick_hide_picks(session, uri: Optional[str] = None):
+    """Hide picks in the active run matching the given copick URI (default: all)."""
+    _apply_to_entities(session, "picks", uri, "_hide_picks_entity", "Hid")
+
+
+def copick_hide_mesh(session, uri: Optional[str] = None):
+    """Hide meshes in the active run matching the given copick URI (default: all)."""
+    _apply_to_entities(session, "mesh", uri, "_hide_mesh_entity", "Hid")
+
+
+def copick_hide_segmentation(session, uri: Optional[str] = None):
+    """Hide segmentations in the active run matching the given copick URI (default: all)."""
+    _apply_to_entities(session, "segmentation", uri, "_hide_segmentation_entity", "Hid")
+
+
+def copick_new_picks(session, object_name: str, user_id: Optional[str] = None, session_id: Optional[str] = None):
+    """Create a new (empty) set of picks in the active run."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    run = _active_run(session, tool)
+    if run is None:
+        return
+
+    if tool.root.get_object(object_name) is None:
+        session.logger.error(
+            f"Object '{object_name}' is not defined in the config. Add it via 'Edit Object Types' first.",
+        )
+        return
+
+    if user_id is None:
+        user_id = tool.root.user_id if tool.root.user_id is not None else "ArtiaX"
+    if session_id is None:
+        session_id = _next_session_id(run)
+
+    tool.new_particles(object_name, user_id, session_id)
+    session.logger.info(f"Created new picks '{object_name}:{user_id}/{session_id}' in run '{run.name}'.")
+
+
+def copick_reload(session):
+    """Reload the current copick session from its config file."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    tool.reload_session()
+
+
 def register_copick(logger):
     """Register all commands with ChimeraX, and specify expected arguments."""
     from chimerax.core.commands import CmdDesc, FileNameArg, IntArg, ListOf, StringArg, register
@@ -182,7 +357,7 @@ def register_copick(logger):
         desc = CmdDesc(
             required=[("config_file", FileNameArg)],
             synopsis="Start the Copick GUI or load a new config file.",
-            # url='help:user/commands/copick_start.html'
+            url="help:user/commands/copick_start.html",
         )
         register("copick start", desc, copick_start)
 
@@ -190,7 +365,7 @@ def register_copick(logger):
         desc = CmdDesc(
             optional=[("shortcut", StringArg)],
             synopsis="Start using Copick keyboard shortcuts.",
-            # url='help:user/commands/copick_start.html'
+            url="help:user/commands/copick_cks.html",
         )
         register("cks", desc, cks)
 
@@ -205,10 +380,80 @@ def register_copick(logger):
                 ("description", StringArg),
             ],
             synopsis="Create a new copick configuration file (filesystem or cryoet data portal).",
-            # url='help:user/commands/copick_new.html'
+            url="help:user/commands/copick_new.html",
         )
         register("copick new", desc, copick_new)
+
+    entity_url = "help:user/commands/copick_open.html"
+
+    def register_copick_open_run():
+        desc = CmdDesc(
+            required=[("run_name", StringArg)],
+            keyword=[("tomo_type", StringArg), ("zarr_level", IntArg)],
+            synopsis="Open a run's tomogram in the copick session.",
+            url="help:user/commands/copick_open_run.html",
+        )
+        register("copick open run", desc, copick_open_run)
+
+    def register_entity_commands():
+        # open/show/hide for picks, meshes and segmentations, all addressed by copick URI.
+        # 'show' is an alias of 'open' (idempotent load + show).
+        def entity_uri_desc(synopsis):
+            return CmdDesc(optional=[("uri", StringArg)], synopsis=synopsis, url=entity_url)
+
+        for verb in ("open", "show"):
+            register(
+                f"copick {verb} picks",
+                entity_uri_desc("Show picks in the active run matching a copick URI."),
+                copick_open_picks,
+            )
+            register(
+                f"copick {verb} mesh",
+                entity_uri_desc("Show meshes in the active run matching a copick URI."),
+                copick_open_mesh,
+            )
+            register(
+                f"copick {verb} segmentation",
+                entity_uri_desc("Show segmentations in the active run matching a copick URI."),
+                copick_open_segmentation,
+            )
+
+        register(
+            "copick hide picks",
+            entity_uri_desc("Hide picks in the active run matching a copick URI."),
+            copick_hide_picks,
+        )
+        register(
+            "copick hide mesh",
+            entity_uri_desc("Hide meshes in the active run matching a copick URI."),
+            copick_hide_mesh,
+        )
+        register(
+            "copick hide segmentation",
+            entity_uri_desc("Hide segmentations in the active run matching a copick URI."),
+            copick_hide_segmentation,
+        )
+
+    def register_copick_new_picks():
+        desc = CmdDesc(
+            required=[("object_name", StringArg)],
+            keyword=[("user_id", StringArg), ("session_id", StringArg)],
+            synopsis="Create a new (empty) set of picks in the active run.",
+            url="help:user/commands/copick_new_picks.html",
+        )
+        register("copick new picks", desc, copick_new_picks)
+
+    def register_copick_reload():
+        desc = CmdDesc(
+            synopsis="Reload the current copick session from its config file.",
+            url="help:user/commands/copick_reload.html",
+        )
+        register("copick reload", desc, copick_reload)
 
     register_copick_start()
     register_copick_keyboard_shortcuts()
     register_copick_new()
+    register_copick_open_run()
+    register_entity_commands()
+    register_copick_new_picks()
+    register_copick_reload()

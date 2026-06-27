@@ -1,0 +1,57 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Tool: Copick</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#tools">Tool</a>: Copick</h3>
+
+    <p>
+    The <b>Copick</b> tool provides collaborative annotation of cryo-electron tomograms using the
+    <a href="https://copick.github.io/copick/">copick</a> data model. It browses the runs of a
+    project, loads tomograms, and shows or edits picks, meshes and segmentations, rendering them
+    through <a href="help:user/tools/artiax.html">ArtiaX</a>.
+    </p>
+
+    <p>
+    Start the tool from the <b>Tools &rarr; Volume Data &rarr; Copick</b> menu, then load a
+    project with the <a href="../commands/copick_start.html"><b>copick start</b></a> command, or
+    create a new one with <a href="../commands/copick_new.html"><b>copick new</b></a>.
+    </p>
+
+    <h4>Layout</h4>
+    <ul>
+      <li><b>Gallery / Tree</b> &ndash; browse runs. Double-clicking a tomogram opens it (see
+        <a href="../commands/copick_open_run.html"><b>copick open run</b></a>). A search box
+        filters runs by name; the floating buttons switch between gallery, details and 3D views.</li>
+      <li><b>Picks / Meshes / Segmentations tabs</b> &ndash; the entities available for the active
+        run. Double-click a row to show/hide it; use the row buttons to create, duplicate or
+        delete entities. The particle stepper navigates individual picks.</li>
+      <li><b>Edit Object Types</b> &ndash; manage the project's pickable objects.</li>
+      <li><b>Reload</b> &ndash; reload the project from its config file (see
+        <a href="../commands/copick_reload.html"><b>copick reload</b></a>).</li>
+    </ul>
+
+    <h4>Scripting</h4>
+    <p>
+    Most UI actions have command equivalents so sessions can be scripted, and the corresponding
+    command is echoed to the Log whenever you perform the action in the UI. See the
+    <a href="../copick_index.html#commands">Commands</a> section and
+    <a href="../general/copick_uris.html">Copick URIs</a>.
+    </p>
+
+    <h4>Toolbar</h4>
+    <p>
+    A <b>Copick</b> toolbar tab provides visualization (slab, volume, orthoplanes, surface),
+    binning, marker/axis/surface visibility, viewing directions, and particle picking and
+    manipulation mouse modes.
+    </p>
+
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>

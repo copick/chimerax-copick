@@ -1,0 +1,65 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Command: copick open / show / hide</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#commands">Command</a>: copick open, show, hide</h3>
+    <h3 class="usage"><a href="usageconventions.html">Usage</a>:
+    <br><b>copick open</b>|<b>show</b>|<b>hide</b>
+    <b>picks</b>|<b>mesh</b>|<b>segmentation</b> [ <i>uri</i> ]</h3>
+
+    <p>
+    These commands show or hide picks, meshes and segmentations of the <b>active run</b> in the
+    <a href="../tools/copick.html">Copick</a> tool. They are the command equivalents of toggling an
+    entity's visibility in the Picks / Meshes / Segmentations tabs.
+    </p>
+    <ul>
+      <li><b>copick open</b> and <b>copick show</b> are equivalent: each loads the entity if needed
+        and ensures it is visible (so <b>show</b> also re-displays a hidden entity).</li>
+      <li><b>copick hide</b> hides a loaded entity.</li>
+    </ul>
+
+    <p>
+    The optional <i>uri</i> is a <a href="../general/copick_uris.html">copick URI</a> selecting which
+    entities to act on. URIs support glob (default) and <code>re:</code> regex patterns, so one
+    command can act on several entities; the number affected is reported in the Log. When <i>uri</i>
+    is omitted, the command acts on <em>all</em> entities of that type in the active run.
+    </p>
+
+    <table border="1" cellpadding="4" cellspacing="0">
+      <tbody>
+        <tr><td><em><strong>entity</strong></em></td><td><em><strong>URI scheme</strong></em></td></tr>
+        <tr><td><b>picks</b></td><td><code>object_name:user_id/session_id</code></td></tr>
+        <tr><td><b>mesh</b></td><td><code>object_name:user_id/session_id</code></td></tr>
+        <tr><td><b>segmentation</b></td>
+          <td><code>name:user_id/session_id@voxel_size[?multilabel=true]</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>
+    A run must be open first (see <a href="copick_open_run.html"><b>copick open run</b></a>);
+    otherwise the command reports that no run is active. Quote URIs that contain wildcards so they
+    are not split by the command line, e.g. <code>"ribosome:*/*"</code>.
+    </p>
+
+    <p> Examples: </p>
+    <blockquote> <b>copick open picks<br>
+      copick open picks ribosome:alice/0<br>
+      copick show picks "ribosome:*/*"<br>
+      copick hide picks ribosome:alice/0<br>
+      copick open mesh membrane:bob/12<br>
+      copick open segmentation painting:alice/3@10.0</b> </blockquote>
+
+    <p>See also:
+      <a href="../general/copick_uris.html"><b>Copick URIs</b></a>,
+      <a href="copick_open_run.html"><b>copick open run</b></a>,
+      <a href="copick_new_picks.html"><b>copick new picks</b></a>.</p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>
