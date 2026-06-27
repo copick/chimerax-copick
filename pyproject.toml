@@ -61,8 +61,60 @@ synopsis = "Start a copick session or load a new config file."
 category = "General"
 synopsis = "Create a copick config file and load the session."
 
+[chimerax.command."copick open run"]
+category = "General"
+synopsis = "Open a run's tomogram in the copick session."
+
+[chimerax.command."copick open picks"]
+category = "General"
+synopsis = "Show picks in the active run matching a copick URI."
+
+[chimerax.command."copick open mesh"]
+category = "General"
+synopsis = "Show meshes in the active run matching a copick URI."
+
+[chimerax.command."copick open segmentation"]
+category = "General"
+synopsis = "Show segmentations in the active run matching a copick URI."
+
+[chimerax.command."copick show picks"]
+category = "General"
+synopsis = "Show picks in the active run matching a copick URI."
+
+[chimerax.command."copick show mesh"]
+category = "General"
+synopsis = "Show meshes in the active run matching a copick URI."
+
+[chimerax.command."copick show segmentation"]
+category = "General"
+synopsis = "Show segmentations in the active run matching a copick URI."
+
+[chimerax.command."copick hide picks"]
+category = "General"
+synopsis = "Hide picks in the active run matching a copick URI."
+
+[chimerax.command."copick hide mesh"]
+category = "General"
+synopsis = "Hide meshes in the active run matching a copick URI."
+
+[chimerax.command."copick hide segmentation"]
+category = "General"
+synopsis = "Hide segmentations in the active run matching a copick URI."
+
+[chimerax.command."copick new picks"]
+category = "General"
+synopsis = "Create a new (empty) set of picks in the active run."
+
+[chimerax.command."copick reload"]
+category = "General"
+synopsis = "Reload the current copick session from its config file."
+
 [chimerax.package-data]
 "src/icons/" = ["*.png"]
+"src/docs/user/" = ["*.html", "*.png"]
+"src/docs/user/general/" = ["*.html"]
+"src/docs/user/tools/" = ["*.html"]
+"src/docs/user/commands/" = ["*.html"]
 
 ### TOOLBAR ###
 # Copick tab, Visualization

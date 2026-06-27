@@ -1,0 +1,47 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Command: copick open run</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#commands">Command</a>: copick open run</h3>
+    <h3 class="usage"><a href="usageconventions.html">Usage</a>:
+    <br><b>copick open run</b> <i>run-name</i>
+    [ <b>tomo_type</b> <i>type</i> ]
+    [ <b>zarr_level</b> <i>0&nbsp;|&nbsp;1&nbsp;|&nbsp;2</i> ]</h3>
+
+    <p>
+    The <b>copick open run</b> command opens a tomogram of the run named <i>run-name</i> in the
+    <a href="../tools/copick.html">Copick</a> tool, making that run the active run. This is the
+    command equivalent of double-clicking a tomogram in the run tree.
+    </p>
+
+    <table border="1" cellpadding="4" cellspacing="0">
+      <tbody>
+        <tr><td><em><strong>option</strong></em></td><td><em><strong>meaning</strong></em></td></tr>
+        <tr><td><b>tomo_type</b></td>
+          <td>Type of tomogram to open (e.g. <code>wbp</code>, <code>denoised</code>). When given,
+            the matching tomogram at the largest (most downsampled) voxel spacing is chosen. When
+            omitted, a default tomogram is selected automatically.</td></tr>
+        <tr><td><b>zarr_level</b></td>
+          <td>Resolution pyramid level to display initially: <b>0</b> = full, <b>1</b> = 2&times;,
+            <b>2</b> = 4&times; downsampled. Defaults to the value configured in the table settings.
+            Other levels are still available via the volume step controls after loading.</td></tr>
+      </tbody>
+    </table>
+
+    <p> Examples: </p>
+    <blockquote> <b>copick open run TS_001<br>
+      copick open run TS_001 tomo_type wbp zarr_level 1</b> </blockquote>
+
+    <p>See also:
+      <a href="copick_open.html"><b>copick open / show / hide</b></a>,
+      <a href="copick_reload.html"><b>copick reload</b></a>.</p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>

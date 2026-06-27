@@ -1,0 +1,75 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <link rel="stylesheet" type="text/css" href="../userdocs.css">
+    <title>Index</title>
+    <style>
+    div.expanded {visibility:visible; display: block}
+    div.collapsed {visibility:hidden; display: none}
+    </style>
+    <script>
+      function toggle(id, image) {
+        div = document.getElementById(id);
+        if (div.className == "expanded") {
+          div.className = "collapsed";
+          image.src="../../icons/triangler.png";
+        } else {
+          div.className = "expanded";
+          image.src="../../icons/triangled.png";
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <h2> <a name="top"></a> <a href="./copick_index.html"> <img src="./copick-docs-icon.png"
+          alt="ChimeraX docs icon" class="clRight" title="User Guide Index" width="60px"></a>
+      Copick User Guide </h2>
+    <p><b>Copick</b> is a collaborative cryo-ET annotation plugin for ChimeraX. It uses the
+      <a href="https://copick.github.io/copick/">copick</a> data model to browse runs, load
+      tomograms, and view/edit picks, meshes and segmentations, rendering them through
+      <a href="help:user/tools/artiax.html">ArtiaX</a>.</p>
+    <p>The user interface is described in the <b>Tools</b> section. All commands are prefixed
+      with "<strong>copick</strong>". Picks, meshes and segmentations are addressed by their
+      <a href="general/copick_uris.html">copick&nbsp;URI</a>.</p>
+    <ul class="none" style="list-style: none;">
+      <li><a name="General" href="#general"></a> <img onclick="toggle('general', this);"
+          src="../../icons/triangled.png" width="10" height="10/">&nbsp;<b>General</b></li>
+      <div id="general" class="expanded">
+        <ul>
+          <li><b><a href="general/copick_uris.html">Copick URIs</a></b>
+            &nbsp;– How to address picks, meshes, segmentations and tomograms</li>
+        </ul>
+      </div>
+      <li><a name="Tools" href="#tools"></a> <img onclick="toggle('tools', this);"
+          src="../../icons/triangled.png" width="10" height="10/">&nbsp;<b>Tools</b></li>
+      <div id="tools" class="expanded">
+        <ul>
+          <li><b><a href="tools/copick.html">Copick</a></b> &nbsp;– Browse runs and
+            view/annotate picks, meshes and segmentations.</li>
+        </ul>
+      </div>
+      <li><a name="Commands" href="#commands"></a> <img onclick="toggle('commands', this);"
+          src="../../icons/triangled.png" width="10" height="10/">&nbsp;<b>Commands</b></li>
+      <div id="commands" class="expanded">
+        <ul>
+          <li><b><a href="commands/copick_start.html">start</a></b>
+            &nbsp;– start a copick session / load a config file</li>
+          <li><b><a href="commands/copick_new.html">new</a></b>
+            &nbsp;– create a new copick config file (filesystem or data portal)</li>
+          <li><b><a href="commands/copick_open_run.html">open run</a></b>
+            &nbsp;– open a run's tomogram</li>
+          <li><b><a href="commands/copick_open.html">open, show, hide</a></b>
+            &nbsp;– show or hide picks, meshes and segmentations by URI</li>
+          <li><b><a href="commands/copick_new_picks.html">new picks</a></b>
+            &nbsp;– create a new empty set of picks in the active run</li>
+          <li><b><a href="commands/copick_reload.html">reload</a></b>
+            &nbsp;– reload the current session from its config file</li>
+          <li><b><a href="commands/copick_cks.html">cks</a></b>
+            &nbsp;– enable copick keyboard shortcuts</li>
+        </ul>
+      </div>
+    </ul>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>

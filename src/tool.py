@@ -16,7 +16,7 @@ from chimerax.artiax.particle.ParticleList import (
     ParticleList,
     lock_particlelist,
 )
-from chimerax.core.commands import run
+from chimerax.core.commands import log_equivalent_command, run
 from chimerax.core.models import Surface
 
 # ChimeraX
@@ -27,6 +27,7 @@ from chimerax.ome_zarr.open import open_ome_zarr_from_store
 from chimerax.ui import MainToolWindow
 from copick.impl.filesystem import CopickTomogramFSSpec
 from copick.models import CopickLocation, CopickMesh, CopickPicks, CopickPoint, CopickSegmentation
+from copick.util.uri import serialize_copick_uri
 from copick_shared_ui.core.thumbnail_cache import set_global_cache_config, set_global_cache_image_interface
 
 # Qt
@@ -47,11 +48,34 @@ from .ui.main_widget import MainWidget
 from .ui.tree import TreeTomogram
 
 
+def build_command(command: str, *args: Any, **kwargs: Any) -> str:
+    """Build a ChimeraX command string from positional args and keyword options.
+
+    ``None``-valued positionals/keywords are skipped. Any token containing whitespace is
+    single-quoted (copick names forbid whitespace, so this is just a safety net). Used to
+    echo the command equivalent to a UI action into the log.
+    """
+
+    def quote(value: Any) -> str:
+        text = str(value)
+        return f"'{text}'" if any(c.isspace() for c in text) else text
+
+    parts = [command]
+    parts.extend(quote(a) for a in args if a is not None)
+    for key, value in kwargs.items():
+        if value is None:
+            continue
+        parts.append(f"{key} {quote(value)}")
+    return " ".join(parts)
+
+
 class CopickTool(ToolInstance):
     # Does this instance persist when session closes
     SESSION_ENDURING = False
     # We do save/restore in sessions
     SESSION_SAVE = False
+    # User guide page for this tool
+    help = "help:user/tools/copick.html"
 
     # Let ChimeraX know about our help page
     def __init__(self, session, tool_name):
@@ -243,14 +267,24 @@ class CopickTool(ToolInstance):
         except AttributeError:
             pass
 
-    def load_tomo(self, tomo: CopickTomogramFSSpec):
-        """Load a tomogram from the copick backend system."""
+    def load_tomo(self, tomo: CopickTomogramFSSpec, zarr_level: int = None):
+        """Load a tomogram from the copick backend system.
+
+        Parameters
+        ----------
+        tomo:
+            The copick tomogram to load.
+        zarr_level:
+            Resolution pyramid level to display initially (0=full, 1=2x, 2=4x). When
+            ``None`` the persistent ``settings.zarr_level`` preference is used.
+        """
         name = f"{tomo.voxel_spacing.run.name} - {tomo.voxel_spacing.voxel_size}"
 
         # Get preferred zarr level from persistent settings and convert to initial step.
         # Loading with scales=None preserves all resolution levels in a WrappedZarrGrid,
         # which allows ChimeraX's step UI to switch between them dynamically.
-        zarr_level = self.settings.zarr_level
+        if zarr_level is None:
+            zarr_level = self.settings.zarr_level
         step = 2**zarr_level
         initial_step = (step, step, step)
 
@@ -280,9 +314,24 @@ class CopickTool(ToolInstance):
         if item.is_active:
             return
 
-        # Previous and current tomogram
         tomo = item.tomogram
-        close_all = False
+
+        # Log the equivalent command (ChimeraX "log equivalent command" behavior) so the
+        # user can see/copy the scriptable form, then perform the action directly.
+        log_equivalent_command(
+            self.session,
+            build_command("copick open run", tomo.voxel_spacing.run.name, tomo_type=tomo.tomo_type),
+        )
+        self.open_tomogram(tomo)
+
+    def open_tomogram(self, tomo: CopickTomogramFSSpec, zarr_level: int = None):
+        """Open a tomogram, switching the active run/tables as needed.
+
+        Shared by the tree double-click (``switch_volume``) and the ``copick open run``
+        command. Closes the active volume, stores pending edits and, when switching to a
+        different run, closes the previous run's particles and repoints the tables.
+        """
+        # Determine whether we are switching to a different run.
         if self.active_volume is not None:
             prev_tomo = self.active_volume.copick_tomo
             close_all = tomo.voxel_spacing.run != prev_tomo.voxel_spacing.run
@@ -303,7 +352,7 @@ class CopickTool(ToolInstance):
             self._mw._segmentations_table.set_view(tomo.voxel_spacing.run)
 
         # Open the new volume
-        self.load_tomo(tomo)
+        self.load_tomo(tomo, zarr_level=zarr_level)
 
     def show_particles(self, index: QModelIndex):
         # Only on valid indices
@@ -320,15 +369,30 @@ class CopickTool(ToolInstance):
         # Store all the picks
         self.store()
 
-        if entity in self.picks_map:
-            particles = self.picks_map[entity]
-            particles.display = not particles.display
-            self._mw.set_entity_active(entity, particles.display)
-            self.update_stepper(particles)
+        # Log the equivalent command, then toggle visibility directly.
+        will_show = not self.picks_map[entity].display if entity in self.picks_map else True
+        verb = "copick open picks" if will_show else "copick hide picks"
+        log_equivalent_command(self.session, build_command(verb, serialize_copick_uri(entity)))
+        (self._show_picks_entity if will_show else self._hide_picks_entity)(entity)
+
+    def _show_picks_entity(self, picks: CopickPicks):
+        """Load (if needed) and show a picks entity. Shared by UI + ``copick open picks``."""
+        if picks in self.picks_map:
+            partlist = self.picks_map[picks]
+            partlist.display = True
+            self._mw.set_entity_active(picks, True)
+            self.update_stepper(partlist)
         else:
-            picks = entity
             self.show_particles_from_picks(picks)
             self._mw.set_entity_active(picks, True)
+
+    def _hide_picks_entity(self, picks: CopickPicks):
+        """Hide a loaded picks entity (no-op if it is not currently loaded)."""
+        if picks in self.picks_map:
+            partlist = self.picks_map[picks]
+            partlist.display = False
+            self._mw.set_entity_active(picks, False)
+            self.update_stepper(partlist)
 
     def show_particles_from_picks(self, picks: CopickPicks):
         from chimerax.geometry import Place, translation
@@ -859,14 +923,25 @@ class CopickTool(ToolInstance):
         if not isinstance(entity, CopickSegmentation):
             return
 
-        if entity in self.seg_map:
-            volume = self.seg_map[entity]
-            volume.display = not volume.display
-            self._mw.set_entity_active(entity, volume.display)
+        will_show = not self.seg_map[entity].display if entity in self.seg_map else True
+        verb = "copick open segmentation" if will_show else "copick hide segmentation"
+        log_equivalent_command(self.session, build_command(verb, serialize_copick_uri(entity)))
+        (self._show_segmentation_entity if will_show else self._hide_segmentation_entity)(entity)
+
+    def _show_segmentation_entity(self, seg: CopickSegmentation):
+        """Load (if needed) and show a segmentation. Shared by UI + ``copick open segmentation``."""
+        if seg in self.seg_map:
+            self.seg_map[seg].display = True
+            self._mw.set_entity_active(seg, True)
         else:
-            seg = entity
             self.show_volume_from_segmentation(seg)
             self._mw.set_entity_active(seg, True)
+
+    def _hide_segmentation_entity(self, seg: CopickSegmentation):
+        """Hide a loaded segmentation (no-op if it is not currently loaded)."""
+        if seg in self.seg_map:
+            self.seg_map[seg].display = False
+            self._mw.set_entity_active(seg, False)
 
     def show_volume_from_segmentation(self, seg: CopickSegmentation):
         root = seg.run.root
@@ -920,14 +995,25 @@ class CopickTool(ToolInstance):
         if not isinstance(entity, CopickMesh):
             return
 
-        if entity in self.mesh_map:
-            surf = self.mesh_map[entity]
-            surf.display = not surf.display
-            self._mw.set_entity_active(entity, surf.display)
+        will_show = not self.mesh_map[entity].display if entity in self.mesh_map else True
+        verb = "copick open mesh" if will_show else "copick hide mesh"
+        log_equivalent_command(self.session, build_command(verb, serialize_copick_uri(entity)))
+        (self._show_mesh_entity if will_show else self._hide_mesh_entity)(entity)
+
+    def _show_mesh_entity(self, mesh: CopickMesh):
+        """Load (if needed) and show a mesh. Shared by UI + ``copick open mesh``."""
+        if mesh in self.mesh_map:
+            self.mesh_map[mesh].display = True
+            self._mw.set_entity_active(mesh, True)
         else:
-            mesh = entity
             self.show_surf_from_mesh(mesh)
             self._mw.set_entity_active(mesh, True)
+
+    def _hide_mesh_entity(self, mesh: CopickMesh):
+        """Hide a loaded mesh (no-op if it is not currently loaded)."""
+        if mesh in self.mesh_map:
+            self.mesh_map[mesh].display = False
+            self._mw.set_entity_active(mesh, False)
 
     def show_surf_from_mesh(self, mesh: CopickMesh):
         root = mesh.run.root

@@ -1,0 +1,80 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../../userdocs.css" />
+    <title>Copick URIs</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3>Copick URIs</h3>
+
+    <p>
+    Several copick commands select existing entities (picks, meshes, segmentations) by a
+    <b>copick URI</b>. A URI is a compact, relative identifier &ndash; it is interpreted against
+    the currently loaded project and (for the visualization commands) the currently active run.
+    </p>
+
+    <h4>URI schemes</h4>
+    <table border="1" cellpadding="4" cellspacing="0">
+      <tbody>
+        <tr>
+          <td><em><strong>entity</strong></em></td>
+          <td><em><strong>URI scheme</strong></em></td>
+          <td><em><strong>example</strong></em></td>
+        </tr>
+        <tr>
+          <td><strong>picks</strong></td>
+          <td><code>object_name:user_id/session_id</code></td>
+          <td><code>ribosome:alice/0</code></td>
+        </tr>
+        <tr>
+          <td><strong>mesh</strong></td>
+          <td><code>object_name:user_id/session_id</code></td>
+          <td><code>membrane:bob/12</code></td>
+        </tr>
+        <tr>
+          <td><strong>segmentation</strong></td>
+          <td><code>name:user_id/session_id@voxel_size[?multilabel=true]</code></td>
+          <td><code>painting:alice/3@10.0</code></td>
+        </tr>
+        <tr>
+          <td><strong>tomogram</strong></td>
+          <td><code>tomo_type@voxel_size</code></td>
+          <td><code>wbp@10.0</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>Patterns</h4>
+    <p>
+    URIs support matching, so a single command can act on several entities at once:
+    </p>
+    <ul>
+      <li><b>Glob</b> (the default): use <code>*</code> and <code>?</code> wildcards, e.g.
+        <code>ribosome:*/*</code> matches every <em>ribosome</em> pick set in the active run.</li>
+      <li><b>Regex</b>: prefix the URI with <code>re:</code>, e.g.
+        <code>re:ribo.*:.*/\d+</code>.</li>
+      <li><b>Incomplete</b> URIs auto-complete missing components to wildcards, e.g.
+        <code>ribosome</code> is treated as <code>ribosome:*/*</code>.</li>
+    </ul>
+    <p>
+    When a URI is omitted entirely, the command matches <em>all</em> entities of that type in
+    the active run. Because <code>:</code>, <code>/</code>, <code>@</code> and <code>?</code>
+    are part of the URI token, quote the URI if your shell or the command line would otherwise
+    split it, e.g. <code>"ribosome:*/*"</code>.
+    </p>
+
+    <p>
+    Note: a <code>session_id</code> of <code>0</code> denotes tool-generated entities, which are
+    read-only.
+    </p>
+
+    <p>See also:
+      <a href="../commands/copick_open.html"><b>copick open / show / hide</b></a>.
+    </p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>

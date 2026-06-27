@@ -498,7 +498,7 @@ class MainWidget(QWidget):
         self._picks_table.get_table_view().doubleClicked.connect(self._on_picks_double_click)
         self._picks_table.get_table_view().clicked.connect(self._on_picks_click)
         self._picks_table.duplicateClicked.connect(self._copick.duplicate_particles)
-        self._picks_table.newClicked.connect(self._copick.new_particles)
+        self._picks_table.newClicked.connect(self._on_new_picks)
         self._picks_table.deleteClicked.connect(self._copick.delete_particles)
 
         # Meshes actions - use wrapper methods to handle proxy model mapping
@@ -756,8 +756,23 @@ class MainWidget(QWidget):
         """Handle Edit Object Types button click"""
         self._copick.edit_object_types()
 
+    def _on_new_picks(self, object_name: str, user_id: str, session_id: str):
+        """Handle new-picks request from the table, logging the equivalent command."""
+        from chimerax.core.commands import log_equivalent_command
+
+        from ..tool import build_command
+
+        log_equivalent_command(
+            self._copick.session,
+            build_command("copick new picks", object_name, user_id=user_id, session_id=session_id),
+        )
+        self._copick.new_particles(object_name, user_id, session_id)
+
     def _on_reload(self):
         """Handle Reload button click"""
+        from chimerax.core.commands import log_equivalent_command
+
+        log_equivalent_command(self._copick.session, "copick reload")
         self._copick.reload_session()
 
     def _on_shared_settings_clicked(self):

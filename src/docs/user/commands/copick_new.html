@@ -1,0 +1,51 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Command: copick new</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#commands">Command</a>: copick new</h3>
+    <h3 class="usage"><a href="usageconventions.html">Usage</a>:
+    <br><b>copick new</b> <i>config-file</i>
+    [ <b>config_type</b> <i>filesystem&nbsp;|&nbsp;portal</i> ]
+    [ <b>dataset_ids</b> <i>id,id,...</i> ]
+    [ <b>root_dir</b> <i>path</i> ]
+    [ <b>name</b> <i>text</i> ]
+    [ <b>description</b> <i>text</i> ]</h3>
+
+    <p>
+    The <b>copick new</b> command creates a new copick configuration file at <i>config-file</i>
+    and loads it into the <a href="../tools/copick.html">Copick</a> tool.
+    </p>
+
+    <table border="1" cellpadding="4" cellspacing="0">
+      <tbody>
+        <tr><td><em><strong>option</strong></em></td><td><em><strong>meaning</strong></em></td></tr>
+        <tr><td><b>config_type</b></td>
+          <td>Type of project to create: <b>filesystem</b> (default) for a local overlay, or
+            <b>portal</b> for a <a href="https://cryoetdataportal.czscience.com/">CryoET Data
+            Portal</a> project.</td></tr>
+        <tr><td><b>dataset_ids</b></td>
+          <td>Comma-separated dataset IDs (required for <b>portal</b>), e.g.
+            <code>dataset_ids 10301</code>.</td></tr>
+        <tr><td><b>root_dir</b></td>
+          <td>Root directory for a filesystem project's data (defaults to a folder next to the
+            config file).</td></tr>
+        <tr><td><b>name</b></td><td>Project name.</td></tr>
+        <tr><td><b>description</b></td><td>Project description.</td></tr>
+      </tbody>
+    </table>
+
+    <p> Examples: </p>
+    <blockquote> <b>copick new /tmp/project.json root_dir /tmp/project_data<br>
+      copick new /tmp/portal.json config_type portal dataset_ids 10301</b> </blockquote>
+
+    <p>See also: <a href="copick_start.html"><b>copick start</b></a>.</p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>
