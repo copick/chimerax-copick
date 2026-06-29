@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.9.0...chimerax-copick-v1.9.1) (2026-06-29)
+
+
+### 🐞 Bug Fixes
+
+* Graceful termination on session close ([#73](https://github.com/copick/chimerax-copick/issues/73)) ([d2ea23a](https://github.com/copick/chimerax-copick/commit/d2ea23ab625fffba4237858f43e5c3e40393ca3c))
+
 ## [1.9.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.8.0...chimerax-copick-v1.9.0) (2026-06-27)
 
 
