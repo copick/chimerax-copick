@@ -124,11 +124,18 @@ class CopickTool(ToolInstance):
         self.wheel_move_planes_mode = WheelMovePlanesMode(self.session)
         self.session.ui.mouse_modes.add_mode(self.wheel_move_planes_mode)
         run(self.session, "ui mousemode shift wheel 'move copick planes'")
-        self.session.triggers.add_handler("app quit", self._store)
+
+        # Keep trigger handler refs so they can be removed in delete(); otherwise the
+        # session-level handlers keep firing into a deleted tool after close session.
+        self._trigger_handlers = [
+            self.session.triggers.add_handler("app quit", self._store),
+            self.session.triggers.add_handler("set mouse mode", self._update_mouse_info_label),
+        ]
+        self._artiax_trigger_handlers = [
+            self.session.ArtiaX.triggers.add_handler(OPTIONS_PARTLIST_CHANGED, self._update_object_info_label),
+        ]
 
         # Info label
-        self.session.triggers.add_handler("set mouse mode", self._update_mouse_info_label)
-        self.session.ArtiaX.triggers.add_handler(OPTIONS_PARTLIST_CHANGED, self._update_object_info_label)
         self._show_info_label = True
         self._update_mouse_info_label()
         self._update_object_info_label()
@@ -1035,6 +1042,19 @@ class CopickTool(ToolInstance):
 
     def delete(self):
         self.store()
+
+        # Remove trigger handlers so they don't fire into this (deleted) tool, e.g. during
+        # close session or after a close/reopen cycle (the Session object persists).
+        for h in getattr(self, "_trigger_handlers", []):
+            self.session.triggers.remove_handler(h)
+        self._trigger_handlers = []
+
+        artiax = getattr(self.session, "ArtiaX", None)
+        if artiax is not None:
+            for h in getattr(self, "_artiax_trigger_handlers", []):
+                artiax.triggers.remove_handler(h)
+        self._artiax_trigger_handlers = []
+
         super().delete()
 
     @property
@@ -1072,6 +1092,10 @@ class CopickTool(ToolInstance):
             )
 
         if name == "set mouse mode":
+            # Skip if the mouse_info 2D label is gone (e.g. during close session).
+            if self.mouse_info_label is None:
+                return
+
             button, _, mode = data
             if button == "right":
                 run(
@@ -1090,6 +1114,11 @@ class CopickTool(ToolInstance):
             )
 
         if name == OPTIONS_PARTLIST_CHANGED:
+            # During close session the object_info 2D label may already be deleted; skip
+            # the update so the 2dlabel command doesn't error on a missing label.
+            if self.object_info_label is None:
+                return
+
             artia = self.session.ArtiaX
 
             visibility = "shown" if artia.partlists.display else "hidden"
