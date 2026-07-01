@@ -6,6 +6,15 @@ back on, so these render as "tofu" boxes or ugly monochrome glyphs. To get
 consistent rendering across platforms we ship OpenMoji and register it at runtime
 via ``QFontDatabase``.
 
+IMPORTANT: the bundled font is **subsetted to emoji codepoints only** (see
+``tools/regenerate_font_subset.py``). We install it as a fallback *family*, and Qt's
+family list is a per-character fallback chain with no emoji-only mode before Qt
+6.9's emoji-segmenter (which ChimeraX does not yet ship). The full OpenMoji covers
+ordinary characters too (letters, digits, ``-`` ...), so it would hijack normal
+text — breaking spacing and turning ``-`` into OpenMoji's dash. The subset removes
+those glyphs, so only emoji route to OpenMoji. Do NOT replace it with the full
+font; regenerate via ``regenerate_subset.py`` instead.
+
 We bundle the **COLRv0** build (``glyf_colr_0``), not COLRv1: ChimeraX's bundled
 FreeType fails to rasterize COLRv1 color glyphs (``render glyph failed err=9e``),
 producing blank buttons. COLRv0 renders in color on the Qt versions ChimeraX
