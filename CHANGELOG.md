@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.9.1...chimerax-copick-v1.10.0) (2026-07-01)
+
+
+### ✨ Features
+
+* Ship OpenMoji emojis to have emoji support on Linux 🚀 ([#75](https://github.com/copick/chimerax-copick/issues/75)) ([8891894](https://github.com/copick/chimerax-copick/commit/8891894ba9cd8e67d13b12dc540208f886b09dfc))
+
 ## [1.9.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.9.0...chimerax-copick-v1.9.1) (2026-06-29)
 
 
