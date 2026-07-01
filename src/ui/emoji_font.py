@@ -27,6 +27,9 @@ _FONT_PATH = os.path.normpath(
 _family = None
 _resolved = False
 
+# Guard so the attribution is logged at most once per session.
+_attribution_logged = False
+
 
 def emoji_font_family():
     """Register the bundled emoji font (once) and return its family name.
@@ -72,3 +75,26 @@ def apply_emoji_font(*widgets):
         font = widget.font()
         font.setFamilies([font.family(), family])
         widget.setFont(font)
+
+
+def log_emoji_attribution(session):
+    """Log a one-time OpenMoji attribution notice to the ChimeraX log.
+
+    CC BY-SA 4.0 asks for attribution wherever the work is used. The bundled
+    OpenMoji glyphs are only rendered on Linux (see ``apply_emoji_font``), so we
+    surface the notice there — once per session, and only if the font actually
+    loaded. The Log is used because it persists and renders the clickable
+    license/project links. No-op on other platforms or if the font is absent.
+    """
+    global _attribution_logged
+    if _attribution_logged or not sys.platform.startswith("linux"):
+        return
+    if not emoji_font_family():
+        return
+    _attribution_logged = True
+    session.logger.info(
+        "Emoji glyphs are rendered with "
+        '<a href="https://openmoji.org">OpenMoji</a>, licensed under '
+        '<a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.',
+        is_html=True,
+    )

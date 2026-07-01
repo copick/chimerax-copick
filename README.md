@@ -69,6 +69,14 @@ Run `cks` to enable copick keyboard shortcuts, then press `?` for the full list.
 - ChimeraX-copick tutorial: <https://copick.github.io/copick/examples/tutorials/chimerax/>
 - Quick start: <https://copick.github.io/copick/quickstart/>
 
+## OpenMoji attribution
+
+Emoji glyphs on Linux are rendered with the bundled [OpenMoji](https://openmoji.org) color
+font. All emojis are designed by [OpenMoji](https://openmoji.org) and licensed under
+[Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/).
+The full license text ships with the plugin at
+[`src/fonts/OpenMoji-LICENSE.txt`](src/fonts/OpenMoji-LICENSE.txt).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
