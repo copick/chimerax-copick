@@ -110,6 +110,12 @@ class CopickTool(ToolInstance):
         self.tool_window = MainToolWindow(self, close_destroys=False)
         self._build_ui()
 
+        # Attribute the bundled OpenMoji emoji font (CC BY-SA 4.0) in the log.
+        # No-op unless the font was actually loaded (Linux).
+        from .ui.emoji_font import log_emoji_attribution
+
+        log_emoji_attribution(session)
+
         self.root = None
         self.picks_map = {}
         """Map picks to particle lists."""
