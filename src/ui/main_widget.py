@@ -20,6 +20,7 @@ from ..ui.QCoPickTreeModel import QCoPickTreeModel
 from ..ui.step_widget import StepWidget
 from ..ui.tree import TreeRoot, TreeRun
 from .copick_info_widget import CopickInfoWidget
+from .emoji_font import apply_emoji_font
 from .QUnifiedTable import QUnifiedTable
 
 ChimeraXGalleryIntegration = chimerax_integration_module.ChimeraXGalleryIntegration
@@ -324,6 +325,15 @@ class MainWidget(QWidget):
         self._view_gallery_button.setStyleSheet(button_style)
         self._view_gallery_button.hide()
 
+        # Render emoji labels via the bundled font (consistent color glyphs on Linux)
+        apply_emoji_font(
+            self._clear_button,
+            self._search_toggle,
+            self._view_3d_button,
+            self._view_details_button,
+            self._view_gallery_button,
+        )
+
         # Add only tree view to main layout
         layout.addWidget(self._tree_view)
         container.setLayout(layout)
@@ -348,6 +358,8 @@ class MainWidget(QWidget):
         # Reload button
         self._reload_button = QPushButton("🔄 Reload")
         self._reload_button.setToolTip("Reload the current copick session")
+
+        apply_emoji_font(self._edit_objects_button, self._reload_button)
 
         # Add buttons to layout with center alignment
         button_layout.addStretch()  # Left stretch
@@ -382,6 +394,7 @@ class MainWidget(QWidget):
         self._shared_settings_button = QPushButton("⚙")
         self._shared_settings_button.setToolTip("Table settings (applies to all tables)")
         self._shared_settings_button.clicked.connect(self._on_shared_settings_clicked)
+        apply_emoji_font(self._shared_settings_button)
         self._top_button_layout.addWidget(self._shared_settings_button)
 
         # Add back the right stretch

@@ -15,6 +15,7 @@ from Qt.QtWidgets import (
 )
 
 from .DuplicateDialog import DuplicateDialog
+from .emoji_font import apply_emoji_font
 from .NewPickDialog import NewPickDialog
 from .SettingsOverlay import SettingsOverlay
 from .QUnifiedTableModel import QUnifiedTableModel
@@ -212,6 +213,18 @@ class QUnifiedTable(QWidget):
         self._delete_button.setEnabled(False)  # Disabled until selection
         self._delete_button.setStyleSheet(button_style)
         self._delete_button.hide()
+
+        # Render emoji labels (buttons) and cell glyphs (🔒/✏️ access indicators)
+        # via the bundled font for consistent color rendering on Linux
+        apply_emoji_font(
+            self._clear_button,
+            self._search_toggle,
+            self._settings_button,
+            self._new_button,
+            self._duplicate_button,
+            self._delete_button,
+            self._table,
+        )
 
         # Create settings overlay (hidden initially) - use None as parent so it's a top-level window
         self._settings_overlay = SettingsOverlay(None)

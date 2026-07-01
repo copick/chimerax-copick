@@ -111,6 +111,7 @@ synopsis = "Reload the current copick session from its config file."
 
 [chimerax.package-data]
 "src/icons/" = ["*.png"]
+"src/fonts/" = ["*.ttf", "*.txt"]
 "src/docs/user/" = ["*.html", "*.png"]
 "src/docs/user/general/" = ["*.html"]
 "src/docs/user/tools/" = ["*.html"]
