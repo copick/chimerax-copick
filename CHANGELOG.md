@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.10.0...chimerax-copick-v1.11.0) (2026-07-07)
+
+
+### ✨ Features
+
+* Update copick deps ([#77](https://github.com/copick/chimerax-copick/issues/77)) ([1634cd5](https://github.com/copick/chimerax-copick/commit/1634cd55d9855e372bc551b74177b190e38193ee))
+
 ## [1.10.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.9.1...chimerax-copick-v1.10.0) (2026-07-01)
 
 
