@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.12.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.11.0...chimerax-copick-v1.12.0) (2026-07-18)
+
+
+### ✨ Features
+
+* Add dock command for easy window re-arrangement.  ([#80](https://github.com/copick/chimerax-copick/issues/80)) ([b09f195](https://github.com/copick/chimerax-copick/commit/b09f19551ef92d04ad6db8a6ca5f4dac3c4e81cb))
+* Allow switching main viewport contents with commands. ([#79](https://github.com/copick/chimerax-copick/issues/79)) ([07f4852](https://github.com/copick/chimerax-copick/commit/07f48528319a7a5a452c0c810e9d844a2508cae2))
+
+
+### 🐞 Bug Fixes
+
+* remove debug output. ([#82](https://github.com/copick/chimerax-copick/issues/82)) ([1261bac](https://github.com/copick/chimerax-copick/commit/1261bac01c91d6787f70ffd7d15e0738dad48fa4))
+
 ## [1.11.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.10.0...chimerax-copick-v1.11.0) (2026-07-07)
 
 
