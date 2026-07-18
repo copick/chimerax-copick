@@ -349,9 +349,23 @@ def copick_reload(session):
     tool.reload_session()
 
 
+def copick_view(session, mode):
+    """Switch the main viewport between the 3D canvas, gallery and details views."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    mw = tool._mw
+    session.logger.info(f"[copick debug] copick view: switching to '{mode}' view")
+    {
+        "3d": mw._navigate_to_3d,
+        "gallery": mw._navigate_to_gallery,
+        "details": mw._navigate_to_details,
+    }[mode]()
+
+
 def register_copick(logger):
     """Register all commands with ChimeraX, and specify expected arguments."""
-    from chimerax.core.commands import CmdDesc, FileNameArg, IntArg, ListOf, StringArg, register
+    from chimerax.core.commands import CmdDesc, EnumOf, FileNameArg, IntArg, ListOf, StringArg, register
 
     def register_copick_start():
         desc = CmdDesc(
@@ -450,6 +464,14 @@ def register_copick(logger):
         )
         register("copick reload", desc, copick_reload)
 
+    def register_copick_view():
+        desc = CmdDesc(
+            required=[("mode", EnumOf(["3d", "gallery", "details"]))],
+            synopsis="Switch the viewport between 3D canvas, gallery and details views.",
+            url="help:user/commands/copick_view.html",
+        )
+        register("copick view", desc, copick_view)
+
     register_copick_start()
     register_copick_keyboard_shortcuts()
     register_copick_new()
@@ -457,3 +479,4 @@ def register_copick(logger):
     register_entity_commands()
     register_copick_new_picks()
     register_copick_reload()
+    register_copick_view()
