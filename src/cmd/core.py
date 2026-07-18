@@ -433,6 +433,8 @@ def copick_dock(session, tool_name, side=None, tab_with=None):
     session.logger.info(f"Docked '{ti.display_name}' to {dest}.")
 
 
+
+
 def register_copick(logger):
     """Register all commands with ChimeraX, and specify expected arguments."""
     from chimerax.core.commands import CmdDesc, EnumOf, FileNameArg, IntArg, ListOf, StringArg, register
