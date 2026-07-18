@@ -109,6 +109,10 @@ synopsis = "Create a new (empty) set of picks in the active run."
 category = "General"
 synopsis = "Reload the current copick session from its config file."
 
+[chimerax.command."copick dock"]
+category = "General"
+synopsis = "Dock a tool window to an edge, float it, or tab it with another tool."
+
 [chimerax.package-data]
 "src/icons/" = ["*.png"]
 "src/fonts/" = ["*.ttf", "*.txt"]
