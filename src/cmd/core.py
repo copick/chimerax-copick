@@ -189,6 +189,34 @@ def _get_running_tool(session):
     return tool
 
 
+def _find_tool_window(session, name):
+    """Return (ToolInstance, ToolWindow) for the open tool matching ``name``, or raise.
+
+    Matching mirrors ChimeraX's ``ui tool show``: casefold exact match on display_name,
+    then on tool_name, then a prefix match. Returns the tool's main window (its
+    MainToolWindow when available, otherwise its first window).
+    """
+    from chimerax.core.errors import UserError
+
+    mw = session.ui.main_window
+    t2w = mw.tool_instance_to_windows
+    lc = name.casefold()
+    for pred in (
+        lambda ti: ti.display_name.casefold() == lc,
+        lambda ti: ti.tool_name.casefold() == lc,
+        lambda ti: ti.display_name.casefold().startswith(lc) or ti.tool_name.casefold().startswith(lc),
+    ):
+        matches = [ti for ti in t2w if pred(ti)]
+        if matches:
+            ti = matches[0]
+            win = getattr(ti, "tool_window", None)
+            if win not in t2w[ti]:
+                win = t2w[ti][0]
+            return ti, win
+    names = ", ".join(sorted({ti.display_name for ti in t2w})) or "(none)"
+    raise UserError(f'No open tool matching "{name}". Open tools: {names}')
+
+
 def _active_run(session, tool):
     """Return the run of the active tomogram, or None (with a warning)."""
     if tool.active_volume is None:
@@ -363,6 +391,49 @@ def copick_view(session, mode):
     }[mode]()
 
 
+def copick_dock(session, tool_name, side=None, tab_with=None):
+    """Dock any ChimeraX tool window to an edge, float it, or tab it with another tool."""
+    from chimerax.core.errors import UserError
+    from Qt.QtCore import Qt, QTimer
+
+    if not session.ui.is_gui:
+        raise UserError("Docking requires the ChimeraX GUI.")
+    if side is None and tab_with is None:
+        raise UserError("Specify a side (left/right/top/bottom/float) or 'tabWith <tool>'.")
+
+    mw = session.ui.main_window
+    ti, win = _find_tool_window(session, tool_name)
+    dw = win._dock_widget
+
+    if tab_with is not None:
+        _, target = _find_tool_window(session, tab_with)
+        tdw = target._dock_widget
+        dw.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        dw.setFloating(False)
+        mw.addDockWidget(mw.dockWidgetArea(tdw), dw)
+        mw.tabifyDockWidget(tdw, dw)
+        QTimer.singleShot(0, dw.raise_)
+        dest = f"tabbed with '{target.tool_instance.display_name}'"
+    elif side == "float":
+        dw.setFloating(True)
+        dest = "float"
+    else:
+        areas = {
+            "left": Qt.DockWidgetArea.LeftDockWidgetArea,
+            "right": Qt.DockWidgetArea.RightDockWidgetArea,
+            "top": Qt.DockWidgetArea.TopDockWidgetArea,
+            "bottom": Qt.DockWidgetArea.BottomDockWidgetArea,
+        }
+        # Widen allowed areas so top/bottom docking sticks (default is left|right only).
+        dw.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        dw.setFloating(False)
+        mw.addDockWidget(areas[side], dw)
+        dest = side
+
+    win.shown = True
+    session.logger.info(f"[copick debug] docked '{ti.display_name}' -> {dest}")
+
+
 def register_copick(logger):
     """Register all commands with ChimeraX, and specify expected arguments."""
     from chimerax.core.commands import CmdDesc, EnumOf, FileNameArg, IntArg, ListOf, StringArg, register
@@ -472,6 +543,16 @@ def register_copick(logger):
         )
         register("copick view", desc, copick_view)
 
+    def register_copick_dock():
+        desc = CmdDesc(
+            required=[("tool_name", StringArg)],
+            optional=[("side", EnumOf(["left", "right", "top", "bottom", "float"]))],
+            keyword=[("tab_with", StringArg)],
+            synopsis="Dock a tool window to an edge, float it, or tab it with another tool.",
+            url="help:user/commands/copick_dock.html",
+        )
+        register("copick dock", desc, copick_dock)
+
     register_copick_start()
     register_copick_keyboard_shortcuts()
     register_copick_new()
@@ -480,3 +561,4 @@ def register_copick(logger):
     register_copick_new_picks()
     register_copick_reload()
     register_copick_view()
+    register_copick_dock()

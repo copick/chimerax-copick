@@ -113,6 +113,10 @@ synopsis = "Reload the current copick session from its config file."
 category = "General"
 synopsis = "Switch the viewport between 3D canvas, gallery and details views."
 
+[chimerax.command."copick dock"]
+category = "General"
+synopsis = "Dock a tool window to an edge, float it, or tab it with another tool."
+
 [chimerax.package-data]
 "src/icons/" = ["*.png"]
 "src/fonts/" = ["*.ttf", "*.txt"]

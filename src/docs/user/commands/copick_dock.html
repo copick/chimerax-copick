@@ -1,0 +1,56 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Command: copick dock</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#commands">Command</a>: copick dock</h3>
+    <h3 class="usage"><a href="usageconventions.html">Usage</a>:
+    <br><b>copick dock</b> &nbsp;<i>tool-name</i>&nbsp;
+    [&nbsp;<i>side</i>&nbsp;] [&nbsp;<b>tabWith</b> <i>other-tool</i>&nbsp;]</h3>
+
+    <p>
+    The <b>copick dock</b> command repositions any open ChimeraX tool window, addressed by the
+    tool's name. It is handy for scripting a reproducible window layout (for example, a
+    &ldquo;demo&rdquo; arrangement). It works on <i>any</i> tool, not just Copick, and does not
+    require a copick session to be started.
+    </p>
+
+    <p>
+    <i>tool-name</i> is matched against the names of currently open tools (case-insensitive,
+    exact match preferred, otherwise a prefix match). Names containing spaces must be quoted,
+    e.g. <b>"Command Line Interface"</b>.
+    </p>
+
+    <p>The window is placed according to <i>side</i>, one of:</p>
+    <ul>
+      <li><b>left</b>, <b>right</b>, <b>top</b>, <b>bottom</b> &ndash; dock to that edge of the
+        main window.</li>
+      <li><b>float</b> &ndash; detach the window so it floats freely.</li>
+    </ul>
+
+    <p>
+    Alternatively, the <b>tabWith</b> keyword tabs the window together with another tool's
+    window (the window is placed in that tool's current dock area). When <b>tabWith</b> is
+    given it takes precedence and any <i>side</i> value is ignored. Either a <i>side</i> or
+    <b>tabWith</b> must be supplied.
+    </p>
+
+    <p> Examples: </p>
+    <blockquote>
+      <b>copick dock "Log" bottom</b><br>
+      <b>copick dock Copick left</b><br>
+      <b>copick dock "Model Panel" float</b><br>
+      <b>copick dock "Log" right tabWith Copick</b>
+    </blockquote>
+
+    <p>See also: <a href="copick_start.html"><b>copick start</b></a>,
+    <a href="../../ui/commands/ui.html#tool"><b>ui tool</b></a>.</p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>
