@@ -368,7 +368,6 @@ class CopickTool(ToolInstance):
         self.load_tomo(tomo, zarr_level=zarr_level)
 
         # Ensure the 3D canvas is showing (not the gallery/details view).
-        self.session.logger.info(f"[copick debug] open_tomogram: switching to 3D canvas for '{tomo.tomo_type}'")
         self._mw._navigate_to_3d()
 
     def show_particles(self, index: QModelIndex):

@@ -383,7 +383,6 @@ def copick_view(session, mode):
     if tool is None:
         return
     mw = tool._mw
-    session.logger.info(f"[copick debug] copick view: switching to '{mode}' view")
     {
         "3d": mw._navigate_to_3d,
         "gallery": mw._navigate_to_gallery,
@@ -431,7 +430,7 @@ def copick_dock(session, tool_name, side=None, tab_with=None):
         dest = side
 
     win.shown = True
-    session.logger.info(f"[copick debug] docked '{ti.display_name}' -> {dest}")
+    session.logger.info(f"Docked '{ti.display_name}' to {dest}.")
 
 
 def register_copick(logger):
