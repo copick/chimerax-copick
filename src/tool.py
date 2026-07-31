@@ -420,15 +420,19 @@ class CopickTool(ToolInstance):
         pick_obj = root.get_object(name)
 
         data = formats["Copick Picks file"].particle_data(self.session, file_name=None, oripix=1, trapix=1)
-        partlist = ParticleList(name, self.session, data)
-        self.picks_map[picks] = partlist
 
+        # Fill the ParticleData before constructing the ParticleList.
         points = picks.points if picks.points is not None else []
         for p in points:
-            origin = translation((p.location.x, p.location.y, p.location.z))
-            transl = translation((0, 0, 0))
-            rotation = Place(matrix=p.transformation[0:3, :])
-            partlist.new_particle(origin, transl, rotation)
+            part = data.new_particle()
+            part.origin = translation((p.location.x, p.location.y, p.location.z))
+            part.translation = translation((0, 0, 0))
+            part.rotation = Place(matrix=p.transformation[0:3, :])
+            part["score"] = float(p.score) if p.score is not None else 0.0
+            part["instance_id"] = int(p.instance_id) if p.instance_id is not None else 0
+
+        partlist = ParticleList(name, self.session, data)
+        self.picks_map[picks] = partlist
 
         partlist.radius = 40
         partlist.selected = False
