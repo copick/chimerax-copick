@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.12.0...chimerax-copick-v1.12.1) (2026-07-31)
+
+
+### 🐞 Bug Fixes
+
+* Correctly read scores from copick picks. ([#83](https://github.com/copick/chimerax-copick/issues/83)) ([6cfd584](https://github.com/copick/chimerax-copick/commit/6cfd5847eaa2a43d7271bc6fb3c2bfc8ee00f361))
+
 ## [1.12.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.11.0...chimerax-copick-v1.12.0) (2026-07-18)
 
 
