@@ -1,0 +1,44 @@
+name: Migration tests
+
+on:
+  push:
+    branches: [main, v2.0]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable:
+    name: Portable seam (Python 3.14)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        with:
+          version: "0.12.4"
+
+      - name: Verify interpreter
+        run: >
+          uv run --python 3.14 --no-project python -c
+          "import sys; assert sys.version_info[:2] == (3, 14), sys.version;
+          assert sys.version_info.releaselevel == 'final', sys.version"
+
+      - name: Run portable tests
+        run: >
+          uv run --python 3.14 --no-project --with pytest==9.1.1 --with "numpy>=2.0.2"
+          python -m pytest -q -m "not chimerax and not integration"
+
+      - name: Check migration Python
+        run: |
+          uvx --from ruff==0.16.3 ruff check --select E9,F63,F7,F82 src tests scripts
+          uvx --from ruff==0.16.3 ruff format --check tests scripts
+          python -m compileall -q src tests scripts
