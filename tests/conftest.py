@@ -66,6 +66,7 @@ def tool_module(monkeypatch):
     )
     _module(monkeypatch, "chimerax.core.models", Surface=Placeholder)
     _module(monkeypatch, "chimerax.core.tools", ToolInstance=Placeholder)
+    _module(monkeypatch, "chimerax.geometry", Place=Placeholder, translation=lambda value: value)
     _module(
         monkeypatch,
         "chimerax.ome_zarr.open",

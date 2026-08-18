@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import Version
 
@@ -44,7 +45,7 @@ def inspect_wheel(path: Path, expected_version: str | None) -> None:
     }
     for name, specifier in EXPECTED_REQUIREMENTS.items():
         requirement = requirements.get(name)
-        if requirement is None or str(requirement.specifier) != specifier:
+        if requirement is None or requirement.specifier != SpecifierSet(specifier):
             raise ValueError(f"expected {name}{specifier}, found {requirement}")
     unexpected = FORBIDDEN_DIRECT_REQUIREMENTS.intersection(requirements)
     if unexpected:

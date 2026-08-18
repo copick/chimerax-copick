@@ -39,6 +39,7 @@ from .misc.colorops import palette_from_root
 from .misc.meshops import ensure_mesh
 from .misc.pickops import append_no_duplicates
 from .misc.settings import CoPickSettings
+from .storage import density_map_store
 
 # from .ui.pickstable import TablePicks
 from .ui.EntityTable import TablePicks
@@ -441,12 +442,11 @@ class CopickTool(ToolInstance):
         if pick_obj is not None:
             partlist.color = np.array(pick_obj.color)
 
-            if pick_obj.zarr() is not None and len(pick_obj.zarr()) > 0:
-                model, msg = open_ome_zarr_from_store(self.session, pick_obj.zarr(), name)
+            store = density_map_store(pick_obj)
+            if store is not None:
+                model, msg = open_ome_zarr_from_store(self.session, store, name)
                 model = model[0]
                 volume = model.child_models()[0]
-            else:
-                volume = None
 
         # Have to call this now to set before OPTIONS_PARTLIST_CHANGED is triggered
         partlist.editing_locked = picks.from_tool or picks.read_only
