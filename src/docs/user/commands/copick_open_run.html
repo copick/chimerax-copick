@@ -30,7 +30,8 @@
         <tr><td><b>zarr_level</b></td>
           <td>Resolution pyramid level to display initially: <b>0</b> = full, <b>1</b> = 2&times;,
             <b>2</b> = 4&times; downsampled. Defaults to the value configured in the table settings.
-            Other levels are still available via the volume step controls after loading.</td></tr>
+            Other levels are still available via the volume step controls after loading. These are zero-based
+            resolution choices, not literal array names; the actual paths are read from OME metadata.</td></tr>
       </tbody>
     </table>
 

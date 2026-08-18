@@ -35,21 +35,25 @@ OME-Zarr so even large tomograms open quickly.
 
 ### Installation
 
-Install from the ChimeraX Toolshed:
+Stable chimerax-copick 2.0 will be installed from the ChimeraX Toolshed:
 
 1. In ChimeraX, open **Tools → More Tools…**
 2. Search for **copick** and click **Install**.
 3. Restart ChimeraX if prompted.
 
-ChimeraX-copick requires ChimeraX ≥ 1.7 and pulls in
+The 2.0 release requires ChimeraX Daily 1.13 / Python 3.14 during alpha qualification and pulls in compatible
 [ArtiaX](https://github.com/FrangakisLab/ArtiaX),
 [ChimeraX-OME-Zarr](https://github.com/uermel/chimerax-ome-zarr), and
 [copick](https://copick.github.io/copick/) automatically.
 
+The `2.0.0-alpha.N` bundles are distributed only as checksum-protected GitHub prerelease wheels; they are not
+submitted to the public Toolshed. Alpha testers should follow the repository README for the exact published
+copick, copick-shared-ui, and ChimeraX-OME-Zarr versions.
+
 To create or import projects from the command line (see the examples below), also
 install the copick CLI in your terminal environment:
 
-    pip install "copick[all]"
+    pip install --pre "copick[all]==2.0.0a1"
 
 The `all` extra includes the fsspec backends copick is tested against
 (`local`, `s3`, `smb`, `ssh`). Use `pip>=25.2` or [`uv pip`](https://docs.astral.sh/uv/pip/).
@@ -95,7 +99,9 @@ Even faster, you can create *and* load a portal config without leaving ChimeraX:
 #### Option B — Start from your own MRC tomograms
 
 This creates a local project and imports `.mrc` reconstructions into it. Each tomogram
-is converted to multiscale OME-Zarr so it streams efficiently in the viewer.
+is converted to OME-Zarr 0.5 / Zarr v3 so it streams efficiently in the viewer. Existing OME-Zarr 0.4 / Zarr v2
+projects remain readable and are not rewritten when opened. Resolution arrays are discovered from OME metadata;
+their labels, chunks, shards, keys, and codecs are not assumed by ChimeraX-copick.
 
 In a terminal:
 
