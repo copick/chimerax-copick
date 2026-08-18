@@ -12,8 +12,12 @@ concurrency:
 
 jobs:
   portable:
-    name: Portable seam (Python 3.14)
+    name: Portable seam (Python 3.14, Zarr ${{ matrix.zarr-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        zarr-version: ["3.1.6", "3.3.0"]
     steps:
       - uses: actions/checkout@v7
 
@@ -35,6 +39,7 @@ jobs:
       - name: Run portable tests
         run: >
           uv run --python 3.14 --no-project --with pytest==9.1.1 --with "numpy>=2.0.2"
+          --with "zarr==${{ matrix.zarr-version }}"
           python -m pytest -q -m "not chimerax and not integration"
 
       - name: Check migration Python
