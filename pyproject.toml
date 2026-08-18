@@ -6,15 +6,12 @@ name = "ChimeraX-copick"
 dynamic = ["version", "classifiers"]
 requires-python = ">=3.14"
 dependencies = [
-    "ChimeraX-Core>=1.7",
+    "ChimeraX-Core>=1.13.dev202608172052",
     "ChimeraX-ArtiaX>=0.7.0",
-    "ChimeraX-OME-Zarr>=0.5.4",
-    "pydantic",
-    "hatchling",
-    "aiohttp>=3.13.0",
-    "s3fs>=2024.3.1",
-    "copick[all]>=1.25.3",
-    "copick-shared-ui>=0.6.0",
+    "ChimeraX-OME-Zarr>=1.0.0a1,<2",
+    "copick[all]>=2.0.0a1,<3",
+    "copick-shared-ui>=2.0.0a1,<3",
+    "numpy>=2.0.2",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
