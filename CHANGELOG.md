@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.0.0-alpha.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.12.1...chimerax-copick-v2.0.0-alpha.1) (2026-08-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* adopt the copick 2.0 alpha stack ([#92](https://github.com/copick/chimerax-copick/issues/92))
+
+### ✨ Features
+
+* adopt the copick 2.0 alpha stack ([#92](https://github.com/copick/chimerax-copick/issues/92)) ([ccb0f84](https://github.com/copick/chimerax-copick/commit/ccb0f842c04b1cd141fd2600bfb85d7a75f356de))
+
+
+### 🧹 Miscellaneous Chores
+
+* establish ChimeraX migration gate ([#91](https://github.com/copick/chimerax-copick/issues/91)) ([656b2fa](https://github.com/copick/chimerax-copick/commit/656b2fa254f49973bd71ae9937f549074204b304))
+* verify Zarr v2 and v3 volume handoff ([#93](https://github.com/copick/chimerax-copick/issues/93)) ([0780d66](https://github.com/copick/chimerax-copick/commit/0780d66ee71e9cfd5971b0d2c1851919dc5fcd3c))
+
+
+### ⚙ Continuous Integration
+
+* configure v2 alpha releases ([c36ed46](https://github.com/copick/chimerax-copick/commit/c36ed467e96ac8285f27d0b251fad8b16de75ef5))
+
 ## [1.12.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.12.0...chimerax-copick-v1.12.1) (2026-07-31)
 
 
