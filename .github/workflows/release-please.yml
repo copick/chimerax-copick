@@ -2,9 +2,22 @@ name: Create Release PRs
 
 on:
   workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Branch to release
+        required: true
+        default: main
+        type: choice
+        options:
+          - main
+          - v2.0
   push:
     branches:
       - main
+      - v2.0
+
+env:
+  RELEASE_TARGET_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || github.ref_name }}
 
 permissions:
   contents: write
@@ -13,20 +26,27 @@ permissions:
 
 jobs:
   release-please:
+    # Creating v2.0 from main emits a push event. Wait for the first real
+    # commit so the initial alpha is bootstrapped deliberately with Release-As.
+    if: github.event_name == 'workflow_dispatch' || github.event.created == false
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || github.ref_name }}
       cancel-in-progress: true
 
     runs-on: ubuntu-latest
     steps:
       - name: release please
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         id: release
         with:
           manifest-file: ".release-please.manifest.json"
-          config-file: "release-please.config.json"
-          target-branch: "main"
+          config-file: ${{ env.RELEASE_TARGET_BRANCH == 'v2.0' && 'release-please.prerelease.config.json' || 'release-please.config.json' }}
+          target-branch: ${{ env.RELEASE_TARGET_BRANCH }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
     outputs:
       paths_released: ${{ steps.release.outputs.paths_released }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      sha: ${{ steps.release.outputs.sha }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}

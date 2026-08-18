@@ -1,0 +1,31 @@
+{
+  "changelog-sections": [
+    { "type": "feat", "section": "✨ Features" },
+    { "type": "fix", "section": "🐞 Bug Fixes" },
+    { "type": "perf", "section": "⚡️ Performance Improvements" },
+    { "type": "revert", "section": "↩️ Reverts" },
+    { "type": "docs", "section": "📝 Documentation" },
+    { "type": "style", "section": "💅 Styles" },
+    { "type": "chore", "section": "🧹 Miscellaneous Chores" },
+    { "type": "refactor", "section": "♻️ Code Refactoring" },
+    { "type": "test", "section": "🧪 Tests" },
+    { "type": "build", "section": "🛠️ Build System" },
+    { "type": "ci", "section": "⚙ Continuous Integration" }
+  ],
+  "packages": {
+    ".": {
+      "package-name": "chimerax-copick",
+      "tag-prefix": "ChimeraX-copick v",
+      "release-type": "python",
+      "versioning": "prerelease",
+      "prerelease-type": "alpha",
+      "separate-pull-requests": true,
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": false,
+      "bump-patch-for-minor-pre-major": false,
+      "draft": false,
+      "prerelease": true,
+      "pull-request-footer": "Merging this PR will publish a chimerax-copick alpha GitHub prerelease. It will not publish to the ChimeraX Toolshed."
+    }
+  }
+}
