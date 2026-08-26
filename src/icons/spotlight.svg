@@ -14,9 +14,9 @@
       <stop offset="1" stop-color="#000000" stop-opacity="0" />
     </radialGradient>
     <linearGradient id="beamFade" gradientUnits="userSpaceOnUse"
-                    x1="5" y1="3" x2="40" y2="41">
-      <stop offset="0" stop-color="#a0a0a0" stop-opacity="0.75" />
-      <stop offset="0.55" stop-color="#b8b8b8" stop-opacity="0.45" />
+                    x1="5" y1="3" x2="53" y2="55">
+      <stop offset="0" stop-color="#a0a0a0" stop-opacity="0.8" />
+      <stop offset="0.6" stop-color="#c0c0c0" stop-opacity="0.4" />
       <stop offset="1" stop-color="#d0d0d0" stop-opacity="0" />
     </linearGradient>
   </defs>
@@ -28,11 +28,11 @@
           d="M 1.6212802,54.216072 38.989455,45.581486" />
     <path style="fill:none;stroke:#b3b3b3;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"
           d="M 38.989455,45.581486 66.31506,57.248779" />
-    <!-- spotlight sphere: gaussian-fading glow at the cube center -->
-    <circle cx="33.9" cy="34.5" r="16.5" fill="url(#spotlightGlow)" />
     <!-- translucent light cone shining from the upper left onto the density -->
     <path fill="url(#beamFade)"
           d="M 5,3 L 18.4,40.1 Q 45.1,46.7 40.8,19.5 Z" />
+    <!-- spotlight sphere: gaussian-fading glow at the cube center -->
+    <circle cx="33.9" cy="34.5" r="16.5" fill="url(#spotlightGlow)" />
     <!-- visible cube edges (black) -->
     <path style="fill:none;stroke:#000000;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"
           d="M 38.771776,1.6829482 66.199291,13.21992" />
