@@ -1,0 +1,101 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Command: copick spotlight</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#commands">Command</a>: copick spotlight</h3>
+    <h3 class="usage"><a href="usageconventions.html">Usage</a>:
+    <br><b>copick spotlight</b> &nbsp;[&nbsp;<i>state</i>&nbsp;]
+    &nbsp;<b>radius</b>&nbsp;<i>r</i>
+    &nbsp;<b>weighted</b>&nbsp;true|false
+    &nbsp;<b>mode</b>&nbsp;surface|mesh|volume|mip
+    &nbsp;<b>features</b>&nbsp;dark|light
+    &nbsp;<b>surface_level</b>&nbsp;<i>value</i>
+    &nbsp;<b>image_levels</b>&nbsp;<i>v<sub>1</sub>,b<sub>1</sub>,v<sub>2</sub>,b<sub>2</sub>,...</i>
+    &nbsp;<b>particles</b>&nbsp;true|false</h3>
+
+    <p>
+    The <b>copick spotlight</b> command shows only a sphere of tomogram data around the
+    active particle, hiding the rest of the volume. The spotlight follows the particle
+    stepper (<b>aa</b>/<b>dd</b>, the stepper widget, table clicks) and
+    <b>right-clicks</b> on particle markers in the 3D view &ndash; enabling the spotlight
+    automatically switches the right mouse button to the <b>select</b> mode. It can also
+    be toggled with the <b>Spotlight</b> button in the <b>Copick</b> toolbar tab.
+    Switching to any other view mode (the <b>Slab</b>, <b>Volume</b>, <b>Orthoplanes</b>
+    or <b>Surface</b> toolbar buttons, or the <b>qq</b>/<b>ee</b> shortcuts) turns the
+    spotlight off and returns to that view.
+    </p>
+
+    <p>The optional <i>state</i> argument is one of:</p>
+    <ul>
+      <li><b>on</b> / <b>off</b> / <b>toggle</b> &ndash; enable, disable or toggle the spotlight.</li>
+      <li><b>report</b> &ndash; log the whole-volume statistics and the auto-estimated
+        (or user-set) render levels in a form that can be pasted back into the command
+        to adjust them.</li>
+    </ul>
+    <p>Without any arguments, <b>copick spotlight</b> logs the current configuration.</p>
+
+    <h4>Options</h4>
+    <ul>
+      <li><b>radius</b> &ndash; sphere radius in physical units (&Aring;), default 500.</li>
+      <li><b>weighted</b> &ndash; if <b>true</b> (default), data fades out with a gaussian
+        weight (&sigma; = radius/3); if <b>false</b>, the sphere has a hard edge.</li>
+      <li><b>mode</b> &ndash; render mode for the spotlight volume:
+        <ul>
+          <li><b>surface</b> &ndash; isosurface at the surface level.</li>
+          <li><b>mesh</b> &ndash; wireframe isosurface at the surface level.</li>
+          <li><b>volume</b> &ndash; volume (image) rendering with the image levels (default).</li>
+          <li><b>mip</b> &ndash; maximum intensity projection with the image levels.</li>
+        </ul></li>
+      <li><b>features</b> &ndash; polarity of features in the data. CryoET tomograms are
+        usually <b>dark</b> features on a bright background (default); use <b>light</b>
+        for inverted data.</li>
+      <li><b>surface_level</b> &ndash; isosurface threshold in raw tomogram units. By
+        default it is auto-estimated from whole-volume statistics
+        (<i>mean&nbsp;&minus;&nbsp;2&sigma;</i> for dark features,
+        <i>mean&nbsp;+&nbsp;2&sigma;</i> for light), so it does not change with the
+        spotlight position. For dark features the threshold is below the volume mean;
+        box faces are disabled so the surrounding background produces no caps.</li>
+      <li><b>image_levels</b> &ndash; opacity ramp for volume/mip rendering as
+        comma-separated <i>value,brightness</i> pairs in raw tomogram units. Default is
+        auto-estimated: 0.9 brightness at <i>mean&nbsp;&minus;&nbsp;3&sigma;</i> falling
+        to zero at <i>mean&nbsp;+&nbsp;0.5&sigma;</i> (mirrored for light features). The
+        peak is kept below full saturation so features retain interior gradation.</li>
+      <li><b>particles</b> &ndash; if <b>true</b>, particles outside the sphere are hidden
+        as well (all loaded pick lists); default <b>false</b>: all particles stay visible
+        while the spotlight is on (stepping does not hide the other particles, unlike the
+        regular slab stepping).</li>
+    </ul>
+
+    <p>
+    In volume and mip modes, features are rendered in the color opposite to the view
+    background: white on a dark background, dark on a light background. After changing
+    the background color, re-apply the mode (e.g. <b>copick spotlight mode volume</b>)
+    to update the color. Radius, weighting, mode, features and the particles option
+    persist across sessions; levels are re-estimated for each tomogram unless set
+    explicitly. Use <b>copick spotlight report</b> to inspect the estimates.
+    </p>
+
+    <p> Examples: </p>
+    <blockquote>
+      <b>copick spotlight on</b><br>
+      <b>copick spotlight report</b><br>
+      <b>copick spotlight radius 300 weighted false</b><br>
+      <b>copick spotlight mode mip</b><br>
+      <b>copick spotlight surface_level -2.9 mode surface</b><br>
+      <b>copick spotlight image_levels -2.9,1,0.5,0 particles true</b><br>
+      <b>copick spotlight off</b>
+    </blockquote>
+
+    <p>See also: <a href="copick_open_run.html"><b>copick open run</b></a>,
+    <a href="copick_open.html"><b>copick open picks</b></a>,
+    <a href="copick_cks.html"><b>cks</b></a>.</p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>
