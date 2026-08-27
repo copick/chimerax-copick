@@ -117,6 +117,10 @@ synopsis = "Switch the viewport between 3D canvas, gallery and details views."
 category = "General"
 synopsis = "Dock a tool window to an edge, float it, or tab it with another tool."
 
+[chimerax.command."copick spotlight"]
+category = "General"
+synopsis = "Show a spherical spotlight of tomogram data around the active particle."
+
 [chimerax.package-data]
 "src/icons/" = ["*.png"]
 "src/fonts/" = ["*.ttf", "*.txt"]
@@ -154,6 +158,14 @@ tab = "Copick"
 section = "Visualization"
 display_name = "Surface"
 icon = "view_surface.png"
+
+[chimerax.provider."Spotlight"]
+manager = "toolbar"
+tab = "Copick"
+section = "Visualization"
+display_name = "Spotlight"
+icon = "spotlight.png"
+description = "Toggle spotlight view around the active particle."
 
 # Copick tab, Resolution
 [chimerax.provider."1x"]

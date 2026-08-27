@@ -433,11 +433,72 @@ def copick_dock(session, tool_name, side=None, tab_with=None):
     session.logger.info(f"Docked '{ti.display_name}' to {dest}.")
 
 
+def copick_spotlight(
+    session,
+    state=None,
+    radius=None,
+    weighted=None,
+    mode=None,
+    features=None,
+    surface_level=None,
+    image_levels=None,
+    particles=None,
+):
+    """Configure and toggle the spotlight mode (sphere of data around the active particle)."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+
+    levels = None
+    if image_levels is not None:
+        if len(image_levels) < 2 or len(image_levels) % 2 != 0:
+            session.logger.error(
+                "image_levels must be an even number of comma-separated values: "
+                "value1,brightness1,value2,brightness2,..."
+            )
+            return
+        levels = [(image_levels[i], image_levels[i + 1]) for i in range(0, len(image_levels), 2)]
+
+    tool.spotlight.configure(
+        radius=radius,
+        weighted=weighted,
+        mode=mode,
+        features=features,
+        surface_level=surface_level,
+        image_levels=levels,
+        particles=particles,
+    )
+
+    if state == "on":
+        tool.spotlight.enable()
+    elif state == "off":
+        tool.spotlight.disable()
+    elif state == "toggle":
+        tool.spotlight.toggle()
+    elif state == "report":
+        tool.spotlight.report()
+    elif state == "reset":
+        tool.spotlight.reset()
+    elif state is None and all(
+        v is None for v in (radius, weighted, mode, features, surface_level, image_levels, particles)
+    ):
+        session.logger.info(tool.spotlight.status())
 
 
 def register_copick(logger):
     """Register all commands with ChimeraX, and specify expected arguments."""
-    from chimerax.core.commands import CmdDesc, EnumOf, FileNameArg, IntArg, ListOf, StringArg, register
+    from chimerax.core.commands import (
+        BoolArg,
+        CmdDesc,
+        EnumOf,
+        FileNameArg,
+        FloatArg,
+        FloatsArg,
+        IntArg,
+        ListOf,
+        StringArg,
+        register,
+    )
 
     def register_copick_start():
         desc = CmdDesc(
@@ -554,6 +615,23 @@ def register_copick(logger):
         )
         register("copick dock", desc, copick_dock)
 
+    def register_copick_spotlight():
+        desc = CmdDesc(
+            optional=[("state", EnumOf(["on", "off", "toggle", "report", "reset"]))],
+            keyword=[
+                ("radius", FloatArg),
+                ("weighted", BoolArg),
+                ("mode", EnumOf(["surface", "mesh", "volume", "mip"])),
+                ("features", EnumOf(["dark", "light"])),
+                ("surface_level", FloatArg),
+                ("image_levels", FloatsArg),
+                ("particles", BoolArg),
+            ],
+            synopsis="Show a spherical spotlight of tomogram data around the active particle.",
+            url="help:user/commands/copick_spotlight.html",
+        )
+        register("copick spotlight", desc, copick_spotlight)
+
     register_copick_start()
     register_copick_keyboard_shortcuts()
     register_copick_new()
@@ -563,3 +641,4 @@ def register_copick(logger):
     register_copick_reload()
     register_copick_view()
     register_copick_dock()
+    register_copick_spotlight()
