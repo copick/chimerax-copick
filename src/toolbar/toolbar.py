@@ -30,6 +30,7 @@ _providers = {
     "Volume Rendering": switch_to_volren,
     "Orthoplanes": switch_to_ortho,
     "Surface": switch_to_surf,
+    "Spotlight": "copick spotlight toggle",
     "1x": partial(set_step, (1, 1, 1)),
     "2x": partial(set_step, (2, 2, 2)),
     "4x": partial(set_step, (4, 4, 4)),

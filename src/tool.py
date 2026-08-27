@@ -39,6 +39,7 @@ from .misc.colorops import palette_from_root
 from .misc.meshops import ensure_mesh
 from .misc.pickops import append_no_duplicates
 from .misc.settings import CoPickSettings
+from .misc.spotlight import SpotlightManager
 from .storage import density_map_store
 
 # from .ui.pickstable import TablePicks
@@ -158,6 +159,9 @@ class CopickTool(ToolInstance):
         self._mw.picks_stepper(self.stepper_list)
         self._active_particle = None
 
+        # Spotlight mode
+        self.spotlight = SpotlightManager(self)
+
         # Colors
         self.palette_command = ""
 
@@ -250,6 +254,11 @@ class CopickTool(ToolInstance):
             pick.store()
 
     def close_active_volume(self):
+        # Spotlight is bound to the active volume; disable before deleting it.
+        if getattr(self, "spotlight", None) and self.spotlight.enabled:
+            self.spotlight.disable(restore_volume=False)
+            self.session.logger.info("[spotlight] disabled (tomogram closed)")
+
         # Close the active volume
         if self.active_volume and not self.active_volume.deleted:
             self.active_volume.delete()
@@ -560,7 +569,13 @@ class CopickTool(ToolInstance):
 
             if pl.selected_particles is not None:
                 pl.selected_particles = pl.particle_ids == ap
-                pl.displayed_particles = pl.particle_ids == ap
+                if self.spotlight.enabled:
+                    # In spotlight mode the other particles stay visible; the spotlight
+                    # manages the masks itself when configured to hide out-of-sphere ones.
+                    if not self.spotlight.hide_particles:
+                        pl.displayed_particles = True
+                else:
+                    pl.displayed_particles = pl.particle_ids == ap
 
             self._active_particle = ap
             self._mw.set_stepper_state(len(self.stepper_list), value)
@@ -639,25 +654,29 @@ class CopickTool(ToolInstance):
         part = pl.data[ap]
         r = pl.radius
         vol = self.active_volume
-        image_mode = vol.rendering_options.image_mode
 
-        if image_mode == "orthoplanes":
-            step = vol.region[2]
-            vs = vol.data.step
-            pp = (
-                int(round(part["pos_x"] / vs[0])),
-                int(round(part["pos_y"] / vs[1])),
-                int(round(part["pos_z"] / vs[2])),
-            )
-            run(
-                self.session,
-                f"volume #{vol.id_string} colorMode l8 orthoplanes xyz positionPlanes {pp[0]},{pp[1]},{pp[2]} "
-                f"imageMode orthoplanes step {step[0]},{step[1]},{step[2]}",
-                log=False,
-            )
-        else:
-            self.active_volume.normal = [0, 0, 1]
-            self.active_volume.slab_position = part["pos_z"]
+        # While spotlight is on the source volume is hidden; repositioning its
+        # slab/orthoplanes would re-show it via the volume command.
+        if not self.spotlight.enabled:
+            image_mode = vol.rendering_options.image_mode
+
+            if image_mode == "orthoplanes":
+                step = vol.region[2]
+                vs = vol.data.step
+                pp = (
+                    int(round(part["pos_x"] / vs[0])),
+                    int(round(part["pos_y"] / vs[1])),
+                    int(round(part["pos_z"] / vs[2])),
+                )
+                run(
+                    self.session,
+                    f"volume #{vol.id_string} colorMode l8 orthoplanes xyz positionPlanes {pp[0]},{pp[1]},{pp[2]} "
+                    f"imageMode orthoplanes step {step[0]},{step[1]},{step[2]}",
+                    log=False,
+                )
+            else:
+                self.active_volume.normal = [0, 0, 1]
+                self.active_volume.slab_position = part["pos_z"]
 
         run(
             self.session,
@@ -665,6 +684,9 @@ class CopickTool(ToolInstance):
             log=False,
         )
         run(self.session, f"cofr {part['pos_x']},{part['pos_y']},{part['pos_z']}", log=False)
+
+        if self.spotlight.enabled:
+            self.spotlight.on_active_particle((part["pos_x"], part["pos_y"], part["pos_z"]))
 
     def remove_particle(self):
         artia = self.session.ArtiaX
@@ -1055,6 +1077,9 @@ class CopickTool(ToolInstance):
 
     def delete(self):
         self.store()
+
+        if getattr(self, "spotlight", None):
+            self.spotlight.shutdown()
 
         # Remove trigger handlers so they don't fire into this (deleted) tool, e.g. during
         # close session or after a close/reopen cycle (the Session object persists).
