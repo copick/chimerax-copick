@@ -477,6 +477,8 @@ def copick_spotlight(
         tool.spotlight.toggle()
     elif state == "report":
         tool.spotlight.report()
+    elif state == "reset":
+        tool.spotlight.reset()
     elif state is None and all(
         v is None for v in (radius, weighted, mode, features, surface_level, image_levels, particles)
     ):
@@ -615,7 +617,7 @@ def register_copick(logger):
 
     def register_copick_spotlight():
         desc = CmdDesc(
-            optional=[("state", EnumOf(["on", "off", "toggle", "report"]))],
+            optional=[("state", EnumOf(["on", "off", "toggle", "report", "reset"]))],
             keyword=[
                 ("radius", FloatArg),
                 ("weighted", BoolArg),

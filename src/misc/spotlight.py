@@ -343,6 +343,28 @@ class SpotlightManager:
             if recompute and self._center is not None:
                 self._request_update(self._center)
 
+    def reset(self):
+        """Restore the default configuration and clear all level/color overrides."""
+        from .settings import CoPickSettings
+
+        defaults = CoPickSettings.AUTO_SAVE
+        self.surface_level = None
+        self.image_levels = None
+        self._custom_color = None
+        self._warned_level = False
+        self.configure(
+            radius=defaults["spotlight_radius"],
+            weighted=defaults["spotlight_weighted"],
+            mode=defaults["spotlight_mode"],
+            features=defaults["spotlight_features"],
+            particles=defaults["spotlight_particles"],
+        )
+        # configure() only restyles on changes; the cleared level/color overrides must
+        # take effect even when every config value already matched the defaults.
+        if self.enabled:
+            self._apply_render_mode()
+        self.session.logger.info(f"Spotlight settings reset to defaults. {self.status()}")
+
     def status(self) -> str:
         return (
             f"Spotlight {'ON' if self.enabled else 'off'} — radius {self.radius:g} Å, "
