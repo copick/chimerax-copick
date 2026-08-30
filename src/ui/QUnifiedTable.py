@@ -48,7 +48,7 @@ class QUnifiedTable(QWidget):
     """Unified table widget replacing QDoubleTable with single table and new buttons"""
 
     # Signals for button actions
-    duplicateClicked = Signal(QModelIndex)
+    duplicateClicked = Signal(QModelIndex, str, str)  # source_index, user_id, session_id ("" = default)
     newClicked = Signal(str, str, str)  # object_name, user_id, session_id
     deleteClicked = Signal(QModelIndex)
 
@@ -368,16 +368,23 @@ class QUnifiedTable(QWidget):
                     entity_color.append(255)  # Add alpha if missing
                 object_color = tuple(entity_color)
 
+            # Preset the user ID field from the project root if available
+            preset_user_id = None
+            if self._run and self._run.root and self._run.root.user_id:
+                preset_user_id = self._run.root.user_id
+
             dialog = DuplicateDialog(
                 original_session_id,
                 suggested_name,
                 self,
+                preset_user_id=preset_user_id,
                 object_name=object_name,
                 object_color=object_color,
             )
             if dialog.exec_() == DuplicateDialog.Accepted:
                 new_session_id = dialog.get_session_id()
-                self._emit_duplicate_with_session_id(source_index, new_session_id)
+                new_user_id = dialog.get_user_id()
+                self._emit_duplicate_with_session_id(source_index, new_session_id, new_user_id)
 
         elif self._duplicate_mode == "auto_increment":
             # Generate smart auto-increment name
@@ -395,11 +402,9 @@ class QUnifiedTable(QWidget):
             new_session_id = f"{original_session_id}{self._custom_suffix}"
             self._emit_duplicate_with_session_id(source_index, new_session_id)
 
-    def _emit_duplicate_with_session_id(self, source_index, session_id):
-        """Emit duplicate signal with custom session ID"""
-        # For now, emit the original signal - this will need to be enhanced
-        # to pass the custom session ID to the handler
-        self.duplicateClicked.emit(source_index)
+    def _emit_duplicate_with_session_id(self, source_index, session_id, user_id=""):
+        """Emit duplicate signal with the chosen user/session ID ("" = handler default)"""
+        self.duplicateClicked.emit(source_index, user_id or "", session_id or "")
 
     def _get_existing_session_ids(self) -> list:
         """Get list of existing session IDs for smart naming"""

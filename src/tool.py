@@ -746,8 +746,11 @@ class CopickTool(ToolInstance):
         self.show_particles_from_picks(np)
         self._mw.set_entity_active(np, True)
 
-    def duplicate_particles(self, index: QModelIndex):
-        """Duplicate a selected pick entity to create a new user pick"""
+    def duplicate_particles(self, index: QModelIndex, user_id: str = "", session_id: str = ""):
+        """Duplicate a selected pick entity to create a new user pick.
+
+        Empty user_id/session_id fall back to the root user and "<session>-copy-1".
+        """
         # Only on valid indices
         if not index.isValid():
             return
@@ -762,16 +765,24 @@ class CopickTool(ToolInstance):
         # Store all the picks
         self.store()
 
-        # Get user_id from root or use default
-        user_id = self.root.user_id if self.root.user_id is not None else "ArtiaX"
+        if not user_id:
+            user_id = self.root.user_id if self.root.user_id is not None else "ArtiaX"
 
         # Create new pick with same object and run but different session
         req_run = entity.run
         object_name = entity.pickable_object_name
-        session_id = f"{entity.session_id}-copy-1"
+        if not session_id:
+            session_id = f"{entity.session_id}-copy-1"
 
         # Create new picks
-        np = req_run.new_picks(user_id=user_id, object_name=object_name, session_id=session_id)
+        try:
+            np = req_run.new_picks(user_id=user_id, object_name=object_name, session_id=session_id)
+        except ValueError:
+            self.session.logger.warning(
+                f"Cannot duplicate: picks for {object_name} already exist for user "
+                f"'{user_id}' in session '{session_id}'. Choose a different session ID.",
+            )
+            return
         np.meta.trust_orientation = entity.trust_orientation
         np.points = deepcopy(entity.points)
         np.store()
@@ -804,7 +815,7 @@ class CopickTool(ToolInstance):
         # Set mouse mode to "mark plane" (pick on plane)
         run(self.session, "ui mousemode right 'mark plane'", log=False)
 
-    def duplicate_mesh(self, index: QModelIndex):
+    def duplicate_mesh(self, index: QModelIndex, user_id: str = "", session_id: str = ""):
         """Placeholder for mesh duplication"""
         # Get entity from unified table model
         model = index.model()
@@ -821,7 +832,7 @@ class CopickTool(ToolInstance):
         # TODO: Implement new mesh creation logic
         pass
 
-    def duplicate_segmentation(self, index: QModelIndex):
+    def duplicate_segmentation(self, index: QModelIndex, user_id: str = "", session_id: str = ""):
         """Placeholder for segmentation duplication"""
         # Get entity from unified table model
         model = index.model()
