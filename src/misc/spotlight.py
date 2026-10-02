@@ -218,6 +218,10 @@ class SpotlightManager:
         center = self._active_particle_position()
         if center is not None:
             self.on_active_particle(center)
+        else:
+            # Nothing active yet: start at the first particle of the current list.
+            self.tool._autostart_spotlight()
+            center = self._active_particle_position()
         self.session.logger.status(
             "Spotlight on — right-click a particle to move the spotlight (or step with aa/dd)",
             log=(center is None),
@@ -254,8 +258,7 @@ class SpotlightManager:
                 )
         self._saved_source_display = None
 
-        # Leave all particles visible when exiting spotlight; the next stepper action
-        # re-applies its own only-active mask.
+        # Leave all particles visible when exiting spotlight (the stepper never hides them).
         self._particles_show_all()
         self._dbg("disabled")
 
@@ -436,15 +439,22 @@ class SpotlightManager:
 
         tool = self.tool
         if pid == tool._active_particle:
-            # Already active; the active_particle setter re-selects the marker, which
-            # re-fires this trigger — this check terminates the loop.
+            # Already active; go_to() re-selects the marker, which re-fires this trigger —
+            # this check terminates the loop.
             return
-        if pid not in tool.stepper_list:
-            self._dbg(f"selection: particle {pid} not in active list — ignored")
+
+        # Find the copick list owning the marker; clicking a particle of another loaded
+        # list switches the stepper to that list.
+        pl = next(
+            (p for p in tool.picks_map.values() if not p.deleted and marker.structure is p.markers),
+            None,
+        )
+        if pl is None or pid not in pl.data:
+            self._dbg(f"selection: particle {pid} is not in a copick list — ignored")
             return
 
         self._dbg(f"selection -> particle {pid}")
-        tool.active_particle = tool.stepper_list.index(pid)
+        tool.go_to_particle(pl, pid)
 
     def _request_update(self, center):
         if not self.enabled:
@@ -736,12 +746,11 @@ class SpotlightManager:
         return tool.active_volume
 
     def _active_particle_position(self):
-        artia = getattr(self.session, "ArtiaX", None)
         tool = self.tool
-        if artia is None or tool._active_particle is None:
+        if tool._active_particle is None:
             return None
-        pl = artia.partlists.get(artia.options_partlist)
-        if pl is None or tool._active_particle not in pl.data:
+        pl = tool._stepper_pl
+        if pl is None or pl.deleted or tool._active_particle not in pl.data:
             return None
         p = pl.data[tool._active_particle]
         return (p["pos_x"], p["pos_y"], p["pos_z"])
