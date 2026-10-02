@@ -14,6 +14,7 @@ class Tomogram:
     def __init__(self, store):
         self.store = store
         self.zarr_calls = 0
+        self.tomo_type = "wbp"
         self.voxel_spacing = SimpleNamespace(run=SimpleNamespace(name="run-1"), voxel_size=10.0)
 
     def zarr(self):
@@ -48,6 +49,7 @@ def _load(tool_module, monkeypatch, store, level):
     tool.session = session
     tool.settings = SimpleNamespace(zarr_level=level)
     tool.active_volume = None
+    tool._loaded_tomos = {}
     monkeypatch.setattr(tool_module, "open_ome_zarr_from_store", reader)
     tomogram = Tomogram(store)
 
@@ -80,7 +82,8 @@ def test_tomogram_handoff_is_metadata_label_agnostic_and_read_only(
     assert call.volume.declared_path == paths[0]
     np.testing.assert_array_equal(call.volume.decoded, expected[0])
     assert imported == models == [call.volume]
-    assert tool.active_volume.copick_tomo is tomogram
+    # load_tomo registers the tomogram; show_tomogram (not under test) makes it the active one
+    assert tool._loaded_tomos[("run-1", 10.0, "wbp")].copick_tomo is tomogram
     assert snapshot(path) == before
 
 
