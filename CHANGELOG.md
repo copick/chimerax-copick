@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-alpha.3](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.2...chimerax-copick-v2.0.0-alpha.3) (2026-10-02)
+
+
+### ✨ Features
+
+* keep several tomograms of a run loaded and switch between them (v2.0) ([#106](https://github.com/copick/chimerax-copick/issues/106)) ([e61c45f](https://github.com/copick/chimerax-copick/commit/e61c45fbadcf1e62e7ea55f1f84a2f224e7c4adf))
+
 ## [2.0.0-alpha.2](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.1...chimerax-copick-v2.0.0-alpha.2) (2026-10-02)
 
 
