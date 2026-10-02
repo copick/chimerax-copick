@@ -8,6 +8,7 @@ from Qt.QtCore import QEvent, QModelIndex, QObject, QSortFilterProxyModel, Qt
 from Qt.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
+    QMenu,
     QPushButton,
     QSplitter,
     QTabWidget,
@@ -18,7 +19,7 @@ from Qt.QtWidgets import (
 
 from ..ui.QCoPickTreeModel import QCoPickTreeModel
 from ..ui.step_widget import ElidedLabel, StepWidget
-from ..ui.tree import TreeRoot, TreeRun
+from ..ui.tree import TreeRoot, TreeRun, TreeTomogram
 from .copick_info_widget import CopickInfoWidget
 from .emoji_font import apply_emoji_font
 from .QUnifiedTable import QUnifiedTable
@@ -470,7 +471,7 @@ class MainWidget(QWidget):
         old_tree_model = self._model
         old_filter_model = self._filter_model
 
-        self._model = QCoPickTreeModel(root)
+        self._model = QCoPickTreeModel(root, tomo_state=self._copick.tomogram_state)
 
         # Set up filter proxy model for search functionality
         self._filter_model = FilterProxyModel()
@@ -505,6 +506,8 @@ class MainWidget(QWidget):
 
         # Tree actions
         self._tree_view.doubleClicked.connect(self._on_tree_double_click)
+        self._tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tree_view.customContextMenuRequested.connect(self._on_tree_context_menu)
 
         # Search functionality
         self._search_toggle.clicked.connect(self._toggle_search)
@@ -539,6 +542,10 @@ class MainWidget(QWidget):
         self._picks_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
         self._meshes_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
         self._segmentations_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
+
+        # Loaded-tomogram cap - same pattern, persisted in settings
+        for table in (self._picks_table, self._meshes_table, self._segmentations_table):
+            table._settings_overlay.maxLoadedTomogramsChanged.connect(self._on_max_loaded_tomograms_changed)
 
         self._picks_stepper.stepRequested.connect(self._on_stepper_step)
         self._picks_stepper.jumpRequested.connect(self._copick.go_to)
@@ -721,6 +728,85 @@ class MainWidget(QWidget):
             # Fallback: if no filter model, pass the index directly
             self._copick.switch_volume(proxy_index)
 
+    def reveal_tomogram(self, tomogram):
+        """Expand the tree to the tomogram's run and voxel spacing and select its row.
+
+        Called whenever a tomogram is shown, so command-line opens (``copick open run``),
+        shortcuts and the gallery all leave the tree pointing at the shown tomogram.
+        """
+        run = tomogram.voxel_spacing.run
+        if self._current_run is None or self._current_run.name != run.name:
+            self.set_current_run(run)
+
+        source_index = self._find_tomogram_in_tree(tomogram)
+        if source_index is None or not source_index.isValid() or self._filter_model is None:
+            return  # e.g. the run is hidden by the search filter
+        proxy_index = self._filter_model.mapFromSource(source_index)
+        if not proxy_index.isValid():
+            return
+
+        self._tree_view.expand(proxy_index.parent().parent())
+        self._tree_view.expand(proxy_index.parent())
+        self._tree_view.setCurrentIndex(proxy_index)
+        self._tree_view.scrollTo(proxy_index)
+
+    def refresh_tomogram_markers(self):
+        """Update the loaded/shown markers of tomogram rows in the tree."""
+        if self._model is not None:
+            self._model.refresh_tomogram_markers()
+
+    def _on_tree_context_menu(self, pos):
+        proxy_index = self._tree_view.indexAt(pos)
+        if not proxy_index.isValid():
+            return
+        source_index = self._filter_model.mapToSource(proxy_index) if self._filter_model else proxy_index
+        item = source_index.internalPointer()
+        if not isinstance(item, TreeTomogram):
+            return
+
+        menu = self._build_tomogram_menu(item.tomogram, source_index)
+        menu.exec(self._tree_view.viewport().mapToGlobal(pos))
+
+    def _build_tomogram_menu(self, tomogram, source_index: QModelIndex) -> QMenu:
+        from ..tool import _tomo_key
+
+        tool = self._copick
+        state = tool.tomogram_state(tomogram)
+        menu = QMenu(self._tree_view)
+
+        show = menu.addAction("Show" if state == "loaded" else "Load and show")
+        show.setEnabled(state != "shown")
+        show.triggered.connect(lambda: tool.switch_volume(source_index))
+
+        unload = menu.addAction("Unload")
+        unload.setEnabled(state is not None)
+        unload.triggered.connect(
+            lambda: self._run_tomogram_command("close", tomogram, lambda: tool.unload_tomogram(_tomo_key(tomogram)))
+        )
+
+        others = menu.addAction("Unload all other tomograms")
+        others.setEnabled(state == "shown" and len(tool.loaded_tomograms) > 1)
+        others.triggered.connect(
+            lambda: self._run_tomogram_command("close_others", tomogram, tool.unload_other_tomograms)
+        )
+        return menu
+
+    def _run_tomogram_command(self, what: str, tomogram, action):
+        from chimerax.core.commands import log_equivalent_command
+
+        from ..tool import build_command
+
+        if what == "close":
+            cmd = build_command(
+                "copick close tomogram",
+                tomogram.tomo_type,
+                voxel_size=tomogram.voxel_spacing.voxel_size,
+            )
+        else:
+            cmd = build_command("copick close tomogram", others="true")
+        log_equivalent_command(self._copick.session, cmd)
+        action()
+
     def _clear_search(self):
         """Clear the search input and reset the filter"""
         self._search_input.clear()
@@ -821,6 +907,7 @@ class MainWidget(QWidget):
             # Initialize zarr level from persistent settings before showing
             zarr_level = self._copick.settings.zarr_level
             current_table._settings_overlay.set_zarr_level(zarr_level)
+            current_table._settings_overlay.set_max_loaded_tomograms(self._copick.settings.max_loaded_tomograms)
 
             # Position the overlay relative to the shared settings button
             self._position_shared_settings_overlay(current_table._settings_overlay)
@@ -836,6 +923,11 @@ class MainWidget(QWidget):
     def _on_zarr_level_changed(self, level: int):
         """Handle zarr level change from settings overlay - persist to settings"""
         self._copick.settings.zarr_level = level
+
+    def _on_max_loaded_tomograms_changed(self, count: int):
+        """Persist the loaded-tomogram cap and apply it right away."""
+        self._copick.settings.max_loaded_tomograms = count
+        self._copick._enforce_tomo_cap()
 
     def _position_shared_settings_overlay(self, overlay):
         """Position the settings overlay relative to the shared settings button"""

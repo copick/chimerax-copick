@@ -1,5 +1,6 @@
 """
-Settings overlay menu for configuring duplicate behavior and zarr resolution level
+Settings overlay menu for configuring duplicate behavior, zarr resolution level and the
+number of tomograms kept loaded per run
 """
 from Qt.QtCore import Signal
 from Qt.QtWidgets import (
@@ -10,6 +11,7 @@ from Qt.QtWidgets import (
     QLineEdit,
     QPushButton,
     QRadioButton,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -23,6 +25,11 @@ class SettingsOverlay(QWidget):
 
     # Signal emitted when zarr level changes
     zarrLevelChanged = Signal(int)  # Emits the selected zarr level (0, 1, or 2)
+
+    # Signal emitted when the number of tomograms kept loaded changes
+    maxLoadedTomogramsChanged = Signal(int)
+
+    MAX_LOADED_RANGE = (1, 16)
 
     MODES = {
         "ask": "Always ask for session ID",
@@ -49,7 +56,7 @@ class SettingsOverlay(QWidget):
     def _setup_ui(self):
         """Setup the overlay UI"""
         # Set fixed size to ensure visibility (increased height for both sections)
-        self.setFixedSize(300, 320)
+        self.setFixedSize(300, 380)
 
         self.setStyleSheet(
             """
@@ -105,6 +112,15 @@ class SettingsOverlay(QWidget):
                 font-size: 11px;
                 padding: 4px 8px;
                 min-width: 100px;
+            }
+            QSpinBox {
+                background-color: #3d3d3d;
+                border: 1px solid #666;
+                border-radius: 4px;
+                color: white;
+                font-size: 11px;
+                padding: 2px 4px;
+                min-width: 50px;
             }
             QLineEdit:focus {
                 border: 2px solid #4A90E2;
@@ -217,6 +233,29 @@ class SettingsOverlay(QWidget):
         self._zarr_button_group.addButton(self._level2_radio, 2)
         layout.addWidget(self._level2_radio)
 
+        # === Loaded Tomograms Section ===
+        divider2 = QFrame()
+        divider2.setFrameShape(QFrame.Shape.HLine)
+        divider2.setFixedHeight(1)
+        layout.addSpacing(6)
+        layout.addWidget(divider2)
+        layout.addSpacing(6)
+
+        loaded_row = QHBoxLayout()
+        loaded_label = QLabel("Max loaded tomograms per run")
+        loaded_label.setObjectName("section_header")
+        loaded_label.setToolTip(
+            "Tomograms of the current run stay loaded for instant switching. "
+            "Beyond this number the least recently shown one is unloaded.",
+        )
+        self._max_loaded_spin = QSpinBox()
+        self._max_loaded_spin.setRange(*self.MAX_LOADED_RANGE)
+        self._max_loaded_spin.setValue(4)
+        loaded_row.addWidget(loaded_label)
+        loaded_row.addStretch()
+        loaded_row.addWidget(self._max_loaded_spin)
+        layout.addLayout(loaded_row)
+
         # Close button
         button_layout = QHBoxLayout()
         button_layout.addStretch()
@@ -237,6 +276,9 @@ class SettingsOverlay(QWidget):
 
         # Zarr level signals
         self._zarr_button_group.buttonClicked.connect(self._on_zarr_level_changed)
+
+        # Loaded tomograms cap
+        self._max_loaded_spin.valueChanged.connect(self.maxLoadedTomogramsChanged.emit)
 
     def _on_selection_changed(self, button):
         """Handle radio button selection change for duplicate settings"""
@@ -342,6 +384,17 @@ class SettingsOverlay(QWidget):
     def get_zarr_level_description(self, level: int) -> str:
         """Get description for a zarr level"""
         return self.ZARR_LEVELS.get(level, "Unknown level")
+
+    # === Loaded Tomograms Methods ===
+
+    def get_max_loaded_tomograms(self) -> int:
+        return self._max_loaded_spin.value()
+
+    def set_max_loaded_tomograms(self, count: int):
+        """Set the spin box without emitting (initialization from persistent settings)."""
+        self._max_loaded_spin.blockSignals(True)
+        self._max_loaded_spin.setValue(int(count))
+        self._max_loaded_spin.blockSignals(False)
 
     # === General Methods ===
 

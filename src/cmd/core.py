@@ -225,14 +225,16 @@ def _active_run(session, tool):
     return tool.active_volume.copick_tomo.voxel_spacing.run
 
 
-def _find_tomogram_by_type(run, tomo_type: str):
+def _find_tomogram_by_type(run, tomo_type: str, voxel_size: Optional[float] = None):
     """Find a tomogram of the given type in a run, preferring the largest voxel spacing.
 
     The largest voxel spacing is the most downsampled (fastest to load), matching the
-    gallery's default selection behavior.
+    gallery's default selection behavior. ``voxel_size`` restricts the search to one spacing.
     """
     matches = []
     for vs in run.voxel_spacings:
+        if voxel_size is not None and abs(vs.voxel_size - voxel_size) > 1e-3:
+            continue
         for tomo in vs.tomograms:
             if tomo.tomo_type == tomo_type:
                 matches.append(tomo)
@@ -291,8 +293,14 @@ def _apply_to_entities(session, object_type: str, uri: Optional[str], method_nam
     session.logger.info(f"{verb} {len(entities)} {noun} in run '{run.name}'.")
 
 
-def copick_open_run(session, run_name: str, tomo_type: Optional[str] = None, zarr_level: Optional[int] = None):
-    """Open a run's tomogram in the copick session."""
+def copick_open_run(
+    session,
+    run_name: str,
+    tomo_type: Optional[str] = None,
+    voxel_size: Optional[float] = None,
+    zarr_level: Optional[int] = None,
+):
+    """Open a run's tomogram in the copick session (switches instantly if already loaded)."""
     tool = _get_running_tool(session)
     if tool is None:
         return
@@ -308,9 +316,10 @@ def copick_open_run(session, run_name: str, tomo_type: Optional[str] = None, zar
         zarr_level = clamped
 
     if tomo_type:
-        tomo = _find_tomogram_by_type(crun, tomo_type)
+        tomo = _find_tomogram_by_type(crun, tomo_type, voxel_size)
         if tomo is None:
-            session.logger.error(f"No tomogram of type '{tomo_type}' in run '{run_name}'.")
+            at = f" at voxel size {voxel_size}" if voxel_size is not None else ""
+            session.logger.error(f"No tomogram of type '{tomo_type}'{at} in run '{run_name}'.")
             return
     else:
         tomo = tool._mw._select_best_tomogram_from_run(crun)
@@ -322,6 +331,103 @@ def copick_open_run(session, run_name: str, tomo_type: Optional[str] = None, zar
     session.logger.info(
         f"Opened tomogram '{tomo.tomo_type}' (voxel {tomo.voxel_spacing.voxel_size}) for run '{run_name}'.",
     )
+
+
+def _format_tomo_key(key) -> str:
+    _run, voxel_size, tomo_type = key
+    return f"{tomo_type} @ {voxel_size:g} Å"
+
+
+def copick_show_tomogram(session, tomogram: Optional[str] = None, voxel_size: Optional[float] = None):
+    """Show a tomogram of the active run, loading it if needed.
+
+    ``tomogram`` is a tomo type, or ``next`` (cycle through loaded tomograms) or ``back``
+    (flip to the previously shown one). Without arguments the shown tomogram is reported.
+    """
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+
+    if tomogram == "next":
+        tool.show_next_tomogram()
+        return
+    if tomogram == "back":
+        tool.show_previous_tomogram()
+        return
+
+    run = _active_run(session, tool)
+    if run is None:
+        return
+    if tomogram is None:
+        copick_list_tomograms(session)
+        return
+
+    tomo = _find_tomogram_by_type(run, tomogram, voxel_size)
+    if tomo is None:
+        at = f" at voxel size {voxel_size}" if voxel_size is not None else ""
+        session.logger.error(f"No tomogram of type '{tomogram}'{at} in run '{run.name}'.")
+        return
+    tool.open_tomogram(tomo)
+
+
+def copick_close_tomogram(
+    session,
+    tomo_type: Optional[str] = None,
+    voxel_size: Optional[float] = None,
+    others: bool = False,
+):
+    """Unload a loaded tomogram (default: the shown one), or all but the shown one."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+
+    if others:
+        n = len(tool.loaded_tomograms) - 1
+        tool.unload_other_tomograms()
+        session.logger.info(f"Unloaded {max(n, 0)} other tomogram(s).")
+        return
+
+    if tomo_type is None:
+        key = tool._key_for_volume(tool.active_volume)
+        if key is None:
+            session.logger.warning("No tomogram is shown.")
+            return
+    else:
+        matches = [
+            k
+            for k, _v in tool.loaded_tomograms
+            if k[2] == tomo_type and (voxel_size is None or abs(k[1] - voxel_size) <= 1e-3)
+        ]
+        if not matches:
+            session.logger.warning(f"No loaded tomogram matches '{tomo_type}'.")
+            return
+        if len(matches) > 1:
+            names = ", ".join(_format_tomo_key(k) for k in matches)
+            session.logger.warning(f"Several loaded tomograms match ({names}); give voxel_size.")
+            return
+        key = matches[0]
+
+    tool.unload_tomogram(key)
+    session.logger.info(f"Unloaded tomogram {_format_tomo_key(key)}.")
+
+
+def copick_list_tomograms(session):
+    """Log the loaded tomograms of the active run; the shown one is marked."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+
+    loaded = tool.loaded_tomograms
+    if not loaded:
+        session.logger.info("No tomograms loaded.")
+        return
+
+    cap = tool.settings.max_loaded_tomograms
+    lines = [f"Loaded tomograms ({len(loaded)}/{cap}) of run '{loaded[0][0][0]}':"]
+    for key, vol in loaded:
+        mark = "▶" if vol is tool.active_volume else " "
+        lines.append(f"  {mark} #{vol.id_string}  {_format_tomo_key(key)}")
+    session.logger.info("\n".join(lines))
 
 
 def copick_open_picks(session, uri: Optional[str] = None):
@@ -463,7 +569,7 @@ def copick_spotlight(
         if len(image_levels) < 2 or len(image_levels) % 2 != 0:
             session.logger.error(
                 "image_levels must be an even number of comma-separated values: "
-                "value1,brightness1,value2,brightness2,..."
+                "value1,brightness1,value2,brightness2,...",
             )
             return
         levels = [(image_levels[i], image_levels[i + 1]) for i in range(0, len(image_levels), 2)]
@@ -545,11 +651,41 @@ def register_copick(logger):
     def register_copick_open_run():
         desc = CmdDesc(
             required=[("run_name", StringArg)],
-            keyword=[("tomo_type", StringArg), ("zarr_level", IntArg)],
+            keyword=[("tomo_type", StringArg), ("voxel_size", FloatArg), ("zarr_level", IntArg)],
             synopsis="Open a run's tomogram in the copick session.",
             url="help:user/commands/copick_open_run.html",
         )
         register("copick open run", desc, copick_open_run)
+
+    def register_tomogram_commands():
+        register(
+            "copick show tomogram",
+            CmdDesc(
+                optional=[("tomogram", StringArg)],
+                keyword=[("voxel_size", FloatArg)],
+                synopsis="Show a tomogram of the active run (tomo type, 'next' or 'back'), loading it if needed.",
+                url="help:user/commands/copick_tomogram.html",
+            ),
+            copick_show_tomogram,
+        )
+        register(
+            "copick close tomogram",
+            CmdDesc(
+                optional=[("tomo_type", StringArg)],
+                keyword=[("voxel_size", FloatArg), ("others", BoolArg)],
+                synopsis="Unload a loaded tomogram (default: the shown one), or all others.",
+                url="help:user/commands/copick_tomogram.html",
+            ),
+            copick_close_tomogram,
+        )
+        register(
+            "copick list tomograms",
+            CmdDesc(
+                synopsis="List the loaded tomograms of the active run.",
+                url="help:user/commands/copick_tomogram.html",
+            ),
+            copick_list_tomograms,
+        )
 
     def register_entity_commands():
         # open/show/hide for picks, meshes and segmentations, all addressed by copick URI.
@@ -645,6 +781,7 @@ def register_copick(logger):
     register_copick_keyboard_shortcuts()
     register_copick_new()
     register_copick_open_run()
+    register_tomogram_commands()
     register_entity_commands()
     register_copick_new_picks()
     register_copick_reload()

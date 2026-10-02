@@ -80,7 +80,13 @@ def tool_module(monkeypatch):
         log_equivalent_command=lambda *_args, **_kwargs: None,
         run=lambda *_args, **_kwargs: None,
     )
-    _module(monkeypatch, "chimerax.core.models", Surface=Placeholder)
+    _module(
+        monkeypatch,
+        "chimerax.core.models",
+        MODEL_DISPLAY_CHANGED="model display changed",
+        REMOVE_MODELS="remove models",
+        Surface=Placeholder,
+    )
     _module(monkeypatch, "chimerax.core.tools", ToolInstance=Placeholder)
     _module(monkeypatch, "chimerax.geometry", Place=Placeholder, translation=lambda value: value)
     _module(
@@ -117,6 +123,13 @@ def tool_module(monkeypatch):
     _module(monkeypatch, "portable_bundle.misc.pickops", append_no_duplicates=lambda left, _right: left)
     _module(monkeypatch, "portable_bundle.misc.settings", CoPickSettings=Placeholder)
     _module(monkeypatch, "portable_bundle.misc.spotlight", SpotlightManager=SpotlightPlaceholder)
+    _module(
+        monkeypatch,
+        "portable_bundle.misc.tomostate",
+        apply_view_state=lambda *_args, **_kwargs: None,
+        capture_view_state=lambda *_args, **_kwargs: {},
+    )
+    _module(monkeypatch, "portable_bundle.misc.volops", set_step=lambda *_args, **_kwargs: None)
     _module(monkeypatch, "portable_bundle.ui.EntityTable", TablePicks=Placeholder)
     _module(monkeypatch, "portable_bundle.ui.main_widget", MainWidget=Placeholder)
     _module(monkeypatch, "portable_bundle.ui.tree", TreeTomogram=Placeholder)

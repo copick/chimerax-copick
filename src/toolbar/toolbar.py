@@ -2,13 +2,13 @@ from functools import partial
 
 from chimerax.artiax.particle.ParticleList import delete_selected_particles
 
-from ..misc.volops import set_step, switch_to_ortho, switch_to_slab, switch_to_surf, switch_to_volren
+from ..misc.volops import set_step, switch_to_ortho, switch_to_slab, switch_to_surf, switch_to_volren, toggle_clip
 
 _providers = {
     "XY": "artiax view xy",
     "XZ": "artiax view xz",
     "YZ": "artiax view yz",
-    "Clip": "artiax clip toggle",
+    "Clip": toggle_clip,
     "Invert Contrast": "artiax invert",
     "Select": "ui mousemode right select",
     "Rotate": "ui mousemode right rotate",
