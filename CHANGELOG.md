@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-alpha.2](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.1...chimerax-copick-v2.0.0-alpha.2) (2026-10-02)
+
+
+### ✨ Features
+
+* Spotlight local context visualization mode (v2.0) ([#101](https://github.com/copick/chimerax-copick/issues/101)) ([58c0770](https://github.com/copick/chimerax-copick/commit/58c07709939a22d06af5f0b6ed319625e466d846))
+
 ## [2.0.0-alpha.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.12.1...chimerax-copick-v2.0.0-alpha.1) (2026-08-18)
 
 
