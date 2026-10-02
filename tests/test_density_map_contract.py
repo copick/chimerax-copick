@@ -77,7 +77,7 @@ def _exercise_particle_load(tool_module, monkeypatch, pickable_object, opener):
     tool = tool_module.CopickTool.__new__(tool_module.CopickTool)
     tool.session = session
     tool.picks_map = {}
-    tool.update_stepper = lambda _partlist: None
+    tool._sync_stepper = lambda: None
 
     formats = {"Copick Picks file": SimpleNamespace(particle_data=lambda *_args, **_kwargs: ParticleData())}
     monkeypatch.setattr(tool_module, "get_formats", lambda _session: formats)
