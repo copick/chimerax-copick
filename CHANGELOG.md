@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.13.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.12.1...chimerax-copick-v1.13.0) (2026-10-02)
+
+
+### ✨ Features
+
+* Spotlight local context visualization mode ([#98](https://github.com/copick/chimerax-copick/issues/98)) ([4dba899](https://github.com/copick/chimerax-copick/commit/4dba89997ef7f51ce06c1d32b1beee5853f9b8b8))
+
+
+### 🐞 Bug Fixes
+
+* apply user-supplied user/session ID when duplicating picks ([#99](https://github.com/copick/chimerax-copick/issues/99)) ([936a790](https://github.com/copick/chimerax-copick/commit/936a79032305c3a42d0cb6daa9ec0b42dc635f3b))
+
 ## [1.12.1](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.12.0...chimerax-copick-v1.12.1) (2026-07-31)
 
 
