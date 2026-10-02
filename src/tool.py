@@ -2,7 +2,7 @@
 import json
 from copy import deepcopy
 from sys import platform
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Copick
 import copick
@@ -16,7 +16,7 @@ from chimerax.artiax.particle.ParticleList import (
     lock_particlelist,
 )
 from chimerax.core.commands import log_equivalent_command, run
-from chimerax.core.models import Surface
+from chimerax.core.models import MODEL_DISPLAY_CHANGED, REMOVE_MODELS, Surface
 
 # ChimeraX
 from chimerax.core.tools import ToolInstance
@@ -39,6 +39,8 @@ from .misc.meshops import ensure_mesh
 from .misc.pickops import append_no_duplicates
 from .misc.settings import CoPickSettings
 from .misc.spotlight import SpotlightManager
+from .misc.tomostate import apply_view_state, capture_view_state
+from .misc.volops import set_step
 
 # from .ui.pickstable import TablePicks
 from .ui.EntityTable import TablePicks
@@ -69,6 +71,14 @@ def build_command(command: str, *args: Any, **kwargs: Any) -> str:
     return " ".join(parts)
 
 
+TomoKey = Tuple[str, float, str]
+"""(run name, voxel size, tomo type) identifying a loaded tomogram."""
+
+
+def _tomo_key(tomo) -> TomoKey:
+    return (tomo.voxel_spacing.run.name, float(tomo.voxel_spacing.voxel_size), tomo.tomo_type)
+
+
 class CopickTool(ToolInstance):
     # Does this instance persist when session closes
     SESSION_ENDURING = False
@@ -96,6 +106,13 @@ class CopickTool(ToolInstance):
 
         # Vars for tracking objects
         self.active_volume = None
+        """The shown tomogram (exactly one of the loaded tomograms is displayed)."""
+        self._loaded_tomos: Dict[TomoKey, Any] = {}
+        """Loaded tomograms of the current run, in load order (used for cycling)."""
+        self._tomo_mru: List[TomoKey] = []
+        """Loaded tomogram keys, least recently shown first (flip-back and eviction)."""
+        self._tomo_switching = False
+        self._tomo_closing = False
 
         # Set the font
         if platform == "darwin":
@@ -136,6 +153,8 @@ class CopickTool(ToolInstance):
         self._trigger_handlers = [
             self.session.triggers.add_handler("app quit", self._store),
             self.session.triggers.add_handler("set mouse mode", self._update_mouse_info_label),
+            self.session.triggers.add_handler(MODEL_DISPLAY_CHANGED, self._on_model_display_changed),
+            self.session.triggers.add_handler(REMOVE_MODELS, self._on_models_removed),
         ]
         self._artiax_trigger_handlers = [
             self.session.ArtiaX.triggers.add_handler(OPTIONS_PARTLIST_CHANGED, self._update_object_info_label),
@@ -196,7 +215,7 @@ class CopickTool(ToolInstance):
         if self.root is not None:
             self.store()
             self.close_all()
-            self.close_active_volume()
+            self.close_all_tomograms()
             self._mw.clear_all_tables()
 
         self.config_file = config_file
@@ -263,17 +282,32 @@ class CopickTool(ToolInstance):
             pick.points = points
             pick.store()
 
-    def close_active_volume(self):
+    def close_all_tomograms(self):
+        """Close every loaded tomogram (run switch, project reload)."""
         # Spotlight is bound to the active volume; disable before deleting it.
         if getattr(self, "spotlight", None) and self.spotlight.enabled:
             self.spotlight.disable(restore_volume=False)
             self.session.logger.info("[spotlight] disabled (tomogram closed)")
 
-        # Close the active volume
-        if self.active_volume and not self.active_volume.deleted:
-            self.active_volume.delete()
+        self._tomo_closing = True
+        try:
+            vols = list(self._loaded_tomos.values())
+            if self.active_volume is not None and self.active_volume not in vols:
+                vols.append(self.active_volume)
+            for vol in vols:
+                if not vol.deleted:
+                    vol.delete()
+        finally:
+            self._tomo_closing = False
 
-        # Clear the undo history so the just-deleted Tomogram is not pinned in memory by the
+        self._loaded_tomos.clear()
+        self._tomo_mru.clear()
+        self.active_volume = None
+        self._collect_freed_tomograms()
+        self._refresh_tomogram_markers()
+
+    def _collect_freed_tomograms(self):
+        # Clear the undo history so just-deleted Tomograms are not pinned in memory by the
         # view command's NamedView snapshots (see _clear_undo_history). Then force a collection
         # so the Tomogram (whose own trigger handler forms a reference cycle) is reclaimed
         # promptly instead of lingering with its (large) volume data until the next cyclic GC.
@@ -301,7 +335,7 @@ class CopickTool(ToolInstance):
             pass
 
     def load_tomo(self, tomo: CopickTomogramFSSpec, zarr_level: int = None):
-        """Load a tomogram from the copick backend system.
+        """Load a tomogram from the copick backend system and register it (hidden unless first).
 
         Parameters
         ----------
@@ -311,7 +345,7 @@ class CopickTool(ToolInstance):
             Resolution pyramid level to display initially (0=full, 1=2x, 2=4x). When
             ``None`` the persistent ``settings.zarr_level`` preference is used.
         """
-        name = f"{tomo.voxel_spacing.run.name} - {tomo.voxel_spacing.voxel_size}"
+        name = f"{tomo.voxel_spacing.run.name} - {tomo.voxel_spacing.voxel_size} - {tomo.tomo_type}"
 
         # Get preferred zarr level from persistent settings and convert to initial step.
         # Loading with scales=None preserves all resolution levels in a WrappedZarrGrid,
@@ -328,10 +362,222 @@ class CopickTool(ToolInstance):
         vol = mods[0].child_models()[0]
         self.session.models.add([vol])
 
-        # ArtiaX creates a new volume object, so we need to use that one instead of the zarr model
-        tomo_vol = self.session.ArtiaX.import_tomogram(vol)
-        self.active_volume = tomo_vol
-        self.active_volume.copick_tomo = tomo
+        # ArtiaX creates a new volume object, so we need to use that one instead of the zarr model.
+        # Only the first tomogram of a run gets ArtiaX's full import (XY view, clip off); later
+        # ones are added quietly so the user's camera and clipping survive the switch.
+        if self._live_tomo_keys():
+            tomo_vol = self._import_tomogram_quiet(vol)
+        else:
+            tomo_vol = self.session.ArtiaX.import_tomogram(vol)
+        tomo_vol.copick_tomo = tomo
+
+        self._loaded_tomos[_tomo_key(tomo)] = tomo_vol
+        return tomo_vol
+
+    def _import_tomogram_quiet(self, vol):
+        """ArtiaX ``import_tomogram`` without its camera reset (``artiax view xy``) and ``clip off``."""
+        from chimerax.artiax.ArtiaX import TOMOGRAM_ADD
+        from chimerax.artiax.volume.Tomogram import Tomogram
+
+        artia = self.session.ArtiaX
+        tomo_vol = Tomogram.from_volume(self.session, vol)
+        tomo_vol.display = False
+        artia.tomograms.add([tomo_vol])
+        artia.triggers.activate_trigger(TOMOGRAM_ADD, tomo_vol)
+        run(self.session, f"volume #{tomo_vol.id_string} capFaces false", log=False)
+        tomo_vol.normal = (0, 0, 1)
+        tomo_vol.integer_slab_position = tomo_vol.slab_count // 2 + 1
+        return tomo_vol
+
+    # ---------------------------------------------------------------------------------------
+    # Loaded tomograms: several per run stay loaded, exactly one (``active_volume``) is shown.
+    # ---------------------------------------------------------------------------------------
+    def _live_tomo_keys(self) -> List[TomoKey]:
+        return [k for k, v in self._loaded_tomos.items() if not v.deleted]
+
+    def _key_for_volume(self, vol) -> Optional[TomoKey]:
+        for k, v in self._loaded_tomos.items():
+            if v is vol:
+                return k
+        return None
+
+    def tomogram_state(self, tomo) -> Optional[str]:
+        """``"shown"``, ``"loaded"`` or ``None`` for a copick tomogram (used by the tree markers)."""
+        vol = self._loaded_tomos.get(_tomo_key(tomo))
+        if vol is None or vol.deleted:
+            return None
+        return "shown" if vol is self.active_volume else "loaded"
+
+    @property
+    def loaded_tomograms(self) -> List[Tuple[TomoKey, Any]]:
+        """Live loaded tomograms in load order."""
+        return [(k, v) for k, v in self._loaded_tomos.items() if not v.deleted]
+
+    def show_tomogram(self, key: TomoKey):
+        """Show a loaded tomogram, hiding the others and carrying over the current view state."""
+        target = self._loaded_tomos.get(key)
+        if target is None or target.deleted:
+            return
+
+        prev = self.active_volume
+        if prev is not None and prev.deleted:
+            prev = None
+
+        if prev is target:
+            self._touch_mru(key)
+            self._refresh_tomogram_markers()
+            self._mw.reveal_tomogram(target.copick_tomo)
+            return
+
+        spotlight_on = bool(getattr(self, "spotlight", None) and self.spotlight.enabled)
+        if spotlight_on:
+            self.spotlight.disable(restore_volume=False)
+
+        state = capture_view_state(prev) if prev is not None else None
+
+        self._tomo_switching = True
+        try:
+            if state is not None:
+                prev._is_clipped = False
+                apply_view_state(target, state)
+            for vol in self._loaded_tomos.values():
+                if not vol.deleted:
+                    vol.display = vol is target
+        finally:
+            self._tomo_switching = False
+
+        self.active_volume = target
+        artia = self.session.ArtiaX
+        artia.selected_tomogram = target.id
+        artia.options_tomogram = target.id
+        self._touch_mru(key)
+
+        if spotlight_on:
+            self.spotlight.enable()
+
+        self._enforce_tomo_cap()
+        self._refresh_tomogram_markers()
+        self._mw.reveal_tomogram(target.copick_tomo)
+
+    def _touch_mru(self, key: TomoKey):
+        if key in self._tomo_mru:
+            self._tomo_mru.remove(key)
+        self._tomo_mru.append(key)
+
+    def show_next_tomogram(self):
+        """Show the next loaded tomogram in load order (wraps around)."""
+        keys = self._live_tomo_keys()
+        if len(keys) < 2:
+            self.session.logger.status("Only one tomogram loaded.")
+            return
+        cur = self._key_for_volume(self.active_volume)
+        idx = keys.index(cur) if cur in keys else -1
+        self.show_tomogram(keys[(idx + 1) % len(keys)])
+
+    def show_previous_tomogram(self):
+        """Flip back to the previously shown tomogram."""
+        live = set(self._live_tomo_keys())
+        cur = self._key_for_volume(self.active_volume)
+        for key in reversed(self._tomo_mru):
+            if key != cur and key in live:
+                self.show_tomogram(key)
+                return
+        self.session.logger.status("No other tomogram loaded.")
+
+    def unload_tomogram(self, key: TomoKey, collect: bool = True):
+        """Close one loaded tomogram; if it is shown, the previously shown one takes its place."""
+        vol = self._loaded_tomos.get(key)
+        if vol is None:
+            return
+
+        if vol is self.active_volume and not vol.deleted:
+            live = set(self._live_tomo_keys())
+            others = [k for k in reversed(self._tomo_mru) if k != key and k in live]
+            if others:
+                self.show_tomogram(others[0])
+            elif getattr(self, "spotlight", None) and self.spotlight.enabled:
+                self.spotlight.disable(restore_volume=False)
+
+        self._loaded_tomos.pop(key, None)
+        if key in self._tomo_mru:
+            self._tomo_mru.remove(key)
+
+        self._tomo_closing = True
+        try:
+            if not vol.deleted:
+                vol.delete()
+        finally:
+            self._tomo_closing = False
+
+        if self.active_volume is vol:
+            self.active_volume = None
+
+        if collect:
+            self._collect_freed_tomograms()
+            self._refresh_tomogram_markers()
+
+    def unload_other_tomograms(self):
+        """Close all loaded tomograms except the shown one."""
+        cur = self._key_for_volume(self.active_volume)
+        for key in [k for k in self._loaded_tomos if k != cur]:
+            self.unload_tomogram(key, collect=False)
+        self._collect_freed_tomograms()
+        self._refresh_tomogram_markers()
+
+    def _enforce_tomo_cap(self):
+        """Unload least recently shown tomograms beyond ``settings.max_loaded_tomograms``."""
+        cap = max(1, int(self.settings.max_loaded_tomograms))
+        evicted = False
+        while len(self._live_tomo_keys()) > cap:
+            live = set(self._live_tomo_keys())
+            cur = self._key_for_volume(self.active_volume)
+            order = [k for k in self._tomo_mru if k in live] + [k for k in live if k not in self._tomo_mru]
+            victims = [k for k in order if k != cur]
+            if not victims:
+                break
+            self.unload_tomogram(victims[0], collect=False)
+            evicted = True
+        if evicted:
+            self._collect_freed_tomograms()
+            self._refresh_tomogram_markers()
+
+    def _refresh_tomogram_markers(self):
+        mw = getattr(self, "_mw", None)
+        if mw is not None:
+            mw.refresh_tomogram_markers()
+
+    def _on_model_display_changed(self, _trigger_name, model):
+        # Two coplanar tomogram slabs cannot be shown together (they z-fight, or ChimeraX blends
+        # same-grid images to black), so showing a hidden loaded tomogram by any other route
+        # (Model Panel, ``show`` command, ArtiaX panel) switches to it.
+        if self._tomo_switching or self._tomo_closing or not model.display:
+            return
+        if model is self.active_volume:
+            return
+        key = self._key_for_volume(model)
+        if key is None:
+            return
+        self.show_tomogram(key)
+
+    def _on_models_removed(self, _trigger_name, models):
+        # Tomograms closed outside copick (e.g. ``close #1.1.2``) leave the registry.
+        if self._tomo_closing:
+            return
+        removed = [k for k, v in self._loaded_tomos.items() if v in models]
+        if not removed:
+            return
+        was_shown = any(self._loaded_tomos[k] is self.active_volume for k in removed)
+        for key in removed:
+            self._loaded_tomos.pop(key, None)
+            if key in self._tomo_mru:
+                self._tomo_mru.remove(key)
+        if was_shown:
+            live = set(self._live_tomo_keys())
+            others = [k for k in reversed(self._tomo_mru) if k in live]
+            if others:
+                # Defer: don't change displays from inside the model-removal trigger.
+                self.session.ui.thread_safe(self.show_tomogram, others[0])
+        self._refresh_tomogram_markers()
 
     def switch_volume(self, index: QModelIndex):
         # Only on valid indices
@@ -343,49 +589,62 @@ class CopickTool(ToolInstance):
         if not isinstance(item, TreeTomogram):
             return
 
-        # Only if new tomogram
-        if item.is_active:
-            return
-
         tomo = item.tomogram
+
+        # Only if not already shown
+        if self.tomogram_state(tomo) == "shown":
+            return
 
         # Log the equivalent command (ChimeraX "log equivalent command" behavior) so the
         # user can see/copy the scriptable form, then perform the action directly.
         log_equivalent_command(
             self.session,
-            build_command("copick open run", tomo.voxel_spacing.run.name, tomo_type=tomo.tomo_type),
+            build_command(
+                "copick open run",
+                tomo.voxel_spacing.run.name,
+                tomo_type=tomo.tomo_type,
+                voxel_size=tomo.voxel_spacing.voxel_size,
+            ),
         )
         self.open_tomogram(tomo)
 
     def open_tomogram(self, tomo: CopickTomogramFSSpec, zarr_level: int = None):
-        """Open a tomogram, switching the active run/tables as needed.
+        """Open (or switch to) a tomogram, switching the active run/tables as needed.
 
-        Shared by the tree double-click (``switch_volume``) and the ``copick open run``
-        command. Closes the active volume, stores pending edits and, when switching to a
-        different run, closes the previous run's particles and repoints the tables.
+        Shared by the tree double-click (``switch_volume``), the gallery, the info widget and the
+        ``copick open run`` command. Tomograms of the current run stay loaded, so switching back
+        to one is instant and keeps the view. When switching to a different run, all tomograms
+        are closed, pending edits stored and the previous run's objects closed.
         """
         # Determine whether we are switching to a different run.
         if self.active_volume is not None:
-            prev_tomo = self.active_volume.copick_tomo
-            close_all = tomo.voxel_spacing.run != prev_tomo.voxel_spacing.run
+            prev_run_name = self.active_volume.copick_tomo.voxel_spacing.run.name
+            new_run = tomo.voxel_spacing.run.name != prev_run_name
         else:
-            close_all = True
+            new_run = True
 
-        # Close the active volume
-        self.close_active_volume()
-
-        # Store all the picks
-        self.store()
-
-        # Close all the particles if it's a different run
-        if close_all:
+        if new_run:
+            self.close_all_tomograms()
+            self.store()
             self.close_all()
             self._mw._picks_table.set_view(tomo.voxel_spacing.run)
             self._mw._meshes_table.set_view(tomo.voxel_spacing.run)
             self._mw._segmentations_table.set_view(tomo.voxel_spacing.run)
 
-        # Open the new volume
-        self.load_tomo(tomo, zarr_level=zarr_level)
+        key = _tomo_key(tomo)
+        vol = self._loaded_tomos.get(key)
+        if vol is not None and vol.deleted:
+            self._loaded_tomos.pop(key)
+            vol = None
+
+        if vol is None:
+            self.load_tomo(tomo, zarr_level=zarr_level)
+            self.show_tomogram(key)
+        else:
+            self.show_tomogram(key)
+            if zarr_level is not None:
+                step = 2**zarr_level
+                set_step((step, step, step), self.session, vol=vol)
 
         # Ensure the 3D canvas is showing (not the gallery/details view).
         self._mw._navigate_to_3d()
@@ -1392,8 +1651,8 @@ class CopickTool(ToolInstance):
             # Close all current objects (tables, tomogram, etc.)
             self.close_all()
 
-            # Close the active volume/tomogram
-            self.close_active_volume()
+            # Close all loaded tomograms
+            self.close_all_tomograms()
 
             # Reload config from file to get fresh root with updated pickable objects
             self.root = copick.from_file(self.config_file)
@@ -1425,8 +1684,9 @@ class CopickTool(ToolInstance):
                         updated_tomo = vs.get_tomogram(current_tomo_type)
 
                         if updated_tomo:
-                            # Load the tomogram (this will also set it as active)
+                            # Reload the previously shown tomogram and show it
                             self.load_tomo(updated_tomo)
+                            self.show_tomogram(_tomo_key(updated_tomo))
 
         except Exception as e:
             self.session.logger.error(f"Failed to reinitialize UI: {e}")

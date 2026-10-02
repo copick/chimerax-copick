@@ -12,7 +12,7 @@ from chimerax.shortcuts.shortcuts import (
     shortcut_descriptions,
 )
 
-from ..misc.volops import switch_to_ortho, switch_to_slab
+from ..misc.volops import switch_to_ortho, switch_to_slab, toggle_clip
 
 
 def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
@@ -29,7 +29,7 @@ def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
         ("dp", "ui mousemode right 'delete picked particle'", "Delete picked mode", "Picking", {}, "Copick"),
         ("ds", delete_selected_particles, "Delete selected particles", "Picking", {}, "Copick"),
         # Visualization
-        ("cc", "artiax clip toggle", "Turn Clipping On/Off", "Visualization", {}, "Copick"),
+        ("cc", toggle_clip, "Turn Clipping On/Off", "Visualization", {}, "Copick"),
         ("qq", switch_to_slab, "Switch to single plane.", "Visualization", {}, "Copick"),
         ("ee", switch_to_ortho, "Switch to orthoplanes.", "Visualization", {}, "Copick"),
         ("xx", "artiax view xy", "View XY orientation.", "Visualization", {}, "Copick"),
@@ -37,6 +37,8 @@ def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
         ("zz", "artiax view xz", "View XZ orientation.", "Visualization", {}, "Copick"),
         ("ff", "ui mousemode right 'move planes'", "Move planes mouse mode.", "Visualization", {}, "Copick"),
         ("rr", "ui mousemode right 'rotate slab'", "Rotate slab mouse mode.", "Visualization", {}, "Copick"),
+        ("tt", "copick show tomogram next", "Show next loaded tomogram.", "Visualization", {}, "Copick"),
+        ("tb", "copick show tomogram back", "Flip back to previous tomogram.", "Visualization", {}, "Copick"),
         (
             "00",
             partial(set_transparency, 0),

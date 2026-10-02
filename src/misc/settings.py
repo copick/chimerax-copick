@@ -6,6 +6,7 @@ class CoPickSettings(Settings):
 
     AUTO_SAVE = {
         "zarr_level": 2,  # Preferred zarr pyramid level (0=full, 1=2x, 2=4x downsampled)
+        "max_loaded_tomograms": 4,  # Tomograms of a run kept loaded for instant switching
         "spotlight_radius": 500.0,  # Spotlight sphere radius in physical units (Å)
         "spotlight_weighted": True,  # Gaussian falloff (True) or hard sphere (False)
         "spotlight_mode": "volume",  # Render mode: surface, mesh, volume, mip
