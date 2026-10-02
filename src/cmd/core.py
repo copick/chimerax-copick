@@ -274,9 +274,18 @@ def _apply_to_entities(session, object_type: str, uri: Optional[str], method_nam
         session.logger.warning(f"No {object_type} matching '{uri or '*'}' found in run '{run.name}'.")
         return
 
+    # Loading a new particle list makes it ArtiaX's current list (which the stepper follows).
+    # For a bulk open, keep the list that was current before so the stepper doesn't land on
+    # whichever entity happened to be processed last.
+    prev_pl = tool._current_partlist() if object_type == "picks" and len(entities) > 1 else None
+
     method = getattr(tool, method_name)
     for entity in entities:
         method(entity)
+
+    if prev_pl is not None and not prev_pl.deleted and prev_pl.display and tool._current_partlist() is not prev_pl:
+        session.ArtiaX.selected_partlist = prev_pl.id
+        session.ArtiaX.options_partlist = prev_pl.id
 
     noun = object_type if len(entities) == 1 else f"{object_type} entities"
     session.logger.info(f"{verb} {len(entities)} {noun} in run '{run.name}'.")
@@ -433,11 +442,72 @@ def copick_dock(session, tool_name, side=None, tab_with=None):
     session.logger.info(f"Docked '{ti.display_name}' to {dest}.")
 
 
+def copick_spotlight(
+    session,
+    state=None,
+    radius=None,
+    weighted=None,
+    mode=None,
+    features=None,
+    surface_level=None,
+    image_levels=None,
+    particles=None,
+):
+    """Configure and toggle the spotlight mode (sphere of data around the active particle)."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+
+    levels = None
+    if image_levels is not None:
+        if len(image_levels) < 2 or len(image_levels) % 2 != 0:
+            session.logger.error(
+                "image_levels must be an even number of comma-separated values: "
+                "value1,brightness1,value2,brightness2,..."
+            )
+            return
+        levels = [(image_levels[i], image_levels[i + 1]) for i in range(0, len(image_levels), 2)]
+
+    tool.spotlight.configure(
+        radius=radius,
+        weighted=weighted,
+        mode=mode,
+        features=features,
+        surface_level=surface_level,
+        image_levels=levels,
+        particles=particles,
+    )
+
+    if state == "on":
+        tool.spotlight.enable()
+    elif state == "off":
+        tool.spotlight.disable()
+    elif state == "toggle":
+        tool.spotlight.toggle()
+    elif state == "report":
+        tool.spotlight.report()
+    elif state == "reset":
+        tool.spotlight.reset()
+    elif state is None and all(
+        v is None for v in (radius, weighted, mode, features, surface_level, image_levels, particles)
+    ):
+        session.logger.info(tool.spotlight.status())
 
 
 def register_copick(logger):
     """Register all commands with ChimeraX, and specify expected arguments."""
-    from chimerax.core.commands import CmdDesc, EnumOf, FileNameArg, IntArg, ListOf, StringArg, register
+    from chimerax.core.commands import (
+        BoolArg,
+        CmdDesc,
+        EnumOf,
+        FileNameArg,
+        FloatArg,
+        FloatsArg,
+        IntArg,
+        ListOf,
+        StringArg,
+        register,
+    )
 
     def register_copick_start():
         desc = CmdDesc(
@@ -554,6 +624,23 @@ def register_copick(logger):
         )
         register("copick dock", desc, copick_dock)
 
+    def register_copick_spotlight():
+        desc = CmdDesc(
+            optional=[("state", EnumOf(["on", "off", "toggle", "report", "reset"]))],
+            keyword=[
+                ("radius", FloatArg),
+                ("weighted", BoolArg),
+                ("mode", EnumOf(["surface", "mesh", "volume", "mip"])),
+                ("features", EnumOf(["dark", "light"])),
+                ("surface_level", FloatArg),
+                ("image_levels", FloatsArg),
+                ("particles", BoolArg),
+            ],
+            synopsis="Show a spherical spotlight of tomogram data around the active particle.",
+            url="help:user/commands/copick_spotlight.html",
+        )
+        register("copick spotlight", desc, copick_spotlight)
+
     register_copick_start()
     register_copick_keyboard_shortcuts()
     register_copick_new()
@@ -563,3 +650,4 @@ def register_copick(logger):
     register_copick_reload()
     register_copick_view()
     register_copick_dock()
+    register_copick_spotlight()

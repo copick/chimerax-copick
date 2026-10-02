@@ -18,7 +18,16 @@ def _valid_vol(session: Session) -> Union[Tomogram, None]:
     return session.copick.active_volume
 
 
+def _exit_spotlight(session: Session) -> None:
+    """Switching to a regular view mode turns spotlight off (restores the source volume)."""
+    tool = getattr(session, "copick", None)
+    spotlight = getattr(tool, "spotlight", None) if tool else None
+    if spotlight is not None and spotlight.enabled:
+        spotlight.disable()
+
+
 def switch_to_slab(session: Session) -> None:
+    _exit_spotlight(session)
     vol = _valid_vol(session)
 
     if vol:
@@ -29,6 +38,7 @@ def switch_to_slab(session: Session) -> None:
 
 
 def switch_to_volren(session: Session) -> None:
+    _exit_spotlight(session)
     vol = _valid_vol(session)
 
     if vol:
@@ -37,6 +47,7 @@ def switch_to_volren(session: Session) -> None:
 
 
 def switch_to_ortho(session: Session):
+    _exit_spotlight(session)
     vol = _valid_vol(session)
 
     if vol:
@@ -53,6 +64,7 @@ def switch_to_ortho(session: Session):
 
 
 def switch_to_surf(session: Session):
+    _exit_spotlight(session)
     vol = _valid_vol(session)
 
     if vol:

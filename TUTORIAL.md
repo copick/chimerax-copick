@@ -363,7 +363,7 @@ With a pick set selected and mouse mode set to "mark plane":
 
 ### Navigating Between Particles
 
-Use the [Stepper Widget](javascript:void(0); "<img src='assets/hover/stepper_widget.png'>") below the Picks table:
+Use the [Stepper Widget](javascript:void(0); "<img src='assets/hover/stepper_widget.png'>") below the Picks table. It steps through the **current** particle list (the one last clicked in the Picks table, also shown in the ArtiaX options panel); its name is shown above the stepper.
 
 <div class="center-table" markdown>
 
@@ -371,7 +371,7 @@ Use the [Stepper Widget](javascript:void(0); "<img src='assets/hover/stepper_wid
 |:-------:|--------|
 | `<<` | Jump to previous particle |
 | `>>` | Jump to next particle |
-| Index | Shows current particle number |
+| Index | Shows the current particle number (`1 of N` … `N of N`, or `– of N` while no particle is active). Type a number and press Enter to jump to it. |
 
 </div>
 
@@ -379,6 +379,9 @@ Use the [Stepper Widget](javascript:void(0); "<img src='assets/hover/stepper_wid
 
 - ++a+a++ - Previous particle
 - ++d+d++ - Next particle
+- ++minus+minus++ - Remove the active particle and move on to the next one
+
+All particles of the list stay visible while stepping; the active particle is selected and centered in the view. Hiding a list disables the stepper until the list is shown again.
 
 ### Editing Particles
 

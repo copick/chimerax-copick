@@ -21,6 +21,22 @@ class Placeholder:
         pass
 
 
+class SpotlightPlaceholder(Placeholder):
+    """Inert SpotlightManager stand-in; the tool consults it in several code paths."""
+
+    enabled = False
+    hide_particles = False
+
+    def disable(self, *args, **kwargs):
+        pass
+
+    def shutdown(self):
+        pass
+
+    def on_active_particle(self, *args):
+        pass
+
+
 def _module(monkeypatch, name: str, **attributes) -> ModuleType:
     module = ModuleType(name)
     for attribute, value in attributes.items():
@@ -100,6 +116,7 @@ def tool_module(monkeypatch):
     _module(monkeypatch, "portable_bundle.misc.meshops", ensure_mesh=lambda mesh: mesh)
     _module(monkeypatch, "portable_bundle.misc.pickops", append_no_duplicates=lambda left, _right: left)
     _module(monkeypatch, "portable_bundle.misc.settings", CoPickSettings=Placeholder)
+    _module(monkeypatch, "portable_bundle.misc.spotlight", SpotlightManager=SpotlightPlaceholder)
     _module(monkeypatch, "portable_bundle.ui.EntityTable", TablePicks=Placeholder)
     _module(monkeypatch, "portable_bundle.ui.main_widget", MainWidget=Placeholder)
     _module(monkeypatch, "portable_bundle.ui.tree", TreeTomogram=Placeholder)
