@@ -144,7 +144,6 @@ class TreeTomogram:
     def __init__(self, tomogram: CopickTomogram, parent: TreeVoxelSpacing):
         self.tomogram = tomogram
         self.parent = parent
-        self.is_active = False
         self.has_children = False
 
     def child(self, row) -> None:

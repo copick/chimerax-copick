@@ -354,8 +354,8 @@ class ChimeraXCopickInfoWidget(CopickInfoWidget):
         # Register for app quit trigger to ensure proper cleanup
         session.triggers.add_handler("app quit", self._app_quit)
 
-        # Connect tomogram clicked signal to load tomogram
-        self.tomogram_clicked.connect(self._on_tomogram_clicked)
+        # Tomogram card clicks are loaded by the shared widget via the session interface
+        # (load_tomogram_and_switch_view); connecting tomogram_clicked here loaded them twice.
 
     def _app_quit(self, *args: Any) -> None:
         """Handle app quit trigger to ensure proper cleanup."""
@@ -363,11 +363,6 @@ class ChimeraXCopickInfoWidget(CopickInfoWidget):
             # Clear thread pool immediately on app quit
             self.worker_interface.clear_workers()
             self.deleteLater()
-
-    def _on_tomogram_clicked(self, tomogram: "CopickTomogram") -> None:
-        """Handle tomogram click by loading it in ChimeraX."""
-        # Use the session interface to load tomogram and switch view
-        self.session_interface.load_tomogram_and_switch_view(tomogram)
 
     def set_run(self, run: Optional["CopickRun"]) -> None:
         """Set the current run object and make it available to session interface."""

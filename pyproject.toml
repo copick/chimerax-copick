@@ -65,6 +65,18 @@ synopsis = "Create a copick config file and load the session."
 category = "General"
 synopsis = "Open a run's tomogram in the copick session."
 
+[chimerax.command."copick show tomogram"]
+category = "General"
+synopsis = "Show a tomogram of the active run (tomo type, 'next' or 'back'), loading it if needed."
+
+[chimerax.command."copick close tomogram"]
+category = "General"
+synopsis = "Unload a loaded tomogram (default: the shown one), or all others."
+
+[chimerax.command."copick list tomograms"]
+category = "General"
+synopsis = "List the loaded tomograms of the active run."
+
 [chimerax.command."copick open picks"]
 category = "General"
 synopsis = "Show picks in the active run matching a copick URI."

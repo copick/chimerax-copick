@@ -1,0 +1,62 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Command: copick show / close / list tomogram</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#commands">Command</a>: copick show / close / list tomogram</h3>
+    <h3 class="usage"><a href="usageconventions.html">Usage</a>:
+    <br><b>copick show tomogram</b> [ <i>tomo-type</i>&nbsp;|&nbsp;<b>next</b>&nbsp;|&nbsp;<b>back</b> ]
+    [ <b>voxel_size</b> <i>size</i> ]
+    <br><b>copick close tomogram</b> [ <i>tomo-type</i> ] [ <b>voxel_size</b> <i>size</i> ]
+    [ <b>others</b> <i>true&nbsp;|&nbsp;false</i> ]
+    <br><b>copick list tomograms</b></h3>
+
+    <p>
+    Several tomograms of the active run can be loaded at once, for example to compare a
+    <code>wbp</code> and a <code>denoised</code> reconstruction or two voxel spacings. Exactly one
+    is shown at a time; switching hides the others and carries over the camera, the slab position
+    and orientation (in &Aring;, so it also works across voxel spacings), the display mode
+    (slab, orthoplanes, volume, surface), clipping and the contrast polarity. Each tomogram keeps
+    its own contrast levels and step. Overlaying two tomograms is not supported: ChimeraX cannot
+    render two coplanar slabs together.
+    </p>
+    <p>
+    In the run tree, loaded tomograms are shown in bold and the shown one has a check mark.
+    Right-click a tomogram for <i>Show</i>, <i>Unload</i> and <i>Unload all other tomograms</i>.
+    The number of tomograms kept loaded is set in the table settings (&#9881;); beyond it, the least
+    recently shown tomogram is unloaded.
+    </p>
+
+    <table border="1" cellpadding="4" cellspacing="0">
+      <tbody>
+        <tr><td><em><strong>command</strong></em></td><td><em><strong>meaning</strong></em></td></tr>
+        <tr><td><b>copick show tomogram</b></td>
+          <td>Show the tomogram of type <i>tomo-type</i> of the active run (largest voxel spacing
+            unless <b>voxel_size</b> is given), loading it if needed. <b>next</b> cycles through the
+            loaded tomograms (shortcut <b>tt</b>), <b>back</b> flips to the previously shown one
+            (shortcut <b>tb</b>).</td></tr>
+        <tr><td><b>copick close tomogram</b></td>
+          <td>Unload a loaded tomogram (default: the shown one; the previously shown one takes its
+            place). With <b>others true</b>, unload all loaded tomograms except the shown one.</td></tr>
+        <tr><td><b>copick list tomograms</b></td>
+          <td>List the loaded tomograms with their model numbers; the shown one is marked.</td></tr>
+      </tbody>
+    </table>
+
+    <p> Examples: </p>
+    <blockquote> <b>copick show tomogram denoised<br>
+      copick show tomogram wbp voxel_size 20<br>
+      copick show tomogram back<br>
+      copick close tomogram others true</b> </blockquote>
+
+    <p>See also:
+      <a href="copick_open_run.html"><b>copick open run</b></a>.</p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>
