@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 # Import shared gallery widget - import directly from module to avoid __init__.py issues
 import copick_shared_ui.platform.chimerax_integration as chimerax_integration_module
@@ -17,7 +17,7 @@ from Qt.QtWidgets import (
 )
 
 from ..ui.QCoPickTreeModel import QCoPickTreeModel
-from ..ui.step_widget import StepWidget
+from ..ui.step_widget import ElidedLabel, StepWidget
 from ..ui.tree import TreeRoot, TreeRun
 from .copick_info_widget import CopickInfoWidget
 from .emoji_font import apply_emoji_font
@@ -123,15 +123,24 @@ class MainWidget(QWidget):
         picks_layout.setSpacing(2)  # Tight spacing
         picks_widget = QWidget()
         self._picks_table = QUnifiedTable("picks")
-        self._picks_stepper = StepWidget(0, 0)
+        self._picks_stepper = StepWidget()
         self._picks_stepper.setMaximumHeight(45)  # Appropriate height for buttons and text
 
+        # Name of the particle list the stepper is stepping (elided, never widens the dock)
+        self._picks_stepper_name = ElidedLabel("No particle list selected")
+        self._picks_stepper_name.setEnabled(False)
+
         # Create horizontal layout to center the stepper widget
-        stepper_layout = QHBoxLayout()
-        stepper_layout.addStretch()  # Left stretch
-        stepper_layout.addWidget(self._picks_stepper)
-        stepper_layout.addStretch()  # Right stretch
-        stepper_layout.setContentsMargins(0, 0, 0, 0)  # No margins
+        stepper_row = QHBoxLayout()
+        stepper_row.addStretch()  # Left stretch
+        stepper_row.addWidget(self._picks_stepper)
+        stepper_row.addStretch()  # Right stretch
+        stepper_row.setContentsMargins(0, 0, 0, 0)  # No margins
+        stepper_layout = QVBoxLayout()
+        stepper_layout.setContentsMargins(0, 0, 0, 0)
+        stepper_layout.setSpacing(0)
+        stepper_layout.addWidget(self._picks_stepper_name)
+        stepper_layout.addLayout(stepper_row)
         stepper_container = QWidget()
         stepper_container.setLayout(stepper_layout)
 
@@ -531,7 +540,8 @@ class MainWidget(QWidget):
         self._meshes_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
         self._segmentations_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
 
-        self._picks_stepper.stateChanged.connect(self._copick._set_active_particle)
+        self._picks_stepper.stepRequested.connect(self._on_stepper_step)
+        self._picks_stepper.jumpRequested.connect(self._copick.go_to)
 
     def set_entity_active(self, picks: Union[CopickMesh, CopickPicks, CopickSegmentation], active: bool):
         if isinstance(picks, CopickPicks):
@@ -569,11 +579,17 @@ class MainWidget(QWidget):
             table._source_model = None
             table._filter_model = None
 
-    def picks_stepper(self, pick_list: List[str]):
-        self._picks_stepper.set(len(pick_list), 0)
+    def set_stepper(self, name: Optional[str], total: int, index: Optional[int] = None, enabled: bool = True):
+        """Show the stepper position (0-based ``index``, ``None`` = idle) for list ``name``."""
+        self._picks_stepper.set_state(total, index, enabled=enabled)
+        self._picks_stepper_name.setFullText(name if name else "No particle list selected")
+        self._picks_stepper_name.setEnabled(bool(name) and enabled)
 
-    def set_stepper_state(self, max: int, state: int = 0):
-        self._picks_stepper.set(max, state)
+    def _on_stepper_step(self, delta: int):
+        if delta < 0:
+            self._copick.prev_particle()
+        else:
+            self._copick.next_particle()
 
     def _toggle_search(self):
         """Toggle the visibility of the search overlay"""

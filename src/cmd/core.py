@@ -274,9 +274,18 @@ def _apply_to_entities(session, object_type: str, uri: Optional[str], method_nam
         session.logger.warning(f"No {object_type} matching '{uri or '*'}' found in run '{run.name}'.")
         return
 
+    # Loading a new particle list makes it ArtiaX's current list (which the stepper follows).
+    # For a bulk open, keep the list that was current before so the stepper doesn't land on
+    # whichever entity happened to be processed last.
+    prev_pl = tool._current_partlist() if object_type == "picks" and len(entities) > 1 else None
+
     method = getattr(tool, method_name)
     for entity in entities:
         method(entity)
+
+    if prev_pl is not None and not prev_pl.deleted and prev_pl.display and tool._current_partlist() is not prev_pl:
+        session.ArtiaX.selected_partlist = prev_pl.id
+        session.ArtiaX.options_partlist = prev_pl.id
 
     noun = object_type if len(entities) == 1 else f"{object_type} entities"
     session.logger.info(f"{verb} {len(entities)} {noun} in run '{run.name}'.")

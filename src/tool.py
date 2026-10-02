@@ -2,7 +2,7 @@
 import json
 from copy import deepcopy
 from sys import platform
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 # Copick
 import copick
@@ -12,7 +12,6 @@ from chimerax.artiax.io.formats import get_formats
 
 # ArtiaX
 from chimerax.artiax.particle.ParticleList import (
-    PARTLIST_CHANGED,
     ParticleList,
     lock_particlelist,
 )
@@ -153,13 +152,23 @@ class CopickTool(ToolInstance):
         register_shortcuts(self.session)
         run(session, "cks")
 
-        # Stepper
-        self.stepper_list = []
-        self._mw.picks_stepper(self.stepper_list)
+        # Stepper (see "Particle stepper" below)
+        self._stepper_pl = None
+        self._stepper_count = 0
         self._active_particle = None
 
         # Spotlight mode
         self.spotlight = SpotlightManager(self)
+
+        # The stepper follows ArtiaX's current particle list and tracks particles being
+        # picked/removed (markers are atoms, so atomic "changes" covers both).
+        from chimerax.atomic import get_triggers as get_atomic_triggers
+
+        self._artiax_trigger_handlers.append(
+            self.session.ArtiaX.triggers.add_handler(OPTIONS_PARTLIST_CHANGED, self._on_options_partlist_changed),
+        )
+        self._atomic_changes_handler = get_atomic_triggers().add_handler("changes", self._on_atomic_changes)
+        self._refresh_stepper()
 
         # Colors
         self.palette_command = ""
@@ -219,7 +228,9 @@ class CopickTool(ToolInstance):
         for _p, pl in self.picks_map.items():
             pl.delete()
         self.picks_map = {}
-        self.update_stepper(None)
+        self._stepper_pl = None
+        self._active_particle = None
+        self._refresh_stepper()
 
         for _s, vol in self.seg_map.items():
             vol.delete()
@@ -406,7 +417,8 @@ class CopickTool(ToolInstance):
             partlist = self.picks_map[picks]
             partlist.display = True
             self._mw.set_entity_active(picks, True)
-            self.update_stepper(partlist)
+            # Showing does not retarget the stepper; it only re-enables it for this list.
+            self._refresh_stepper()
         else:
             self.show_particles_from_picks(picks)
             self._mw.set_entity_active(picks, True)
@@ -417,7 +429,12 @@ class CopickTool(ToolInstance):
             partlist = self.picks_map[picks]
             partlist.display = False
             self._mw.set_entity_active(picks, False)
-            self.update_stepper(partlist)
+            # Hiding never retargets the stepper. If this is the stepped list, drop the active
+            # particle; the stepper stays disabled until the list is shown again.
+            if partlist is self._stepper_pl:
+                self._clear_active_selection(partlist)
+                self._active_particle = None
+            self._refresh_stepper()
 
     def show_particles_from_picks(self, picks: CopickPicks):
         from chimerax.geometry import Place, translation
@@ -493,7 +510,9 @@ class CopickTool(ToolInstance):
         if partlist.selected_particles is not None:
             partlist.selected_particles = False
 
-        self.update_stepper(partlist)
+        # ArtiaX made the new list current (OPTIONS_PARTLIST_CHANGED); make sure the stepper
+        # is bound to it and shows its final particle count.
+        self._sync_stepper()
 
     def activate_particles(self, index: QModelIndex):
         # Only on valid indices
@@ -511,144 +530,194 @@ class CopickTool(ToolInstance):
         if entity not in self.picks_map:
             return
 
+        # The stepper follows the ArtiaX options list (OPTIONS_PARTLIST_CHANGED). Re-clicking
+        # the list that is already current keeps the stepper position.
         self.session.ArtiaX.selected_partlist = self.picks_map[entity].id
         self.session.ArtiaX.options_partlist = self.picks_map[entity].id
+        self._sync_stepper()
 
-        self.update_stepper(self.picks_map[entity])
+    ######################
+    # Particle stepper #
+    ######################
+    # The stepper always steps the *current* ArtiaX particle list (``options_partlist``), as
+    # long as it is one of copick's lists. Positions are read live from that list (no
+    # snapshot), so picking/removing particles is reflected immediately. ``_active_particle``
+    # holds the active particle *ID*; its index is derived on demand.
 
-    def update_stepper(self, partlist: ParticleList):
-        if partlist is None:
-            self.stepper_list = []
-            self._mw.picks_stepper(self.stepper_list)
-            self._active_particle = None
-            return
+    def _current_partlist(self) -> Optional[ParticleList]:
+        """The ArtiaX options particle list, if it is a live copick-managed list."""
+        artia = getattr(self.session, "ArtiaX", None)
+        if artia is None or artia.options_partlist is None:
+            return None
+        pl = artia.partlists.get(artia.options_partlist)
+        if pl is None or pl.deleted:
+            return None
+        if not any(pl is p for p in self.picks_map.values()):
+            return None
+        return pl
 
-        self.stepper_list = list(partlist.data.particle_ids)
-        self._mw.picks_stepper(self.stepper_list)
-        self._active_particle = None
+    def _picks_for_partlist(self, pl: ParticleList) -> Optional[CopickPicks]:
+        for picks, p in self.picks_map.items():
+            if p is pl:
+                return picks
+        return None
 
-    def _set_active_particle(self, idx: int):
-        self.active_particle = idx
+    def _stepper_name(self, pl: ParticleList) -> str:
+        picks = self._picks_for_partlist(pl)
+        name = pl.name if picks is None else f"{picks.pickable_object_name} · {picks.user_id}/{picks.session_id}"
+        return name if pl.display else f"{name} (hidden)"
 
-    @property
-    def active_particle(self):
-        if self._active_particle is None:
+    def _active_index(self, pl: Optional[ParticleList] = None) -> Optional[int]:
+        pl = pl if pl is not None else self._stepper_pl
+        if pl is None or pl.deleted or self._active_particle is None:
+            return None
+        ids = list(pl.particle_ids) if pl.size > 0 else []
+        try:
+            return ids.index(self._active_particle)
+        except ValueError:
             return None
 
-        idx = self.stepper_list.index(self._active_particle) if self._active_particle in self.stepper_list else None
+    def _refresh_stepper(self):
+        """Push the current stepper state (list name, position, total) to the widget."""
+        pl = self._stepper_pl
+        if pl is None or pl.deleted:
+            self._stepper_pl = None
+            self._active_particle = None
+            self._stepper_count = 0
+            self._mw.set_stepper(None, 0, None, enabled=False)
+            return
 
-        return idx
+        total = int(pl.size)
+        index = self._active_index(pl)
+        if index is None:
+            self._active_particle = None
+        self._stepper_count = total
+        self._mw.set_stepper(self._stepper_name(pl), total, index, enabled=bool(pl.display) and total > 0)
+
+    def _clear_active_selection(self, pl: Optional[ParticleList]):
+        """Deselect ``pl``'s stepper particle, unless the user has a larger selection there."""
+        if pl is None or pl.deleted or pl.size == 0 or self._active_particle is None:
+            return
+        sel = pl.selected_particles
+        if sel is None:
+            return
+        ids = pl.particle_ids
+        if int(sel.sum()) == 1 and ids[sel][0] == self._active_particle:
+            pl.selected_particles = False
+
+    def _sync_stepper(self):
+        """Bind the stepper to the current ArtiaX list (no-op if it is already bound)."""
+        pl = self._current_partlist()
+        if pl is not self._stepper_pl:
+            self._clear_active_selection(self._stepper_pl)
+            self._stepper_pl = pl
+            self._active_particle = None
+            if pl is not None and self.spotlight.enabled:
+                # Defer: a freshly loaded list is still being configured by
+                # show_particles_from_picks when ArtiaX fires OPTIONS_PARTLIST_CHANGED.
+                self.session.ui.thread_safe(self._autostart_spotlight, post_event=True)
+        self._refresh_stepper()
+
+    def _autostart_spotlight(self):
+        """With spotlight on, jump to the first particle when the stepper is idle."""
+        if not self.spotlight.enabled or self._active_particle is not None:
+            return
+        pl = self._stepper_pl
+        if pl is None or pl.deleted or pl.size == 0 or not pl.display:
+            return
+        self.go_to(0)
+
+    def _on_options_partlist_changed(self, name: str = None, data: Any = None):
+        self._sync_stepper()
+
+    def _on_atomic_changes(self, name: str = None, changes: Any = None):
+        """Keep the stepper count live while particles are picked or removed (markers are atoms)."""
+        pl = self._stepper_pl
+        if pl is None:
+            return
+        if pl.deleted:
+            self._sync_stepper()
+            return
+        stale = self._active_particle is not None and self._active_particle not in pl.data
+        if stale or int(pl.size) != self._stepper_count:
+            if stale:
+                self._active_particle = None
+            self._refresh_stepper()
+
+    def go_to(self, index: int):
+        """Activate particle ``index`` (0-based, clamped) of the stepper list and focus it."""
+        self._sync_stepper()
+        pl = self._stepper_pl
+        if pl is None or pl.size == 0 or not pl.display:
+            self._refresh_stepper()
+            return
+
+        ids = pl.particle_ids
+        index = max(0, min(int(index), len(ids) - 1))
+        pid = ids[index]
+
+        pl.selected_particles = ids == pid
+        if not (self.spotlight.enabled and self.spotlight.hide_particles):
+            # All particles stay visible; just make sure the active one is displayed. (With
+            # the spotlight hiding out-of-sphere particles, it manages the masks itself.)
+            displayed = pl.displayed_particles
+            if displayed is not None and not displayed[index]:
+                displayed = displayed.copy()
+                displayed[index] = True
+                pl.displayed_particles = displayed
+
+        self._active_particle = pid
+        self._refresh_stepper()
+        self.focus_particle()
+
+    def go_to_particle(self, pl: ParticleList, pid: str):
+        """Make ``pl`` the current list (if needed) and activate particle ``pid``."""
+        if pl is None or pl.deleted or pid not in pl.data:
+            return
+        if pl is not self._stepper_pl:
+            artia = self.session.ArtiaX
+            artia.selected_partlist = pl.id
+            artia.options_partlist = pl.id
+            self._sync_stepper()
+        self.go_to(list(pl.particle_ids).index(pid))
+
+    @property
+    def active_particle(self) -> Optional[int]:
+        """0-based index of the active particle in the stepper list, or ``None``."""
+        return self._active_index()
 
     @active_particle.setter
-    def active_particle(self, value):
+    def active_particle(self, value: Optional[int]):
         if value is None:
+            self._clear_active_selection(self._stepper_pl)
             self._active_particle = None
-            self._mw.set_stepper_state(len(self.stepper_list), 0)
+            self._refresh_stepper()
             return
-
-        if not self.stepper_list:
-            self._active_particle = None
-            return
-
-        if value < 0:
-            value = 0
-        if value >= len(self.stepper_list):
-            value = len(self.stepper_list) - 1
-
-        artia = self.session.ArtiaX
-        ap = self.stepper_list[value]
-        pl = artia.partlists.get(artia.options_partlist)
-
-        if pl:
-            try:
-                pl.data[ap]
-            except KeyError:
-                self._active_particle = None
-                self._mw.set_stepper_state(len(self.stepper_list), 0)
-                return
-
-            if pl.selected_particles is not None:
-                pl.selected_particles = pl.particle_ids == ap
-                if self.spotlight.enabled:
-                    # In spotlight mode the other particles stay visible; the spotlight
-                    # manages the masks itself when configured to hide out-of-sphere ones.
-                    if not self.spotlight.hide_particles:
-                        pl.displayed_particles = True
-                else:
-                    pl.displayed_particles = pl.particle_ids == ap
-
-            self._active_particle = ap
-            self._mw.set_stepper_state(len(self.stepper_list), value)
-            self.focus_particle()
+        self.go_to(value)
 
     def next_particle(self):
-        # No current list
-        if not self.stepper_list:
+        self._sync_stepper()
+        pl = self._stepper_pl
+        if pl is None or pl.size == 0:
             return
-
-        artia = self.session.ArtiaX
-        pl = artia.partlists.get(artia.options_partlist)
-        if pl is None:
-            return
-
-        # Try incrementing
-        next_part = 0 if self.active_particle is None else min(self.active_particle + 1, len(self.stepper_list) - 1)
-
-        # Try to find the next particle that still exists
-        if self.stepper_list[next_part] not in pl.data:
-            part_found = False
-            while next_part < len(self.stepper_list) - 1:
-                next_part += 1
-                if self.stepper_list[next_part] in pl.data:
-                    part_found = True
-                    break
-            if not part_found:
-                return
-
-        ap = self.stepper_list[next_part]
-        pl.selected_particles = pl.particle_ids == ap
-        pl.displayed_particles = pl.particle_ids == ap
-
-        self.active_particle = next_part
+        index = self._active_index(pl)
+        self.go_to(0 if index is None else index + 1)
 
     def prev_particle(self):
-        # No current list
-        if not self.stepper_list:
+        self._sync_stepper()
+        pl = self._stepper_pl
+        if pl is None or pl.size == 0:
             return
-
-        artia = self.session.ArtiaX
-        pl = artia.partlists.get(artia.options_partlist)
-        if pl is None:
-            return
-
-        # Try incrementing
-        next_part = 0 if self.active_particle is None else max(self.active_particle - 1, 0)
-
-        # Try to find the next particle that still exists
-        if self.stepper_list[next_part] not in pl.data:
-            part_found = False
-            while next_part > 0:
-                next_part -= 1
-                if self.stepper_list[next_part] in pl.data:
-                    part_found = True
-                    break
-            if not part_found:
-                return
-
-        ap = self.stepper_list[next_part]
-        pl.selected_particles = pl.particle_ids == ap
-        pl.displayed_particles = pl.particle_ids == ap
-
-        self.active_particle = next_part
+        index = self._active_index(pl)
+        self.go_to(pl.size - 1 if index is None else index - 1)
 
     def focus_particle(self):
-        artia = self.session.ArtiaX
-        pl = artia.partlists.get(artia.options_partlist)
-        if pl is None:
+        pl = self._stepper_pl
+        if pl is None or pl.deleted:
             return
 
         ap = self._active_particle
-        if ap is None:
+        if ap is None or ap not in pl.data:
             return
 
         part = pl.data[ap]
@@ -657,7 +726,7 @@ class CopickTool(ToolInstance):
 
         # While spotlight is on the source volume is hidden; repositioning its
         # slab/orthoplanes would re-show it via the volume command.
-        if not self.spotlight.enabled:
+        if not self.spotlight.enabled and vol is not None and not vol.deleted:
             image_mode = vol.rendering_options.image_mode
 
             if image_mode == "orthoplanes":
@@ -689,19 +758,23 @@ class CopickTool(ToolInstance):
             self.spotlight.on_active_particle((part["pos_x"], part["pos_y"], part["pos_z"]))
 
     def remove_particle(self):
-        artia = self.session.ArtiaX
-        pl = artia.partlists.get(artia.options_partlist)
-        if pl is None:
+        self._sync_stepper()
+        pl = self._stepper_pl
+        if pl is None or pl.editing_locked:
             return
 
-        ap = self._active_particle
-        if ap is None:
+        index = self._active_index(pl)
+        if index is None:
             return
 
-        pl.triggers.manual_block(PARTLIST_CHANGED)
         pl.delete_data([self._active_particle])
-        pl.selected_particles = np.zeros((pl.size,), dtype=bool)
-        pl.displayed_particles = np.zeros((pl.size,), dtype=bool)
+        self._active_particle = None
+
+        # Stay in place: the next particle moves up into the removed one's position.
+        if pl.size > 0:
+            self.go_to(min(index, pl.size - 1))
+        else:
+            self._refresh_stepper()
 
     def take_particles(self, index: QModelIndex):
         # Only on valid indices
@@ -868,8 +941,9 @@ class CopickTool(ToolInstance):
             # Remove from local tracking if it exists
             if entity in self.picks_map:
                 particle_list = self.picks_map[entity]
-                particle_list.delete()
                 del self.picks_map[entity]
+                particle_list.delete()
+                self._sync_stepper()
 
             # Update the UI
             self._mw.update_picks_table()
@@ -1092,6 +1166,12 @@ class CopickTool(ToolInstance):
             for h in getattr(self, "_artiax_trigger_handlers", []):
                 artiax.triggers.remove_handler(h)
         self._artiax_trigger_handlers = []
+
+        if getattr(self, "_atomic_changes_handler", None) is not None:
+            from chimerax.atomic import get_triggers as get_atomic_triggers
+
+            get_atomic_triggers().remove_handler(self._atomic_changes_handler)
+            self._atomic_changes_handler = None
 
         super().delete()
 
