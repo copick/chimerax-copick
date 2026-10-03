@@ -4,9 +4,9 @@ from typing import Iterable, List, Sequence, Tuple
 import numpy as np
 from copick.models import CopickLocation, CopickPicks, CopickPoint
 
+# Values a particle placed in the GUI starts with. ArtiaX fills every key with 0, and a pick saved with score 0
+# looks rejected to every tool that filters on score.
 NEW_PARTICLE_DEFAULTS = {"score": 1.0, "instance_id": 0}
-"""Values a particle placed in the GUI starts with. ArtiaX fills every key with 0, and a pick saved with score 0
-looks rejected to every tool that filters on score."""
 
 
 def point_pose(point: CopickPoint) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
