@@ -35,6 +35,7 @@ dev = [
     "black",
     "ipython",
     "pre-commit",
+    "pytest",
     "ruff",
 ]
 
