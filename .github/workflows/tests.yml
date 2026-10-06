@@ -39,7 +39,7 @@ jobs:
       - name: Run portable tests
         run: >
           uv run --python 3.14 --no-project --with pytest==9.1.1 --with "numpy>=2.0.2"
-          --with "zarr==${{ matrix.zarr-version }}"
+          --with "zarr==${{ matrix.zarr-version }}" --with "copick>=2.0.0a3,<3"
           python -m pytest -q -m "not chimerax and not integration"
 
       - name: Check migration Python

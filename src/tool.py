@@ -25,7 +25,7 @@ from chimerax.core.tools import ToolInstance
 from chimerax.ome_zarr.open import open_ome_zarr_from_store
 from chimerax.ui import MainToolWindow
 from copick.impl.filesystem import CopickTomogramFSSpec
-from copick.models import CopickLocation, CopickMesh, CopickPicks, CopickPoint, CopickSegmentation
+from copick.models import CopickMesh, CopickPicks, CopickSegmentation
 from copick.util.uri import serialize_copick_uri
 from copick_shared_ui.core.thumbnail_cache import set_global_cache_config, set_global_cache_image_interface
 
@@ -36,7 +36,15 @@ from Qt.QtWidgets import QVBoxLayout
 
 from .misc.colorops import palette_from_root
 from .misc.meshops import ensure_mesh
-from .misc.pickops import append_no_duplicates
+from .misc.pickops import (
+    append_no_duplicates,
+    instance_id_colors,
+    is_filament,
+    point_from_pose,
+    point_identity,
+    point_pose,
+    with_new_particle_defaults,
+)
 from .misc.settings import CoPickSettings
 from .misc.spotlight import SpotlightManager
 from .misc.tomostate import apply_view_state, capture_view_state
@@ -268,17 +276,17 @@ class CopickTool(ToolInstance):
             if pick.from_tool or pick.read_only:
                 continue
 
-            points = []
-            for _id, p in pl.data:
-                rotmat = np.eye(4)
-                rotmat[0:3, :] = p.rotation.matrix
-                point = CopickPoint(
-                    location=CopickLocation(x=p["location_x"], y=p["location_y"], z=p["location_z"]),
-                    transformation_=rotmat.tolist(),
+            # The shift is the transform's translation: copick's centre is location + t, ArtiaX's origin + shift.
+            points = [
+                point_from_pose(
+                    origin=p.origin_coord,
+                    shift=p.translation.translation(),
+                    rotation=p.rotation.matrix,
                     instance_id=p["instance_id"],
                     score=p["score"],
                 )
-                points.append(point)
+                for _id, p in pl.data
+            ]
 
             pick.points = points
             pick.store()
@@ -706,16 +714,20 @@ class CopickTool(ToolInstance):
         pick_obj = root.get_object(name)
 
         data = formats["Copick Picks file"].particle_data(self.session, file_name=None, oripix=1, trapix=1)
+        # Particles placed in the GUI start at score 1 and instance 0, not ArtiaX's zero fill.
+        data = with_new_particle_defaults(data)
 
         # Fill the ParticleData before constructing the ParticleList.
         points = picks.points if picks.points is not None else []
         for p in points:
+            origin, shift, rotation = point_pose(p)
+            instance_id, score = point_identity(p)
             part = data.new_particle()
-            part.origin = translation((p.location.x, p.location.y, p.location.z))
-            part.translation = translation((0, 0, 0))
-            part.rotation = Place(matrix=p.transformation[0:3, :])
-            part["score"] = float(p.score) if p.score is not None else 0.0
-            part["instance_id"] = int(p.instance_id) if p.instance_id is not None else 0
+            part.origin = translation(tuple(origin))
+            part.translation = translation(tuple(shift))
+            part.rotation = Place(matrix=np.hstack([rotation, np.zeros((3, 1))]))
+            part["score"] = score
+            part["instance_id"] = instance_id
 
         partlist = ParticleList(name, self.session, data)
         self.picks_map[picks] = partlist
@@ -740,6 +752,13 @@ class CopickTool(ToolInstance):
 
         if pick_obj.radius is not None:
             partlist.radius = pick_obj.radius
+
+        # Filaments: one colour per filament, so neighbouring filaments can be told apart.
+        if pick_obj is not None and is_filament(pick_obj) and partlist.size > 0:
+            partlist.particle_colors = instance_id_colors(
+                [p["instance_id"] for _id, p in partlist.data],
+                pick_obj.color,
+            )
 
         if volume is not None:
             reg = volume.region
@@ -1057,7 +1076,12 @@ class CopickTool(ToolInstance):
         cur_picks = req_run.get_picks(user_id=user_id, object_name=req_name)
         if len(cur_picks) > 0:
             np = cur_picks[0]
-            np = append_no_duplicates(item.entity, np)
+            # The list is redrawn from storage below, so unsaved edits in it are stored first.
+            if np in self.picks_map:
+                self.store()
+            # Both sets number their filaments from 1; offsetting keeps unrelated filaments apart.
+            req_obj = self.root.get_object(req_name)
+            np = append_no_duplicates(item.entity, np, offset_ids=req_obj is not None and is_filament(req_obj))
         else:
             np = req_run.new_picks(user_id=user_id, object_name=req_name, session_id="19")
             np.meta.trust_orientation = item.entity.trust_orientation
