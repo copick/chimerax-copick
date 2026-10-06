@@ -15,6 +15,7 @@
   "packages": {
     ".": {
       "package-name": "chimerax-copick",
+      "extra-files": [{ "type": "generic", "path": "src/version.py" }],
       "tag-prefix": "ChimeraX-copick v",
       "release-type": "python",
       "versioning": "prerelease",
