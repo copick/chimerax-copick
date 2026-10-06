@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-alpha.4](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.3...chimerax-copick-v2.0.0-alpha.4) (2026-10-06)
+
+
+### 🐞 Bug Fixes
+
+* bump the version of prereleases in src/version.py ([#113](https://github.com/copick/chimerax-copick/issues/113)) ([31474db](https://github.com/copick/chimerax-copick/commit/31474db8b30b87e978f3b530f1f6e75826ffa8fb))
+
 ## [2.0.0-alpha.3](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.2...chimerax-copick-v2.0.0-alpha.3) (2026-10-02)
 
 
