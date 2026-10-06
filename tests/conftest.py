@@ -120,7 +120,17 @@ def tool_module(monkeypatch):
     bundle_package.__path__ = [str(SOURCE_ROOT)]
     _module(monkeypatch, "portable_bundle.misc.colorops", palette_from_root=lambda _root: "")
     _module(monkeypatch, "portable_bundle.misc.meshops", ensure_mesh=lambda mesh: mesh)
-    _module(monkeypatch, "portable_bundle.misc.pickops", append_no_duplicates=lambda left, _right: left)
+    _module(
+        monkeypatch,
+        "portable_bundle.misc.pickops",
+        append_no_duplicates=lambda left, _right, **_kwargs: left,
+        instance_id_colors=lambda ids, base: [tuple(base)] * len(list(ids)),
+        is_filament=lambda _obj: False,
+        point_from_pose=lambda **kwargs: kwargs,
+        point_identity=lambda point: (0, 1.0),
+        point_pose=lambda point: (point.location, (0.0, 0.0, 0.0), None),
+        with_new_particle_defaults=lambda data: data,
+    )
     _module(monkeypatch, "portable_bundle.misc.settings", CoPickSettings=Placeholder)
     _module(monkeypatch, "portable_bundle.misc.spotlight", SpotlightManager=SpotlightPlaceholder)
     _module(
