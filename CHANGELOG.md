@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-alpha.6](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.5...chimerax-copick-v2.0.0-alpha.6) (2026-10-06)
+
+
+### 🐞 Bug Fixes
+
+* keep the view's mode and object labels up to date (v2.0) ([#120](https://github.com/copick/chimerax-copick/issues/120)) ([431035b](https://github.com/copick/chimerax-copick/commit/431035b902442afec0e7966880c811f474af245e))
+
 ## [2.0.0-alpha.5](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.4...chimerax-copick-v2.0.0-alpha.5) (2026-10-06)
 
 
