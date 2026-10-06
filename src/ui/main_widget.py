@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Optional, Union
 import copick_shared_ui.platform.chimerax_integration as chimerax_integration_module
 from copick.impl.filesystem import CopickRootFSSpec
 from copick.models import CopickMesh, CopickPicks, CopickSegmentation
+from copick_shared_ui.core.types import copick_object_type
 from Qt.QtCore import QEvent, QModelIndex, QObject, QSortFilterProxyModel, Qt
 from Qt.QtWidgets import (
     QHBoxLayout,
@@ -149,6 +150,32 @@ class MainWidget(QWidget):
         picks_layout.addWidget(stepper_container)
         picks_widget.setLayout(picks_layout)
 
+        # Filaments widget: the table and a filament stepper (like the picks page); tracing and the filament
+        # browser live in the Copick Annotate window
+        filaments_widget = QWidget()
+        filaments_layout = QVBoxLayout(filaments_widget)
+        filaments_layout.setContentsMargins(1, 1, 1, 1)
+        filaments_layout.setSpacing(2)
+        self._filaments_table = QUnifiedTable("filaments")
+        self._filament_stepper = StepWidget(noun="filament", prev_key="fp", next_key="fn")
+        self._filament_stepper.setMaximumHeight(45)
+        self._filament_stepper_name = ElidedLabel("No filament set active")
+        self._filament_stepper_name.setEnabled(False)
+        filament_stepper_row = QHBoxLayout()
+        filament_stepper_row.addStretch()
+        filament_stepper_row.addWidget(self._filament_stepper)
+        filament_stepper_row.addStretch()
+        filament_stepper_row.setContentsMargins(0, 0, 0, 0)
+        filament_stepper_layout = QVBoxLayout()
+        filament_stepper_layout.setContentsMargins(0, 0, 0, 0)
+        filament_stepper_layout.setSpacing(0)
+        filament_stepper_layout.addWidget(self._filament_stepper_name)
+        filament_stepper_layout.addLayout(filament_stepper_row)
+        filament_stepper_container = QWidget()
+        filament_stepper_container.setLayout(filament_stepper_layout)
+        filaments_layout.addWidget(self._filaments_table)
+        filaments_layout.addWidget(filament_stepper_container)
+
         # Mesh widget with tight layout
         meshes_layout = QVBoxLayout()
         meshes_layout.setContentsMargins(1, 1, 1, 1)  # Minimal margins
@@ -170,8 +197,16 @@ class MainWidget(QWidget):
         # Create tabbed widget for tables
         self._object_tabs = QTabWidget()
         self._object_tabs.addTab(picks_widget, "Picks")
+        self._object_tabs.addTab(filaments_widget, "Filaments")
         self._object_tabs.addTab(meshes_widget, "Meshes")
         self._object_tabs.addTab(segmentations_widget, "Segmentations")
+        # Tab page -> table (used by the shared settings button; no hard-coded indices)
+        self._tab_tables = {
+            picks_widget: self._picks_table,
+            filaments_widget: self._filaments_table,
+            meshes_widget: self._meshes_table,
+            segmentations_widget: self._segmentations_table,
+        }
 
         # Set up tables container with tight layout
         tables_layout = QVBoxLayout()
@@ -526,6 +561,16 @@ class MainWidget(QWidget):
         self._picks_table.newClicked.connect(self._on_new_picks)
         self._picks_table.deleteClicked.connect(self._copick.delete_particles)
 
+        # Filaments actions
+        self._filaments_table.get_table_view().doubleClicked.connect(
+            lambda i: self._copick.show_filaments(self._map_index(self._filaments_table, i)),
+        )
+        self._filaments_table.get_table_view().clicked.connect(
+            lambda i: self._copick.activate_filaments(self._map_index(self._filaments_table, i)),
+        )
+        self._filaments_table.newClicked.connect(self._on_new_filaments)
+        self._filaments_table.deleteClicked.connect(self._copick.delete_filaments)
+
         # Meshes actions - use wrapper methods to handle proxy model mapping
         self._meshes_table.get_table_view().doubleClicked.connect(self._on_meshes_double_click)
         self._meshes_table.duplicateClicked.connect(self._copick.duplicate_mesh)
@@ -535,20 +580,33 @@ class MainWidget(QWidget):
         # Segmentations actions - use wrapper methods to handle proxy model mapping
         self._segmentations_table.get_table_view().doubleClicked.connect(self._on_segmentations_double_click)
         self._segmentations_table.duplicateClicked.connect(self._copick.duplicate_segmentation)
-        self._segmentations_table.newClicked.connect(self._copick.new_segmentation)
+        self._segmentations_table.newClicked.connect(self._on_new_segmentation)
         self._segmentations_table.deleteClicked.connect(self._copick.delete_segmentation)
+        self._segmentations_table.get_table_view().clicked.connect(self._on_segmentations_click)
 
-        # Zarr level settings - connect all table overlays to persistent settings
-        self._picks_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
-        self._meshes_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
-        self._segmentations_table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
-
-        # Loaded-tomogram cap - same pattern, persisted in settings
-        for table in (self._picks_table, self._meshes_table, self._segmentations_table):
+        # Zarr level settings and the loaded-tomogram cap - all table overlays write the persistent settings
+        for table in self._all_tables():
+            table._settings_overlay.zarrLevelChanged.connect(self._on_zarr_level_changed)
             table._settings_overlay.maxLoadedTomogramsChanged.connect(self._on_max_loaded_tomograms_changed)
 
         self._picks_stepper.stepRequested.connect(self._on_stepper_step)
         self._picks_stepper.jumpRequested.connect(self._copick.go_to)
+
+        self._filament_stepper.stepRequested.connect(self._on_filament_step)
+        self._filament_stepper.jumpRequested.connect(self._on_filament_jump)
+        self._copick.filaments.listeners.append(self.refresh_filament_stepper)
+        self.refresh_filament_stepper()
+
+    def _all_tables(self):
+        return (self._picks_table, self._filaments_table, self._meshes_table, self._segmentations_table)
+
+    def set_tables_run(self, run):
+        """Show a run's entities in all tables."""
+        for table in self._all_tables():
+            table.set_view(run)
+        annotate = self._copick.annotate(create=False)
+        if annotate is not None:
+            annotate.picks_panel.set_picks(None)
 
     def set_entity_active(self, picks: Union[CopickMesh, CopickPicks, CopickSegmentation], active: bool):
         if isinstance(picks, CopickPicks):
@@ -557,13 +615,63 @@ class MainWidget(QWidget):
             self._meshes_table.set_entity_active(picks, active)
         elif isinstance(picks, CopickSegmentation):
             self._segmentations_table.set_entity_active(picks, active)
+        elif copick_object_type(picks) == "filaments":
+            self._filaments_table.set_entity_active(picks, active)
 
     def update_picks_table(self):
         self._picks_table.update()
 
+    def update_filaments_table(self):
+        self._filaments_table.update()
+        # The rebuilt model starts with every eye closed; re-mark the shown filament sets.
+        ctl = self._copick.filaments
+        for key in list(ctl.entries):
+            if not isinstance(key, type(ctl.entries[key][0])) and ctl.is_shown(key):
+                self._filaments_table.set_entity_active(key, True)
+
+    def update_segmentations_table(self):
+        self._segmentations_table.update()
+        for seg in list(self._copick.seg_map) + list(self._copick.segmentations.models):
+            if hasattr(seg, "run") and self._copick.segmentation_shown(seg):
+                self._segmentations_table.set_entity_active(seg, True)
+
+    @staticmethod
+    def _map_index(table, proxy_index: QModelIndex) -> QModelIndex:
+        if proxy_index.isValid() and table._filter_model:
+            return table._filter_model.mapToSource(proxy_index)
+        return proxy_index
+
+    def _on_segmentations_click(self, proxy_index: QModelIndex) -> None:
+        index = self._map_index(self._segmentations_table, proxy_index)
+        if not index.isValid():
+            return
+        seg = index.model().get_entity(index)
+        annotate = self._copick.annotate(create=False)
+        if annotate is not None:
+            annotate.instance_panel.selected_segmentation = seg
+        ctl = self._copick.segmentations
+        if seg in ctl.models:
+            ctl.active_key = seg
+            ctl.notify()
+
+    def _on_new_filaments(self, object_name: str, user_id: str, session_id: str):
+        from chimerax.core.commands import run
+
+        if object_name:
+            run(self._copick.session, f"copick new filaments {object_name} userId {user_id} sessionId {session_id}")
+
+    def _on_new_segmentation(self, object_name: str, user_id: str, session_id: str):
+        from chimerax.core.commands import run
+
+        if object_name:
+            run(
+                self._copick.session,
+                f"copick new segmentation {object_name} userId {user_id} sessionId {session_id}",
+            )
+
     def clear_all_tables(self):
         """Clear all table models, deleting them so they don't leak."""
-        for table in (self._picks_table, self._meshes_table, self._segmentations_table):
+        for table in self._all_tables():
             # Disconnect and delete the selection model created for the current model.
             selection_model = table._table.selectionModel()
             if selection_model is not None:
@@ -591,6 +699,39 @@ class MainWidget(QWidget):
         self._picks_stepper.set_state(total, index, enabled=enabled)
         self._picks_stepper_name.setFullText(name if name else "No particle list selected")
         self._picks_stepper_name.setEnabled(bool(name) and enabled)
+
+    def refresh_filament_stepper(self) -> None:
+        """Show the active filament set and filament (``k of N`` in ID order, the order of ``fn`` / ``fp``)."""
+        ctl = self._copick.filaments
+        active = ctl.active
+        if active is None:
+            self._filament_stepper.set_state(0, None, enabled=False)
+            self._filament_stepper_name.setFullText("No filament set active")
+            self._filament_stepper_name.setEnabled(False)
+            return
+        edit, model = active
+        ids = edit.ids()
+        index = ids.index(edit.active_id) if edit.active_id in ids else None
+        current = f"filament #{edit.active_id}" if index is not None else f"new filament #{edit.active_id}"
+        name = f"{edit.object_name} · {edit.user_id}/{edit.session_id} — {current}"
+        if not model.display:
+            name += " (hidden)"
+        self._filament_stepper.set_state(len(ids), index, enabled=model.display and bool(ids))
+        self._filament_stepper_name.setFullText(name)
+        self._filament_stepper_name.setEnabled(model.display)
+
+    def _on_filament_step(self, delta: int) -> None:
+        from chimerax.core.commands import run
+
+        run(self._copick.session, "copick filament next" if delta > 0 else "copick filament previous")
+
+    def _on_filament_jump(self, index: int) -> None:
+        from chimerax.core.commands import run
+
+        edit = self._copick.filaments.edit_session
+        ids = edit.ids() if edit is not None else []
+        if 0 <= index < len(ids):
+            run(self._copick.session, f"copick filament go {ids[index]}")
 
     def _on_stepper_step(self, delta: int):
         if delta < 0:
@@ -837,11 +978,11 @@ class MainWidget(QWidget):
             return
 
         # Map proxy index to source index
-        if self._picks_table._filter_model:
-            source_index = self._picks_table._filter_model.mapToSource(proxy_index)
-            self._copick.activate_particles(source_index)
-        else:
-            self._copick.activate_particles(proxy_index)
+        source_index = self._map_index(self._picks_table, proxy_index)
+        self._copick.activate_particles(source_index)
+        annotate = self._copick.annotate(create=False)
+        if annotate is not None:
+            annotate.picks_panel.set_picks(source_index.model().get_entity(source_index))
 
     def _on_meshes_double_click(self, proxy_index: QModelIndex):
         """Handle double-click on meshes table by mapping proxy index to source index"""
@@ -892,16 +1033,7 @@ class MainWidget(QWidget):
 
     def _on_shared_settings_clicked(self):
         """Handle shared settings button click - show settings for current tab"""
-        current_tab_index = self._object_tabs.currentIndex()
-
-        # Get the current table's settings overlay
-        current_table = None
-        if current_tab_index == 0:  # Picks tab
-            current_table = self._picks_table
-        elif current_tab_index == 1:  # Meshes tab
-            current_table = self._meshes_table
-        elif current_tab_index == 2:  # Segmentations tab
-            current_table = self._segmentations_table
+        current_table = self._tab_tables.get(self._object_tabs.currentWidget())
 
         if current_table:
             # Initialize zarr level from persistent settings before showing

@@ -1,6 +1,11 @@
-from typing import Callable, Tuple, Type, Union
+from typing import Callable, Optional, Tuple, Type, Union
 
+import copick.models
 from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
+from copick_shared_ui.core.types import SEGMENTATION_TYPE_LABELS, segmentation_type_of
+
+# copick versions without the Filaments entity have no CopickFilaments
+CopickFilaments = getattr(copick.models, "CopickFilaments", None)
 
 
 class TableEntity:
@@ -25,15 +30,33 @@ class TableEntity:
         if column == 0:
             return self.entity.user_id
         elif column == 1:
-            if isinstance(self.entity, (CopickPicks, CopickMesh)):
-                return self.entity.pickable_object_name
-            elif isinstance(self.entity, CopickSegmentation):
+            if isinstance(self.entity, CopickSegmentation):
                 return self.entity.name
+            return self.entity.pickable_object_name
         elif column == 2:
             return self.entity.session_id
+        elif column == 3 and isinstance(self.entity, CopickSegmentation):
+            return SEGMENTATION_TYPE_LABELS[segmentation_type_of(self.entity)]
+        return None
+
+    def kind(self) -> Optional[str]:
+        """The segmentation type (binary, multilabel, instance, panoptic), or None for other entities."""
+        if isinstance(self.entity, CopickSegmentation):
+            return segmentation_type_of(self.entity)
+        return None
 
     def color(self) -> Tuple[int, ...]:
-        return tuple(self.entity.color)
+        color = getattr(self.entity, "color", None)
+        if color is None:  # filaments (and instance/panoptic stores) take their object's colour
+            name = getattr(self.entity, "pickable_object_name", None) or getattr(self.entity, "name", "")
+            obj = self.entity.run.root.get_object(name)
+            color = obj.color if obj is not None and obj.color else (128, 128, 128, 255)
+        return tuple(color)
+
+    @property
+    def locked(self) -> bool:
+        """Tool output or read-only storage (filaments have no ``read_only`` on every backend)."""
+        return bool(getattr(self.entity, "from_tool", False) or getattr(self.entity, "read_only", False))
 
     def columnCount(self) -> int:
         return 3
@@ -49,6 +72,13 @@ class TableMesh(TableEntity):
 
 class TableSegmentation(TableEntity):
     CopickClass = CopickSegmentation
+
+    def columnCount(self) -> int:
+        return 4
+
+
+class TableFilaments(TableEntity):
+    CopickClass = CopickFilaments
 
 
 class EntityTableRoot:

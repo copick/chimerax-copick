@@ -244,9 +244,11 @@ def _find_tomogram_by_type(run, tomo_type: str, voxel_size: Optional[float] = No
     return matches[0]
 
 
-def _next_session_id(run) -> str:
-    """Generate the next available 'manual-X' session id for a run (see NewPickDialog)."""
-    existing = {p.session_id.lower() for p in run.picks if p.session_id}
+def _next_session_id(run, entities=None) -> str:
+    """Generate the next available 'manual-X' session id for a run (see NewPickDialog); ``entities`` defaults to the
+    run's picks."""
+    entities = run.picks if entities is None else entities
+    existing = {str(p.session_id).lower() for p in entities if p.session_id}
     counter = 1
     while f"manual-{counter}" in existing:
         counter += 1
@@ -600,6 +602,306 @@ def copick_spotlight(
         session.logger.info(tool.spotlight.status())
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Filaments
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+def copick_open_filaments(session, uri: Optional[str] = None):
+    """Show filament sets in the active run matching the given copick URI (default: all)."""
+    _apply_to_entities(session, "filaments", uri, "_show_filaments_entity", "Showed")
+
+
+def copick_hide_filaments(session, uri: Optional[str] = None):
+    """Hide filament sets in the active run matching the given copick URI (default: all)."""
+    _apply_to_entities(session, "filaments", uri, "_hide_filaments_entity", "Hid")
+
+
+def _object_or_error(session, tool, object_name: str):
+    obj = tool.root.get_object(object_name)
+    if obj is None:
+        session.logger.error(f"Object '{object_name}' is not defined in the config. Add it via 'Edit Object Types'.")
+    return obj
+
+
+def copick_new_filaments(session, object_name: str, user_id: Optional[str] = None, session_id: Optional[str] = None):
+    """Start tracing a new set of filaments of ``object_name`` in the active run."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    run = _active_run(session, tool)
+    if run is None:
+        return
+    obj = _object_or_error(session, tool, object_name)
+    if obj is None:
+        return
+    from copick_shared_ui.core.types import is_filament_object
+
+    if not is_filament_object(obj):
+        session.logger.warning(f"'{object_name}' is not declared a filament (Edit Object Types → Is Filament).")
+    user_id = user_id or tool.root.user_id or "ArtiaX"
+    session_id = session_id or _next_session_id(run, list(getattr(run, "filaments", [])))
+    tool.new_filaments(object_name, user_id, session_id)
+    session.logger.info(f"Tracing new filaments '{object_name}:{user_id}/{session_id}' (right mouse: trace).")
+
+
+def _filament_controller(session):
+    tool = _get_running_tool(session)
+    if tool is None:
+        return None
+    if tool.filaments.active is None:
+        session.logger.warning("No active filament set. Open one (copick open filaments) or start one.")
+        return None
+    return tool.filaments
+
+
+def copick_filament(session, action: str, instance_id: Optional[int] = None):
+    """Filament tracing actions on the active filament set."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    ctl = tool.filaments
+    if action in ("on", "off", "toggle"):  # 'copick filament trace on|off|toggle'
+        from ..filaments.controller import TRACE_MODE
+
+        tracing = ctl.editing and ctl.right_mode == TRACE_MODE
+        on = (not tracing) if action == "toggle" else action == "on"
+        if on:
+            ctl.start_tracing()
+        elif tracing or action == "off":
+            ctl.stop_tracing()
+        return
+    if _filament_controller(session) is None:
+        return
+    if action == "new":
+        i = ctl.new_filament()
+        session.logger.info(f"New filament {i}: click on the tomogram plane to add control points.")
+    elif action == "select":
+        if instance_id is not None:
+            ctl.set_active_filament(instance_id)
+    elif action == "focus":
+        ctl.focus(instance_id if instance_id is not None else ctl.edit_session.active_id)
+    elif action == "go":
+        if instance_id is not None:
+            ctl.go_to_filament(instance_id)
+    elif action == "next":
+        ctl.step_filament(1)
+    elif action == "previous":
+        ctl.step_filament(-1)
+    elif action == "reverse":
+        ctl.reverse(instance_id)
+    elif action == "delete":
+        ctl.delete_filament(instance_id)
+    elif action == "convert":
+        ctl.convert(instance_id)
+
+
+def copick_filament_trace(session, state: str = "toggle"):
+    copick_filament(session, state)
+
+
+def copick_filament_join(session, ids=None, target: Optional[int] = None):
+    """Join filaments end to end; default: the filaments selected in the 3D view (Ctrl-click their tubes), or else in
+    the Copick Annotate window's filament list (the two are kept in step)."""
+    tool = _get_running_tool(session)
+    if tool is None or _filament_controller(session) is None:
+        return
+    if not ids:
+        ids = tool.filaments.scene_selected_ids()
+        annotate = tool.annotate(create=False)
+        if not ids and annotate is not None:
+            ids = annotate.filament_panel.browser.selected_keys()
+        if target is None:
+            active = tool.filaments.edit_session.active_id
+            target = active if active in ids else None
+    if len(ids or []) < 2:
+        session.logger.warning("copick: select two or more filaments in the Copick Annotate filament list to join.")
+        return
+    tool.filaments.join(ids, target=target)
+
+
+def copick_filament_cut(session, state: str = "toggle", at=None, instance_id: Optional[int] = None):
+    """Cut mode on / off, or cut the filament nearest to the point ``at`` (Angstrom) in two."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    ctl = tool.filaments
+    if at is not None:
+        if _filament_controller(session) is not None:
+            ctl.cut_at(at, instance_id=instance_id, tolerance=float("inf"))
+        return
+    from ..filaments.controller import CUT_MODE
+
+    cutting = ctl.editing and ctl.right_mode == CUT_MODE
+    on = (not cutting) if state == "toggle" else state == "on"
+    if on:
+        ctl.start_cutting()
+    elif cutting:
+        ctl.stop_tracing()
+
+
+def copick_filament_save(
+    session,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    pick_spacing: Optional[float] = None,
+):
+    """Save the active filament set (optionally with picks sampled every ``pick_spacing`` Angstrom)."""
+    ctl = _filament_controller(session)
+    if ctl is not None:
+        ctl.save(user_id=user_id, session_id=session_id, pick_spacing=pick_spacing)
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Instance segmentations
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+def copick_new_segmentation(
+    session,
+    object_name: str,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+):
+    """Start a new (empty) instance segmentation of ``object_name`` at the shown tomogram's voxel spacing."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    run = _active_run(session, tool)
+    if run is None or _object_or_error(session, tool, object_name) is None:
+        return
+    user_id = user_id or tool.root.user_id or "ArtiaX"
+    session_id = session_id or _next_session_id(run, list(run.segmentations))
+    tool.new_segmentation(object_name, user_id, session_id)
+
+
+def _ids(text: str):
+    from copick_shared_ui.util.instances import parse_id_set
+
+    return sorted(parse_id_set(text))
+
+
+def copick_instance(session, action: str, ids: Optional[str] = None, into: Optional[int] = None):
+    """Instance editing and browsing actions on the edited / active instance segmentation."""
+    from chimerax.core.commands import run as run_command
+
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    ctl = tool.segmentations
+    if action in ("paint", "erase", "pick"):
+        run_command(session, f"ui mousemode right '{action} copick instance'", log=False)
+        return
+    if action in ("show", "hide", "isolate"):
+        seg = ctl.active_key
+        if seg is None:
+            session.logger.warning("No instance or panoptic segmentation is active.")
+            return
+        keys = {r.row_key for r in ctl.rows(seg)}
+        chosen = set(_ids(ids or ""))
+        visible = {"show": keys, "hide": keys - chosen, "isolate": chosen}[action]
+        if action == "show" and chosen:
+            visible = chosen | {k for k, s in ctl.models[seg].surfaces.items() if s.display}
+        ctl.set_visible(seg, visible)
+        return
+    if not ctl.editing:
+        session.logger.warning("No instance segmentation is being edited (copick instance edit <uri>).")
+        return
+    if action == "new":
+        session.logger.info(f"Current instance ID {ctl.new_id()}")
+    elif action == "id":
+        ctl.set_current_id(int(ids))
+    elif action == "undo":
+        ctl.undo()
+    elif action == "delete":
+        ctl.relabel(_ids(ids or ""), 0)
+    elif action == "merge":
+        if into is None:
+            session.logger.error("copick instance merge IDS into ID")
+            return
+        ctl.relabel(_ids(ids or ""), int(into))
+
+
+def copick_instance_edit(session, uri: Optional[str] = None):
+    """Edit an instance segmentation of the active run (matching ``uri``; loads level 0)."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    run = _active_run(session, tool)
+    if run is None:
+        return
+    entities = [
+        e for e in _resolve_entities(session, tool, run, uri, "segmentation") if getattr(e, "is_instance", False)
+    ]
+    if len(entities) != 1:
+        session.logger.error(f"'{uri}' matches {len(entities)} instance segmentations; give a unique URI.")
+        return
+    seg = entities[0]
+    tool.segmentations.start_editing(seg, on_ready=lambda: tool._mw.set_entity_active(seg, True))
+
+
+def copick_instance_brush(session, radius: float):
+    tool = _get_running_tool(session)
+    if tool is not None:
+        tool.segmentations.paint_radius = float(radius)
+        tool.settings.paint_radius = float(radius)
+
+
+def copick_instance_save(session, user_id: Optional[str] = None, session_id: Optional[str] = None):
+    tool = _get_running_tool(session)
+    if tool is not None:
+        tool.segmentations.save(user_id=user_id, session_id=session_id)
+
+
+def copick_save(session):
+    """Save every edited annotation: picks, filament sets opened from an editable file, and the edited instance
+    segmentation (when it was opened from an editable store)."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    tool.store()
+    ctl = tool.segmentations
+    edit = ctl.edit
+    if edit is not None and edit.dirty:
+        if edit.read_only or edit.source is None:
+            session.logger.warning("copick: the edited instance segmentation is new or read-only; use 'Save…'.")
+        else:
+            ctl.save()
+    active = tool.filaments.active
+    if active is not None and active[0].dirty and (active[0].read_only or active[0].source is None):
+        session.logger.warning("copick: the active filament set is new or read-only; use 'Save…'.")
+    session.logger.info("copick: saved edited annotations.")
+
+
+def copick_annotate(session, state: str = "show", page: Optional[str] = None):
+    """Show, hide or toggle the Copick Annotate window (filament tracing, instance editing and browsing)."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    annotate = tool.annotate(create=state != "hide")
+    if annotate is None:
+        return
+    shown = annotate.tool_window.shown
+    if state == "hide" or (state == "toggle" and shown):
+        annotate.tool_window.shown = False
+        return
+    annotate.show_page(page or _current_page(annotate))
+
+
+def _current_page(annotate) -> str:
+    return {0: "filaments", 1: "instances", 2: "picks"}.get(annotate.tabs.currentIndex(), "filaments")
+
+
+def copick_color_picks(session, state: str = "on"):
+    """Colour every loaded particle list by instance ID (on) or by object (off)."""
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    tool.settings.color_picks_by_instance = state == "on"
+    for picks in list(tool.picks_map):
+        tool.set_color_picks_by_instance(picks, state == "on")
+
+
 def register_copick(logger):
     """Register all commands with ChimeraX, and specify expected arguments."""
     from chimerax.core.commands import (
@@ -607,6 +909,7 @@ def register_copick(logger):
         CmdDesc,
         EnumOf,
         FileNameArg,
+        Float3Arg,
         FloatArg,
         FloatsArg,
         IntArg,
@@ -777,8 +1080,184 @@ def register_copick(logger):
         )
         register("copick spotlight", desc, copick_spotlight)
 
+    def register_annotation_commands():
+        from chimerax.core.commands import IntArg as _IntArg
+
+        entity_url = "help:user/commands/copick_filaments.html"
+        for verb in ("open", "show"):
+            register(
+                f"copick {verb} filaments",
+                CmdDesc(
+                    optional=[("uri", StringArg)],
+                    synopsis="Show filament sets matching a copick URI.",
+                    url=entity_url,
+                ),
+                copick_open_filaments,
+            )
+        register(
+            "copick hide filaments",
+            CmdDesc(
+                optional=[("uri", StringArg)],
+                synopsis="Hide filament sets matching a copick URI.",
+                url=entity_url,
+            ),
+            copick_hide_filaments,
+        )
+        register(
+            "copick new filaments",
+            CmdDesc(
+                required=[("object_name", StringArg)],
+                keyword=[("user_id", StringArg), ("session_id", StringArg)],
+                synopsis="Start tracing a new set of filaments in the active run.",
+                url=entity_url,
+            ),
+            copick_new_filaments,
+        )
+        register(
+            "copick filament trace",
+            CmdDesc(
+                optional=[("state", EnumOf(["on", "off", "toggle"]))],
+                synopsis="Switch the filament trace mouse mode on or off.",
+                url=entity_url,
+            ),
+            copick_filament_trace,
+        )
+        register(
+            "copick filament",
+            CmdDesc(
+                required=[
+                    (
+                        "action",
+                        EnumOf(["new", "select", "focus", "go", "next", "previous", "reverse", "delete", "convert"]),
+                    ),
+                ],
+                optional=[("instance_id", _IntArg)],
+                synopsis="Filament tracing actions on the active filament set.",
+                url=entity_url,
+            ),
+            copick_filament,
+        )
+        register(
+            "copick filament join",
+            CmdDesc(
+                optional=[("ids", ListOf(IntArg))],
+                keyword=[("target", IntArg)],
+                synopsis="Join filaments end to end (default: those selected in the 3D view or the Annotate window).",
+                url=entity_url,
+            ),
+            copick_filament_join,
+        )
+        register(
+            "copick filament cut",
+            CmdDesc(
+                optional=[("state", EnumOf(["on", "off", "toggle"]))],
+                keyword=[("at", Float3Arg), ("instance_id", _IntArg)],
+                synopsis="Cut mode on or off, or cut a filament in two at a point.",
+                url=entity_url,
+            ),
+            copick_filament_cut,
+        )
+        register(
+            "copick filament save",
+            CmdDesc(
+                keyword=[("user_id", StringArg), ("session_id", StringArg), ("pick_spacing", FloatArg)],
+                synopsis="Save the active filament set, optionally with sampled picks.",
+                url=entity_url,
+            ),
+            copick_filament_save,
+        )
+        inst_url = "help:user/commands/copick_instance.html"
+        register(
+            "copick new segmentation",
+            CmdDesc(
+                required=[("object_name", StringArg)],
+                keyword=[("user_id", StringArg), ("session_id", StringArg)],
+                synopsis="Start a new instance segmentation in the active run.",
+                url=inst_url,
+            ),
+            copick_new_segmentation,
+        )
+        register(
+            "copick instance",
+            CmdDesc(
+                required=[
+                    (
+                        "action",
+                        EnumOf(
+                            [
+                                "paint",
+                                "erase",
+                                "pick",
+                                "new",
+                                "id",
+                                "undo",
+                                "delete",
+                                "merge",
+                                "show",
+                                "hide",
+                                "isolate",
+                            ],
+                        ),
+                    ),
+                ],
+                optional=[("ids", StringArg)],
+                keyword=[("into", _IntArg)],
+                synopsis="Instance editing and browsing actions.",
+                url=inst_url,
+            ),
+            copick_instance,
+        )
+        register(
+            "copick instance edit",
+            CmdDesc(
+                optional=[("uri", StringArg)],
+                synopsis="Edit an instance segmentation of the active run.",
+                url=inst_url,
+            ),
+            copick_instance_edit,
+        )
+        register(
+            "copick instance brush",
+            CmdDesc(required=[("radius", FloatArg)], synopsis="Set the instance paint brush radius (Å).", url=inst_url),
+            copick_instance_brush,
+        )
+        register(
+            "copick instance save",
+            CmdDesc(
+                keyword=[("user_id", StringArg), ("session_id", StringArg)],
+                synopsis="Save the edited instance segmentation.",
+                url=inst_url,
+            ),
+            copick_instance_save,
+        )
+        register(
+            "copick save",
+            CmdDesc(synopsis="Save all edited picks, filaments and instance segmentations.", url=inst_url),
+            copick_save,
+        )
+        register(
+            "copick annotate",
+            CmdDesc(
+                optional=[("state", EnumOf(["show", "hide", "toggle"]))],
+                keyword=[("page", EnumOf(["filaments", "instances", "picks"]))],
+                synopsis="Show or hide the Copick Annotate window.",
+                url=inst_url,
+            ),
+            copick_annotate,
+        )
+        register(
+            "copick colorpicks",
+            CmdDesc(
+                optional=[("state", EnumOf(["on", "off"]))],
+                synopsis="Colour particle lists by instance ID (on) or object (off).",
+                url=inst_url,
+            ),
+            copick_color_picks,
+        )
+
     register_copick_start()
     register_copick_keyboard_shortcuts()
+    register_annotation_commands()
     register_copick_new()
     register_copick_open_run()
     register_tomogram_commands()

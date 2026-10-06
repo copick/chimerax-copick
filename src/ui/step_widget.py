@@ -17,7 +17,7 @@ IDLE_TEXT = "–"
 
 
 class StepWidget(QWidget):
-    """Display-only particle stepper (``<< [k] of N >>``).
+    """Display-only stepper (``<< [k] of N >>``) for particles or filaments.
 
     The widget holds no stepping state of its own: the owning tool is the single authority
     and pushes the current position via :meth:`set_state`. User input is forwarded as
@@ -30,8 +30,9 @@ class StepWidget(QWidget):
     jumpRequested = Signal(int)
     """Absolute jump request, as a 0-based index (converted from the typed 1-based number)."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, noun: str = "particle", prev_key: str = "aa", next_key: str = "dd"):
         super().__init__(parent=parent)
+        self._noun, self._prev_key, self._next_key = noun, prev_key, next_key
         self._total = 0
         self._index: Optional[int] = None
         self._build()
@@ -43,8 +44,8 @@ class StepWidget(QWidget):
 
         self._bck_button = QPushButton("<<")
         self._fwd_button = QPushButton(">>")
-        self._bck_button.setToolTip("Previous particle (aa)")
-        self._fwd_button.setToolTip("Next particle (dd)")
+        self._bck_button.setToolTip(f"Previous {self._noun} ({self._prev_key})")
+        self._fwd_button.setToolTip(f"Next {self._noun} ({self._next_key})")
 
         self._text = QLineEdit(IDLE_TEXT)
         self._text.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))
@@ -52,7 +53,7 @@ class StepWidget(QWidget):
         # Digits only. Range checking happens in _txt(): a ranged QIntValidator would treat
         # out-of-range input as "intermediate" and swallow editingFinished, leaving it stuck.
         self._text.setValidator(QRegularExpressionValidator(QRegularExpression(r"\d*"), self._text))
-        self._text.setToolTip("Type a particle number and press Enter to jump to it")
+        self._text.setToolTip(f"Type a {self._noun} number and press Enter to jump to it")
 
         self._label = QLabel("of 0")
         self._label.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum))

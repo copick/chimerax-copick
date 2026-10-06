@@ -83,3 +83,26 @@ def test_segmentation_store_and_display_contract_are_format_independent(
         np.testing.assert_array_equal(imported_volume.color, [100, 110, 120, 255])
         np.testing.assert_array_equal(child.color, [100, 110, 120, 255])
     assert snapshot(path) == before
+
+
+@pytest.mark.parametrize("kind", ["instance", "panoptic"])
+def test_instance_and_panoptic_segmentations_go_to_the_label_surface_controller(tool_module, monkeypatch, kind):
+    """Label maps (instance / panoptic) are drawn as one surface per label, not as a thresholded volume."""
+    segmentation = Segmentation(name="ribosome", segmentation_type=kind, is_multilabel=False, zarr_calls=0)
+    shown = []
+    commands = []
+    tool = tool_module.CopickTool.__new__(tool_module.CopickTool)
+    tool.seg_map = {}
+    tool.segmentations = SimpleNamespace(show=shown.append)
+    monkeypatch.setattr(tool_module, "run", lambda _session, command, **kwargs: commands.append(command))
+    monkeypatch.setattr(
+        tool_module,
+        "open_ome_zarr_from_store",
+        lambda *_args, **_kwargs: pytest.fail("label maps must not open as a volume"),
+    )
+
+    tool.show_volume_from_segmentation(segmentation)
+
+    assert shown == [segmentation]
+    assert commands == []
+    assert tool.seg_map == {}

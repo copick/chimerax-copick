@@ -28,17 +28,19 @@ from copick.impl.filesystem import CopickTomogramFSSpec
 from copick.models import CopickMesh, CopickPicks, CopickSegmentation
 from copick.util.uri import serialize_copick_uri
 from copick_shared_ui.core.thumbnail_cache import set_global_cache_config, set_global_cache_image_interface
+from copick_shared_ui.core.types import segmentation_type_flags, segmentation_type_of
+from copick_shared_ui.util.instances import instance_colors
 
 # Qt
 from Qt.QtCore import QModelIndex
 from Qt.QtGui import QFont
 from Qt.QtWidgets import QVBoxLayout
 
+from .filaments.controller import FilamentController
 from .misc.colorops import palette_from_root
 from .misc.meshops import ensure_mesh
 from .misc.pickops import (
     append_no_duplicates,
-    instance_id_colors,
     is_filament,
     point_from_pose,
     point_identity,
@@ -49,6 +51,7 @@ from .misc.settings import CoPickSettings
 from .misc.spotlight import SpotlightManager
 from .misc.tomostate import apply_view_state, capture_view_state
 from .misc.volops import set_step
+from .segmentation.controller import SegmentationController
 from .storage import density_map_store
 
 # from .ui.pickstable import TablePicks
@@ -132,6 +135,10 @@ class CopickTool(ToolInstance):
         self.settings = CoPickSettings(session, "copick", version="1")
         """Settings."""
 
+        # Filaments (tracing) and instance/panoptic segmentations (surfaces, instance editing); the UI binds to them.
+        self.filaments = FilamentController(self)
+        self.segmentations = SegmentationController(self)
+
         # UI
         self.tool_window = MainToolWindow(self, close_destroys=False)
         self._build_ui()
@@ -149,19 +156,28 @@ class CopickTool(ToolInstance):
         """Map segmentations to volumes."""
         self.mesh_map = {}
         """Map meshes to surface objects."""
+        self.instance_masks = {}
+        """Per particle list, the particles shown by the instance browser (hide/isolate by instance ID)."""
 
         # Mouse Modes
-        from .mouse.mousemodes import WheelMovePlanesMode
+        from .mouse.mousemodes import COPICK_EDIT_MODES, WheelMovePlanesMode
 
         self.wheel_move_planes_mode = WheelMovePlanesMode(self.session)
         self.session.ui.mouse_modes.add_mode(self.wheel_move_planes_mode)
         run(self.session, "ui mousemode shift wheel 'move copick planes'")
+        for mode_class in COPICK_EDIT_MODES:
+            self.session.ui.mouse_modes.add_mode(mode_class(self.session))
 
         # Keep trigger handler refs so they can be removed in delete(); otherwise the
         # session-level handlers keep firing into a deleted tool after close session.
         self._trigger_handlers = [
             self.session.triggers.add_handler("app quit", self._store),
             self.session.triggers.add_handler("set mouse mode", self._update_mouse_info_label),
+            self.session.triggers.add_handler("set mouse mode", self._on_mouse_mode_set),
+            self.session.triggers.add_handler("selection changed", self._on_selection_changed),
+            # Fired by models themselves (``select``, Ctrl-click, ``select clear``); the general "selection changed"
+            # trigger above only fires while atomic structures (ArtiaX particle lists) exist.
+            self.session.triggers.add_handler("model selection changed", self._on_model_selection_changed),
             self.session.triggers.add_handler(MODEL_DISPLAY_CHANGED, self._on_model_display_changed),
             self.session.triggers.add_handler(REMOVE_MODELS, self._on_models_removed),
         ]
@@ -268,6 +284,10 @@ class CopickTool(ToolInstance):
             surf.delete()
         self.mesh_map = {}
 
+        self.instance_masks = {}
+        self.filaments.close_all()
+        self.segmentations.close_all()
+
     def _store(self, *args, **kwargs):
         self.store()
 
@@ -290,6 +310,9 @@ class CopickTool(ToolInstance):
 
             pick.points = points
             pick.store()
+
+        # Edited filament sets opened from an editable file are stored too.
+        self.filaments.save_dirty()
 
     def close_all_tomograms(self):
         """Close every loaded tomogram (run switch, project reload)."""
@@ -569,6 +592,10 @@ class CopickTool(ToolInstance):
         self.show_tomogram(key)
 
     def _on_models_removed(self, _trigger_name, models):
+        # A filament set closed outside copick: the dock stepper and the Annotate window follow.
+        filaments = getattr(self, "filaments", None)
+        if filaments is not None and any(getattr(m, "edit_session", None) is not None for m in models):
+            self.session.ui.thread_safe(filaments.notify)
         # Tomograms closed outside copick (e.g. ``close #1.1.2``) leave the registry.
         if self._tomo_closing:
             return
@@ -636,9 +663,7 @@ class CopickTool(ToolInstance):
             self.close_all_tomograms()
             self.store()
             self.close_all()
-            self._mw._picks_table.set_view(tomo.voxel_spacing.run)
-            self._mw._meshes_table.set_view(tomo.voxel_spacing.run)
-            self._mw._segmentations_table.set_view(tomo.voxel_spacing.run)
+            self._mw.set_tables_run(tomo.voxel_spacing.run)
 
         key = _tomo_key(tomo)
         vol = self._loaded_tomos.get(key)
@@ -754,10 +779,12 @@ class CopickTool(ToolInstance):
             partlist.radius = pick_obj.radius
 
         # Filaments: one colour per filament, so neighbouring filaments can be told apart.
-        if pick_obj is not None and is_filament(pick_obj) and partlist.size > 0:
-            partlist.particle_colors = instance_id_colors(
+        by_instance = getattr(getattr(self, "settings", None), "color_picks_by_instance", False)
+        if pick_obj is not None and (is_filament(pick_obj) or by_instance) and partlist.size > 0:
+            partlist.particle_colors = instance_colors(
                 [p["instance_id"] for _id, p in partlist.data],
                 pick_obj.color,
+                dtype=np.uint8,
             )
 
         if volume is not None:
@@ -999,7 +1026,15 @@ class CopickTool(ToolInstance):
             return
 
         part = pl.data[ap]
-        r = pl.radius
+        self.focus_xyz((part["pos_x"], part["pos_y"], part["pos_z"]), radius=pl.radius)
+
+        if self.spotlight.enabled:
+            self.spotlight.on_active_particle((part["pos_x"], part["pos_y"], part["pos_z"]))
+
+    def focus_xyz(self, xyz, radius: float = 50.0):
+        """Move the slab / orthoplanes to a point (Angstrom) and centre the camera on it."""
+        part = {"pos_x": float(xyz[0]), "pos_y": float(xyz[1]), "pos_z": float(xyz[2])}
+        r = float(radius)
         vol = self.active_volume
 
         # While spotlight is on the source volume is hidden; repositioning its
@@ -1031,9 +1066,6 @@ class CopickTool(ToolInstance):
             log=False,
         )
         run(self.session, f"cofr {part['pos_x']},{part['pos_y']},{part['pos_z']}", log=False)
-
-        if self.spotlight.enabled:
-            self.spotlight.on_active_particle((part["pos_x"], part["pos_y"], part["pos_z"]))
 
     def remove_particle(self):
         self._sync_stepper()
@@ -1201,9 +1233,14 @@ class CopickTool(ToolInstance):
         pass
 
     def new_segmentation(self, object_name: str, user_id: str, session_id: str):
-        """Placeholder for new segmentation creation"""
-        # TODO: Implement new segmentation creation logic
-        pass
+        """Start a new (empty) instance segmentation of ``object_name`` at the active tomogram's voxel spacing and
+        switch to the paint mouse mode."""
+        if not object_name:
+            return
+        try:
+            self.segmentations.start_editing(object_name=object_name, user_id=user_id, session_id=session_id)
+        except ValueError as e:
+            self.session.logger.error(f"copick: {e}")
 
     ######################
     # Delete actions #
@@ -1298,12 +1335,14 @@ class CopickTool(ToolInstance):
             # Get the run that contains this segmentation entity
             run = entity.run
 
-            # Delete using the copick API
+            # Delete using the copick API, restricted to this segmentation's type: a binary and an instance
+            # segmentation can share name, user, session and voxel size.
             run.delete_segmentations(
                 user_id=entity.user_id,
                 session_id=entity.session_id,
                 name=entity.name,
                 voxel_size=entity.voxel_size,
+                **segmentation_type_flags(segmentation_type_of(entity)),
             )
 
             # Remove from local tracking if it exists
@@ -1311,6 +1350,7 @@ class CopickTool(ToolInstance):
                 volume = self.seg_map[entity]
                 volume.delete()
                 del self.seg_map[entity]
+            self.segmentations.forget(entity)
 
             # Update the UI
             self._mw._segmentations_table.update()
@@ -1333,13 +1373,23 @@ class CopickTool(ToolInstance):
         if not isinstance(entity, CopickSegmentation):
             return
 
-        will_show = not self.seg_map[entity].display if entity in self.seg_map else True
+        will_show = not self.segmentation_shown(entity)
         verb = "copick open segmentation" if will_show else "copick hide segmentation"
         log_equivalent_command(self.session, build_command(verb, serialize_copick_uri(entity)))
         (self._show_segmentation_entity if will_show else self._hide_segmentation_entity)(entity)
 
+    def segmentation_shown(self, seg: CopickSegmentation) -> bool:
+        if segmentation_type_of(seg) in ("instance", "panoptic"):
+            model = self.segmentations.models.get(seg)
+            return model is not None and not model.deleted and model.display
+        return seg in self.seg_map and self.seg_map[seg].display
+
     def _show_segmentation_entity(self, seg: CopickSegmentation):
         """Load (if needed) and show a segmentation. Shared by UI + ``copick open segmentation``."""
+        if segmentation_type_of(seg) in ("instance", "panoptic"):
+            self.segmentations.show(seg)
+            self._mw.set_entity_active(seg, True)
+            return
         if seg in self.seg_map:
             self.seg_map[seg].display = True
             self._mw.set_entity_active(seg, True)
@@ -1349,11 +1399,20 @@ class CopickTool(ToolInstance):
 
     def _hide_segmentation_entity(self, seg: CopickSegmentation):
         """Hide a loaded segmentation (no-op if it is not currently loaded)."""
+        if segmentation_type_of(seg) in ("instance", "panoptic"):
+            self.segmentations.hide(seg)
+            self._mw.set_entity_active(seg, False)
+            return
         if seg in self.seg_map:
             self.seg_map[seg].display = False
             self._mw.set_entity_active(seg, False)
 
     def show_volume_from_segmentation(self, seg: CopickSegmentation):
+        # Instance and panoptic segmentations are label maps: one surface per instance / segment.
+        if segmentation_type_of(seg) in ("instance", "panoptic"):
+            self.segmentations.show(seg)
+            return
+
         root = seg.run.root
         name = seg.name
 
@@ -1389,6 +1448,133 @@ class CopickTool(ToolInstance):
                 m.color = np.array(pick_obj.color)
             #seg_vol.color = np.array(pick_obj.color)
             #print(seg_vol.child_models())
+
+    ####################
+    # Annotate window  #
+    ####################
+    def annotate(self, page: Optional[str] = None, create: bool = True):
+        """The Copick Annotate window (filament tracing, instance editing, instance browsing); shown on ``page``
+        (``"filaments"``, ``"instances"`` or ``"picks"``) if given."""
+        from .ui.annotate_tool import get_annotate_tool
+
+        tool = get_annotate_tool(self.session, create=create)
+        if tool is not None and page is not None:
+            tool.show_page(page)
+        return tool
+
+    ####################
+    # Filament actions #
+    ####################
+    def active_run(self):
+        """The run of the shown tomogram, or None."""
+        vol = self.active_volume
+        if vol is None or vol.deleted or not hasattr(vol, "copick_tomo"):
+            return None
+        return vol.copick_tomo.voxel_spacing.run
+
+    def show_filaments(self, index: QModelIndex):
+        if not index.isValid():
+            return
+        entity = index.model().get_entity(index)
+        if entity is None:
+            return
+        will_show = not self.filaments.is_shown(entity)
+        verb = "copick open filaments" if will_show else "copick hide filaments"
+        log_equivalent_command(self.session, build_command(verb, serialize_copick_uri(entity)))
+        (self._show_filaments_entity if will_show else self._hide_filaments_entity)(entity)
+
+    def activate_filaments(self, index: QModelIndex):
+        if not index.isValid():
+            return
+        entity = index.model().get_entity(index)
+        if entity is not None and entity in self.filaments.entries:
+            self.filaments.set_active(entity)
+
+    def _show_filaments_entity(self, filaments):
+        self.filaments.show(filaments)
+        self._mw.set_entity_active(filaments, True)
+
+    def _hide_filaments_entity(self, filaments):
+        self.filaments.hide(filaments)
+        self._mw.set_entity_active(filaments, False)
+
+    def new_filaments(self, object_name: str, user_id: str, session_id: str):
+        """Start a new filament set in the active run and switch to the trace mouse mode."""
+        if not object_name:
+            return
+        try:
+            self.filaments.new(object_name, user_id, session_id)
+        except ValueError as e:
+            self.session.logger.error(f"copick: {e}")
+
+    def delete_filaments(self, index: QModelIndex):
+        if not index.isValid():
+            return
+        entity = index.model().get_entity(index)
+        if entity is None:
+            return
+        try:
+            self.filaments.delete_entity(entity)
+            entity.delete()
+            self._mw.update_filaments_table()
+        except Exception as e:
+            self.session.logger.error(f"Failed to delete filaments: {e}")
+
+    def reload_picks_entity(self, picks: CopickPicks):
+        """Redraw a picks set from storage (after it was rewritten, e.g. picks sampled from filaments)."""
+        shown = False
+        for p in list(self.picks_map):
+            if (
+                p.pickable_object_name == picks.pickable_object_name
+                and p.user_id == picks.user_id
+                and (p.session_id == picks.session_id)
+            ):
+                shown = self.picks_map[p].display
+                self.picks_map.pop(p).delete()
+        self._mw.update_picks_table()
+        if shown:
+            self.show_particles_from_picks(picks)
+            self._mw.set_entity_active(picks, True)
+
+    ##########################
+    # Instances (browsing) #
+    ##########################
+    def instance_mask(self, pl) -> Any:
+        """Particles of a list shown by the instance browser (True = all)."""
+        mask = self.instance_masks.get(pl)
+        if mask is None or len(mask) != pl.size:
+            return True if pl.size == 0 else np.ones(pl.size, dtype=bool)
+        return mask
+
+    def set_pick_instances_visible(self, picks: CopickPicks, ids) -> None:
+        """Show only the particles of ``picks`` whose instance ID is in ``ids``."""
+        pl = self.picks_map.get(picks)
+        if pl is None or pl.deleted or pl.size == 0:
+            return
+        ids = {int(i) for i in ids}
+        mask = np.array([int(p["instance_id"]) in ids for _id, p in pl.data], dtype=bool)
+        self.instance_masks[pl] = mask
+        # With the spotlight hiding particles it combines this mask with its sphere on the next update.
+        if not (self.spotlight.enabled and self.spotlight.hide_particles):
+            pl.displayed_particles = mask
+
+    def focus_pick_instance(self, picks: CopickPicks, instance_id: int) -> None:
+        pl = self.picks_map.get(picks)
+        if pl is None or pl.deleted:
+            return
+        for pid, p in pl.data:
+            if int(p["instance_id"]) == int(instance_id):
+                self.go_to_particle(pl, pid)
+                return
+
+    def set_color_picks_by_instance(self, picks: CopickPicks, on: bool) -> None:
+        pl = self.picks_map.get(picks)
+        if pl is None or pl.deleted or pl.size == 0:
+            return
+        obj = self.root.get_object(picks.pickable_object_name)
+        base = np.asarray(obj.color if obj is not None and obj.color else (255, 255, 255, 255), dtype=np.uint8)
+        ids = [p["instance_id"] for _id, p in pl.data]
+        pl.particle_colors = instance_colors(ids, base, dtype=np.uint8) if on else np.tile(base, (len(ids), 1))
 
     ################
     # Mesh actions #
@@ -1443,11 +1629,41 @@ class CopickTool(ToolInstance):
         col = np.array(pick_obj.color)
         surf.color = col
 
+    def _on_selection_changed(self, *_args) -> None:
+        filaments = getattr(self, "filaments", None)
+        if filaments is not None:
+            filaments.on_scene_selection_changed()
+
+    def _on_model_selection_changed(self, _trigger_name, model) -> None:
+        # Many models can change at once (select clear): check the filament selection once, after they are done.
+        if getattr(model, "copick_filament_id", None) is None or getattr(self, "_selection_check_pending", False):
+            return
+        self._selection_check_pending = True
+        from Qt.QtCore import QTimer
+
+        def check():
+            self._selection_check_pending = False
+            self._on_selection_changed()
+
+        QTimer.singleShot(0, check)
+
+    def _on_mouse_mode_set(self, _trigger_name, data) -> None:
+        filaments = getattr(self, "filaments", None)
+        if filaments is not None:
+            filaments.on_mouse_mode_set(*data)
+
     def delete(self):
         self.store()
 
         if getattr(self, "spotlight", None):
             self.spotlight.shutdown()
+
+        annotate = getattr(self, "_annotate", None)
+        if annotate is not None:
+            annotate.delete()
+        filaments, mw = getattr(self, "filaments", None), getattr(self, "_mw", None)
+        if filaments is not None and mw is not None and mw.refresh_filament_stepper in filaments.listeners:
+            filaments.listeners.remove(mw.refresh_filament_stepper)
 
         # Remove trigger handlers so they don't fire into this (deleted) tool, e.g. during
         # close session or after a close/reopen cycle (the Session object persists).
@@ -1694,9 +1910,7 @@ class CopickTool(ToolInstance):
 
                 if updated_run:
                     # Update all table views with the refreshed run data
-                    self._mw._picks_table.set_view(updated_run)
-                    self._mw._meshes_table.set_view(updated_run)
-                    self._mw._segmentations_table.set_view(updated_run)
+                    self._mw.set_tables_run(updated_run)
 
                     # Reload the previously active tomogram if we have the necessary info
                     if current_voxel_size is not None and current_tomo_type is not None:
