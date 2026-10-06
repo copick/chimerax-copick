@@ -12,8 +12,8 @@ dependencies = [
     "hatchling",
     "aiohttp>=3.13.0",
     "s3fs>=2024.3.1",
-    "copick[all]>=1.25.3",
-    "copick-shared-ui>=0.6.0",
+    "copick[all]>=1.28.0",
+    "copick-shared-ui>=0.8.0",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
@@ -53,6 +53,15 @@ classifiers = [
 tool_name = "Copick"
 category = ["Volume Data", "General"]
 synopsis = "Collaborative annotation of cryo-electron tomograms."
+
+[chimerax.tool."Copick Annotate"]
+tool_name = "Copick Annotate"
+category = ["Volume Data", "General"]
+synopsis = "Trace filaments, edit and browse instances of a copick run."
+
+[chimerax.command."copick annotate"]
+category = "General"
+synopsis = "Show or hide the Copick Annotate window."
 
 [chimerax.command."copick start"]
 category = "General"
@@ -133,6 +142,70 @@ synopsis = "Dock a tool window to an edge, float it, or tab it with another tool
 [chimerax.command."copick spotlight"]
 category = "General"
 synopsis = "Show a spherical spotlight of tomogram data around the active particle."
+
+[chimerax.command."copick open filaments"]
+category = "General"
+synopsis = "Show filament sets in the active run matching a copick URI."
+
+[chimerax.command."copick show filaments"]
+category = "General"
+synopsis = "Show filament sets in the active run matching a copick URI."
+
+[chimerax.command."copick hide filaments"]
+category = "General"
+synopsis = "Hide filament sets in the active run matching a copick URI."
+
+[chimerax.command."copick new filaments"]
+category = "General"
+synopsis = "Start tracing a new set of filaments in the active run."
+
+[chimerax.command."copick filament"]
+category = "General"
+synopsis = "Filament tracing actions on the active filament set."
+
+[chimerax.command."copick filament trace"]
+category = "General"
+synopsis = "Switch the filament trace mouse mode on or off."
+
+[chimerax.command."copick filament join"]
+category = "General"
+synopsis = "Join filaments end to end (default: those selected in the Annotate window)."
+
+[chimerax.command."copick filament cut"]
+category = "General"
+synopsis = "Cut mode on or off, or cut a filament in two at a point."
+
+[chimerax.command."copick filament save"]
+category = "General"
+synopsis = "Save the active filament set, optionally with sampled picks."
+
+[chimerax.command."copick new segmentation"]
+category = "General"
+synopsis = "Start a new instance segmentation in the active run."
+
+[chimerax.command."copick instance"]
+category = "General"
+synopsis = "Instance editing and browsing actions."
+
+[chimerax.command."copick instance edit"]
+category = "General"
+synopsis = "Edit an instance segmentation of the active run."
+
+[chimerax.command."copick instance brush"]
+category = "General"
+synopsis = "Set the instance paint brush radius."
+
+[chimerax.command."copick instance save"]
+category = "General"
+synopsis = "Save the edited instance segmentation."
+
+[chimerax.command."copick colorpicks"]
+category = "General"
+synopsis = "Colour particle lists by instance ID or by object."
+
+[chimerax.command."copick save"]
+category = "General"
+synopsis = "Save all edited picks, filaments and instance segmentations."
 
 [chimerax.package-data]
 "src/icons/" = ["*.png"]
@@ -445,6 +518,274 @@ mouse_mode = "delete picked particle"
 display_name = "Delete Picked"
 icon = "delete.png"
 description = "Delete picked particle."
+
+
+# Copick Edit tab: annotation, a few particle tools (duplicated from the Copick tab), filament tracing and instance
+# (segmentation) editing; at most as many buttons as the Copick tab
+
+[chimerax.provider."Edit Annotate"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Annotate"
+display_name = "Annotate"
+icon = "annotate.png"
+description = "Show or hide the Copick Annotate window (tracing, instance editing and browsing)."
+
+[chimerax.provider."Edit New Picks"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Annotate"
+display_name = "New Picks"
+icon = "new_picks.png"
+description = "Start a new pick set."
+
+[chimerax.provider."Edit New Filaments"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Annotate"
+display_name = "New Filaments"
+icon = "new_filament_set.png"
+description = "Start tracing a new filament set."
+
+[chimerax.provider."Edit New Instances"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Annotate"
+display_name = "New Instances"
+icon = "new_instance_seg.png"
+description = "Start a new instance segmentation."
+
+[chimerax.provider."Edit Save All"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Annotate"
+display_name = "Save All"
+icon = "save_all.png"
+description = "Save all edited picks, filaments and instances."
+
+[chimerax.provider."Edit mark plane"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Particles"
+mouse_mode = "mark plane"
+display_name = "Plane"
+icon = "plane.png"
+description = "Place a particle on the tomogram plane."
+
+[chimerax.provider."Edit Select"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Particles"
+mouse_mode = "select"
+display_name = "Select"
+icon = "select.png"
+description = "Select particles."
+
+[chimerax.provider."Edit Translate Picked"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Particles"
+mouse_mode = "translate picked particle"
+display_name = "Translate Picked"
+icon = "translate_picked.png"
+description = "Translate the particle under the mouse."
+
+[chimerax.provider."Edit Rotate Picked"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Particles"
+mouse_mode = "rotate picked particle"
+display_name = "Rotate Picked"
+icon = "rotate_picked.png"
+description = "Rotate the particle under the mouse."
+
+[chimerax.provider."Edit Delete Selected"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Particles"
+display_name = "Delete Selected"
+icon = "delete_selected.png"
+description = "Delete the selected particles."
+
+[chimerax.provider."Edit Delete Picked"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Particles"
+mouse_mode = "delete picked particle"
+display_name = "Delete Picked"
+icon = "delete.png"
+description = "Delete the particle under the mouse."
+
+[chimerax.provider."Trace Filament"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+mouse_mode = "trace copick filament"
+display_name = "Trace"
+icon = "trace_filament.png"
+description = "Trace filaments: click the tomogram plane to add control points, drag to move, shift-click to remove."
+
+[chimerax.provider."Cut Filament"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+mouse_mode = "cut copick filament"
+display_name = "Cut"
+icon = "cut_filament.png"
+description = "Cut filaments: click a filament on the tomogram plane to split it in two there."
+
+[chimerax.provider."Filament New"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+display_name = "New"
+icon = "new_filament.png"
+description = "Start a new filament in the active set."
+
+[chimerax.provider."Filament Previous"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+display_name = "Previous"
+icon = "prev_filament.png"
+description = "Previous filament."
+
+[chimerax.provider."Filament Next"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+display_name = "Next"
+icon = "next_filament.png"
+description = "Next filament."
+
+[chimerax.provider."Filament Reverse"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+display_name = "Reverse"
+icon = "reverse_filament.png"
+description = "Reverse the active filament."
+
+[chimerax.provider."Filament Join"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+display_name = "Join"
+icon = "join_filament.png"
+description = "Join the filaments selected in the Copick Annotate filament list end to end."
+
+[chimerax.provider."Filament Delete"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+display_name = "Delete"
+icon = "delete_filament.png"
+description = "Delete the active filament."
+
+[chimerax.provider."Filament Save"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Filaments"
+display_name = "Save"
+icon = "save_filaments.png"
+description = "Save the active filament set."
+
+[chimerax.provider."Paint Instance"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Instances"
+mouse_mode = "paint copick instance"
+display_name = "Paint"
+icon = "paint_instance.png"
+description = "Paint the current instance ID."
+
+[chimerax.provider."Erase Instance"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Instances"
+mouse_mode = "erase copick instance"
+display_name = "Erase"
+icon = "erase_instance.png"
+description = "Erase instance voxels."
+
+[chimerax.provider."Pick Instance"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Instances"
+mouse_mode = "pick copick instance"
+display_name = "Pick ID"
+icon = "pick_instance.png"
+description = "Make the clicked instance ID current."
+
+[chimerax.provider."Instance New ID"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Instances"
+display_name = "New ID"
+icon = "new_instance.png"
+description = "Use a new instance ID."
+
+[chimerax.provider."Instance Undo"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Instances"
+display_name = "Undo"
+icon = "undo_instance.png"
+description = "Undo the last instance edit."
+
+[chimerax.provider."Instance Save"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Instances"
+display_name = "Save"
+icon = "save_instances.png"
+description = "Save the edited instance segmentation."
+
+[chimerax.provider."layout-brush"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Brush"
+compact = "true"
+
+[chimerax.provider."Brush Small"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Brush"
+display_name = "S"
+icon = "brush_small.png"
+description = "Brush radius 25 Å."
+
+[chimerax.provider."Brush Medium"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Brush"
+display_name = "M"
+icon = "brush_medium.png"
+description = "Brush radius 75 Å."
+
+[chimerax.provider."Brush Large"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Brush"
+display_name = "L"
+icon = "brush_large.png"
+description = "Brush radius 200 Å."
+
+[chimerax.provider."Color By Instance"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Pick Colours"
+display_name = "By Instance"
+icon = "color_instances.png"
+description = "Colour particle lists by instance ID (matches filaments and instance segmentations)."
+
+[chimerax.provider."Color By Object"]
+manager = "toolbar"
+tab = "Copick Edit"
+section = "Pick Colours"
+display_name = "By Object"
+icon = "color_object.png"
+description = "Colour particle lists by their object's colour."
 
 [tool.black]
 line-length = 120

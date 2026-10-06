@@ -12,6 +12,13 @@ class _MyAPI(BundleAPI):
             from . import tool
 
             return tool.CopickTool(session, ti.name)
+        if ti.name == "Copick Annotate":
+            if getattr(session, "copick", None) is None:
+                session.logger.warning("Start Copick first (copick start <config>).")
+                return None
+            from .ui.annotate_tool import get_annotate_tool
+
+            return get_annotate_tool(session)
 
     @staticmethod
     def register_command(bi, ci, logger):

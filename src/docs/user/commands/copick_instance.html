@@ -1,0 +1,63 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="../userdocs.css" />
+    <title>Command: copick instance</title>
+  </head>
+  <body>
+    <a name="top"></a>
+    <a href="../copick_index.html">
+    <img width="60px" src="../copick-docs-icon.png" alt="ChimeraX docs icon"
+    class="clRight" title="User Guide Index"/></a>
+    <h3><a href="../copick_index.html#commands">Command</a>: copick instance</h3>
+    <h3 class="usage"><a href="usageconventions.html">Usage</a>:
+    <br><b>copick instance edit</b> [ <i>copick-uri</i> ]
+    <br><b>copick new segmentation</b> <i>object-name</i> [ <b>userId</b> <i>id</i> ] [ <b>sessionId</b> <i>id</i> ]
+    <br><b>copick instance</b> (<b>paint</b> | <b>erase</b> | <b>pick</b> | <b>new</b> | <b>undo</b>)
+    <br><b>copick instance id</b> <i>N</i>
+    <br><b>copick instance merge</b> <i>ids</i> <b>into</b> <i>id</i>
+    <br><b>copick instance delete</b> <i>ids</i>
+    <br><b>copick instance</b> (<b>show</b> | <b>hide</b> | <b>isolate</b>) <i>ids</i>
+    <br><b>copick instance brush</b> <i>radius</i>
+    <br><b>copick instance save</b> [ <b>userId</b> <i>id</i> ] [ <b>sessionId</b> <i>id</i> ]
+    <br><b>copick colorpicks</b> [ <b>on</b> | <b>off</b> ]
+    <br><b>copick annotate</b> [ <b>show</b> | <b>hide</b> | <b>toggle</b> ] [ <b>page</b> <b>filaments</b> | <b>instances</b> | <b>picks</b> ]
+    <br><b>copick save</b></h3>
+
+    <p>
+    <b>Instance segmentations</b> hold one integer ID per voxel (0 = background); the IDs match the instance IDs
+    of picks and filaments of the same object, and are drawn with the same colours. <b>Panoptic</b> segmentations
+    (object label + instance channels) are shown with one surface per segment and can be browsed, not edited.
+    Both appear in the <b>Segmentations</b> tab with their type.
+    </p>
+    <p>
+    <b>Editing</b> works on a full-resolution copy of the volume: <b>copick instance edit</b> loads an instance
+    segmentation, <b>copick new segmentation</b> starts an empty one at the shown tomogram's voxel spacing. The right
+    mouse button then paints the current ID as a sphere of the brush radius where the mouse meets the tomogram plane
+    (<em>paint copick instance</em>); <em>erase copick instance</em> clears voxels and <em>pick copick instance</em>
+    makes the clicked ID current. Surfaces of the IDs an edit touched are rebuilt when the mouse is released.
+    The undo stack keeps the last 20 edits. Limits: a sphere brush only, and large volumes need memory.
+    </p>
+    <p>
+    <i>ids</i> is a list such as <code>3,5-8</code>. <b>show</b> / <b>hide</b> / <b>isolate</b> act on the active
+    instance or panoptic segmentation (segment indices for panoptic). <b>copick colorpicks on</b> colours every particle
+    list by instance ID (filament picks always are). <b>copick save</b> stores all edited picks, filament sets and the
+    edited instance segmentation that were opened from editable storage. <b>copick annotate</b> shows or hides the
+    Copick Annotate window (tracing, instance editing and browsing).
+    </p>
+
+    <p> Examples: </p>
+    <blockquote> <b>copick instance edit microtubule:tracer/1@21.6?instance=true<br>
+      copick instance new<br>
+      copick instance brush 75<br>
+      copick instance merge 2 into 1<br>
+      copick instance save sessionId manual-3</b> </blockquote>
+
+    <p>The <b>Segmentations</b> tab, the <b>Copick Edit</b> toolbar tab and the shortcuts
+      <b>pi ei ki ni iu</b> run the same commands.</p>
+    <p>See also:
+      <a href="copick_filaments.html"><b>copick filaments</b></a>,
+      <a href="copick_open.html"><b>copick open / show / hide</b></a>.</p>
+    <hr>
+    <address>Copick / chimerax-copick</address>
+  </body>
+</html>
