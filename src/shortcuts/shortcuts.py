@@ -64,6 +64,20 @@ def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
             "Copick",
         ),
         ("..", "artiax invert", "Invert tomogram contrast", "Visualization", {}, "Copick"),
+        # Filaments & Instances
+        ("tf", "copick filament trace toggle", "Filament trace mode on/off.", "Filaments & Instances", {}, "Copick"),
+        ("cf", "copick filament cut toggle", "Filament cut mode on/off.", "Filaments & Instances", {}, "Copick"),
+        ("nf", "copick filament new", "Start a new filament.", "Filaments & Instances", {}, "Copick"),
+        ("fn", "copick filament next", "Next filament.", "Filaments & Instances", {}, "Copick"),
+        ("fp", "copick filament previous", "Previous filament.", "Filaments & Instances", {}, "Copick"),
+        ("rv", "copick filament reverse", "Reverse the active filament.", "Filaments & Instances", {}, "Copick"),
+        ("jf", "copick filament join", "Join the selected filaments.", "Filaments & Instances", {}, "Copick"),
+        ("xf", "copick filament delete", "Delete the active filament.", "Filaments & Instances", {}, "Copick"),
+        ("pi", "copick instance paint", "Paint instance mode.", "Filaments & Instances", {}, "Copick"),
+        ("ei", "copick instance erase", "Erase instance mode.", "Filaments & Instances", {}, "Copick"),
+        ("ki", "copick instance pick", "Pick instance ID mode.", "Filaments & Instances", {}, "Copick"),
+        ("ni", "copick instance new", "New instance ID.", "Filaments & Instances", {}, "Copick"),
+        ("iu", "copick instance undo", "Undo the last instance edit.", "Filaments & Instances", {}, "Copick"),
         # Info
         ("il", toggle_info_label, "Toggle Info Label.", "Info", {}, "Copick"),
         ("?", show_help, "Show Shortcuts in Log.", "Info", {}, "Copick"),
@@ -74,6 +88,7 @@ def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
             "Particles",
             "Picking",
             "Visualization",
+            "Filaments & Instances",
             "Info",
         ),
     )
@@ -81,10 +96,31 @@ def copick_shortcuts() -> Tuple[List[Tuple[Any, ...]], Tuple[Any, ...]]:
     return csc, catcols
 
 
+class CopickKeyboardShortcuts(Keyboard_Shortcuts):
+    """ChimeraX keyboard shortcuts that keep the platform Undo / Redo keys (Cmd+Z / Shift+Cmd+Z, Ctrl+Z / Ctrl+Y).
+
+    While shortcuts are on, keys typed in the graphics window come here instead of the command line, and the base
+    class would read Cmd+Z as an unknown shortcut. Like the command line, they undo / redo on ChimeraX's undo stack
+    (filament edits and anything else ChimeraX can undo).
+    """
+
+    def key_pressed(self, event):
+        from Qt.QtGui import QKeySequence
+
+        if event.matches(QKeySequence.StandardKey.Undo):
+            self.keys = ""
+            self.session.undo.undo()
+        elif event.matches(QKeySequence.StandardKey.Redo):
+            self.keys = ""
+            self.session.undo.redo()
+        else:
+            super().key_pressed(event)
+
+
 def copick_keyboard_shortcuts(session: Session) -> Keyboard_Shortcuts:
     ks = getattr(session, "copick_shortcuts", None)
     if ks is None:
-        session.copick_shortcuts = ks = Keyboard_Shortcuts(session)
+        session.copick_shortcuts = ks = CopickKeyboardShortcuts(session)
     return ks
 
 

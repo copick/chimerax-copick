@@ -60,6 +60,7 @@ def tool_module(monkeypatch):
         "copick.util",
         "copick_shared_ui",
         "copick_shared_ui.core",
+        "copick_shared_ui.util",
         "Qt",
     ):
         _module(monkeypatch, package)
@@ -112,6 +113,21 @@ def tool_module(monkeypatch):
         set_global_cache_config=lambda *_args, **_kwargs: None,
         set_global_cache_image_interface=lambda *_args, **_kwargs: None,
     )
+    _module(
+        monkeypatch,
+        "copick_shared_ui.core.types",
+        segmentation_type_of=lambda seg: getattr(
+            seg,
+            "segmentation_type",
+            "multilabel" if getattr(seg, "is_multilabel", False) else "binary",
+        ),
+        segmentation_type_flags=lambda kind, explicit=None: {"is_multilabel": kind == "multilabel"},
+    )
+    _module(
+        monkeypatch,
+        "copick_shared_ui.util.instances",
+        instance_colors=lambda ids, base, dtype=None: [tuple(base)] * len(list(ids)),
+    )
     _module(monkeypatch, "Qt.QtCore", QModelIndex=Placeholder)
     _module(monkeypatch, "Qt.QtGui", QFont=Placeholder)
     _module(monkeypatch, "Qt.QtWidgets", QVBoxLayout=Placeholder)
@@ -124,13 +140,14 @@ def tool_module(monkeypatch):
         monkeypatch,
         "portable_bundle.misc.pickops",
         append_no_duplicates=lambda left, _right, **_kwargs: left,
-        instance_id_colors=lambda ids, base: [tuple(base)] * len(list(ids)),
         is_filament=lambda _obj: False,
         point_from_pose=lambda **kwargs: kwargs,
         point_identity=lambda point: (0, 1.0),
         point_pose=lambda point: (point.location, (0.0, 0.0, 0.0), None),
         with_new_particle_defaults=lambda data: data,
     )
+    _module(monkeypatch, "portable_bundle.filaments.controller", FilamentController=Placeholder)
+    _module(monkeypatch, "portable_bundle.segmentation.controller", SegmentationController=Placeholder)
     _module(monkeypatch, "portable_bundle.misc.settings", CoPickSettings=Placeholder)
     _module(monkeypatch, "portable_bundle.misc.spotlight", SpotlightManager=SpotlightPlaceholder)
     _module(

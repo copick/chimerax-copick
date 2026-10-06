@@ -2,6 +2,7 @@ from typing import Literal, Union
 
 from copick.models import CopickMesh, CopickPicks, CopickRun, CopickSegmentation
 from copick_shared_ui.util.validation import generate_smart_copy_name
+from copick_shared_ui.widgets.compact_delegate import SortMenu, make_compact
 from Qt.QtCore import QEvent, QModelIndex, QSortFilterProxyModel, Qt, Signal
 from Qt.QtWidgets import (
     QHBoxLayout,
@@ -17,31 +18,32 @@ from Qt.QtWidgets import (
 from .DuplicateDialog import DuplicateDialog
 from .emoji_font import apply_emoji_font
 from .NewPickDialog import NewPickDialog
+from .QUnifiedTableModel import HEADERS, ORDER_ROLE, SEARCH_ROLE, SESSION_ROLE, TYPE_ROLE, USER_ROLE, QUnifiedTableModel
 from .SettingsOverlay import SettingsOverlay
-from .QUnifiedTableModel import QUnifiedTableModel
+
+#: Sort keys of the header menu: (key, menu text, model role).
+SORT_KEYS = {
+    "default": ("Default (tool sets first)", ORDER_ROLE),
+    "name": ("Name", Qt.DisplayRole),
+    "user": ("User", USER_ROLE),
+    "session": ("Session", SESSION_ROLE),
+    "type": ("Type", TYPE_ROLE),
+}
 
 
 class TableFilterProxyModel(QSortFilterProxyModel):
-    """Custom proxy model for table search across user, object, and session columns"""
+    """Search across name, user, session and (segmentations) type."""
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
-        """Override to search across user, object, and session columns"""
         if not self.filterRegularExpression().pattern():
             return True
 
         source_model = self.sourceModel()
         if not source_model:
             return False
-
-        # Check all three columns (User/Tool, Object, Session)
-        for column in range(3):
-            index = source_model.index(source_row, column, source_parent)
-            if index.isValid():
-                data = source_model.data(index, Qt.ItemDataRole.DisplayRole)
-                if data and self.filterRegularExpression().match(str(data)).hasMatch():
-                    return True
-
-        return False
+        index = source_model.index(source_row, 0, source_parent)
+        text = source_model.data(index, SEARCH_ROLE) if index.isValid() else None
+        return bool(text) and self.filterRegularExpression().match(str(text)).hasMatch()
 
 
 class QUnifiedTable(QWidget):
@@ -54,7 +56,7 @@ class QUnifiedTable(QWidget):
 
     def __init__(
         self,
-        item_type: Union[Literal["picks"], Literal["meshes"], Literal["segmentations"]],
+        item_type: Union[Literal["picks"], Literal["filaments"], Literal["meshes"], Literal["segmentations"]],
         parent=None,
     ):
         super().__init__(parent)
@@ -83,6 +85,15 @@ class QUnifiedTable(QWidget):
         self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self._table.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding))
+        # One compact two-line column (swatch, name, type chip / "user · session"); the header is a sort menu.
+        make_compact(self._table)
+        keys = ["default", "name", "user", "session"] + (["type"] if self.item_type == "segmentations" else [])
+        self._sort_menu = SortMenu(
+            self._table.horizontalHeader(),
+            HEADERS[self.item_type],
+            [(k, SORT_KEYS[k][0]) for k in keys],
+            lambda _key, _descending: self._apply_sort(),
+        )
 
         # Create overlay search widget (floating at bottom-left)
         self._search_overlay = QWidget(self._table)
@@ -281,9 +292,12 @@ class QUnifiedTable(QWidget):
         self._filter_model = TableFilterProxyModel()
         self._filter_model.setSourceModel(self._source_model)
         self._filter_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
-        self._filter_model.setFilterRole(Qt.DisplayRole)
+        self._filter_model.setSortCaseSensitivity(Qt.CaseInsensitive)
+        self._filter_model.setDynamicSortFilter(True)
 
         self._table.setModel(self._filter_model)
+        self._sort_menu.refresh()
+        self._apply_sort()
 
         # Connect selection model after model is set
         self._table.selectionModel().selectionChanged.connect(self._on_selection_changed)
@@ -296,8 +310,14 @@ class QUnifiedTable(QWidget):
         if old_source_model is not None:
             old_source_model.deleteLater()
 
-        # Resize columns to content
-        self._table.resizeColumnsToContents()
+    def _apply_sort(self) -> None:
+        """Sort the rows by the header menu's choice (the proxy keeps the order through model refreshes)."""
+        if self._filter_model is None:
+            return
+        _text, role = SORT_KEYS.get(self._sort_menu.key, SORT_KEYS["default"])
+        self._filter_model.setSortRole(role)
+        order = Qt.DescendingOrder if self._sort_menu.descending else Qt.AscendingOrder
+        self._filter_model.sort(0, order)
 
     def set_entity_active(self, entity: Union[CopickMesh, CopickPicks, CopickSegmentation], active: bool):
         """Update the active state of an entity"""
@@ -308,7 +328,6 @@ class QUnifiedTable(QWidget):
         """Refresh the table data"""
         if self._source_model:
             self._source_model.update_all()
-            self._table.resizeColumnsToContents()
 
     def _on_selection_changed(self, selected, deselected):
         """Handle table selection changes"""
@@ -413,8 +432,7 @@ class QUnifiedTable(QWidget):
 
         session_ids = []
         for row in range(self._source_model.rowCount()):
-            index = self._source_model.index(row, 2)  # Session ID column
-            session_id = self._source_model.data(index, Qt.ItemDataRole.DisplayRole)
+            session_id = self._source_model.data(self._source_model.index(row, 0), SESSION_ROLE)
             if session_id:
                 session_ids.append(str(session_id))
         return session_ids
@@ -425,6 +443,17 @@ class QUnifiedTable(QWidget):
             return
 
         # Show dialog based on item type
+        if self.item_type in ("filaments", "segmentations"):
+            from .NewEntityDialogs import NewFilamentsDialog, NewInstanceSegmentationDialog
+
+            preset_user_id = self._run.root.user_id if self._run.root else None
+            dialog_class = NewFilamentsDialog if self.item_type == "filaments" else NewInstanceSegmentationDialog
+            dialog = dialog_class(self._run, self, preset_user_id)
+            if dialog.exec_() == dialog_class.Accepted:
+                selection = dialog.get_selection()
+                if selection:
+                    self.newClicked.emit(*selection)
+            return
         if self.item_type == "picks":
             # Get preset user ID from root if available
             preset_user_id = None
@@ -459,7 +488,16 @@ class QUnifiedTable(QWidget):
 
         # Show confirmation dialog if enabled
         if self._delete_confirmation:
-            entity_type = self.item_type.rstrip("s")  # Remove 's' from 'picks', 'meshes', 'segmentations'
+            entity_type = {
+                "picks": "picks",
+                "filaments": "filaments",
+                "meshes": "mesh",
+                "segmentations": "segmentation",
+            }[self.item_type]
+            if self.item_type == "segmentations":
+                from copick_shared_ui.core.types import SEGMENTATION_TYPE_LABELS, segmentation_type_of
+
+                entity_type = f"{SEGMENTATION_TYPE_LABELS[segmentation_type_of(entity)].lower()} segmentation"
 
             # Get object type information
             object_type = ""

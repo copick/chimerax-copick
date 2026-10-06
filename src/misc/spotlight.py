@@ -728,14 +728,14 @@ class SpotlightManager:
                 dy = p["pos_y"] - cy
                 dz = p["pos_z"] - cz
                 mask[idx] = dx * dx + dy * dy + dz * dz <= r2max
-            pl.displayed_particles = mask
+            pl.displayed_particles = mask & self.tool.instance_mask(pl)
 
     def _particles_show_all(self):
-        """Show all particles of all loaded lists (the spotlight-mode default)."""
+        """Show all particles of all loaded lists (the spotlight-mode default), except instances hidden by ID."""
         for pl in self.tool.picks_map.values():
             if pl is None or pl.deleted:
                 continue
-            pl.displayed_particles = True
+            pl.displayed_particles = self.tool.instance_mask(pl)
 
     # ---------------------------------------------------------------------- helpers
 
