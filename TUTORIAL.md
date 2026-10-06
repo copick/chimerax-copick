@@ -303,17 +303,20 @@ After creating the pick set:
 
 ### Understanding the Picks Table
 
-The Picks table displays:
+Each row of the Picks table shows one pick set on two lines:
 
 <div class="center-table" markdown>
 
-| Column | Description |
-|--------|-------------|
-| **User/Tool** | Who created the picks |
-| **Object** | Particle type (color-coded) |
-| **Session** | Session identifier |
+| Part | Description |
+|------|-------------|
+| **Eye** | Whether the set is shown (double-click the row to show or hide it) |
+| **Swatch and name** | Particle type, in its object color (segmentations also show a type chip: binary, multi, inst, pan) |
+| **Caption** | `user · session`; a 🔒 marks tool output, which is read-only |
 
 </div>
+
+Click the table header to sort by name, user or session (and, for segmentations, type); the default order lists
+tool sets first. The search box (🔍) matches names, users, sessions and types.
 
 **Table buttons** (bottom-right, on hover):
 

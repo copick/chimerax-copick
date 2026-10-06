@@ -47,8 +47,34 @@
     <h4>Toolbar</h4>
     <p>
     A <b>Copick</b> toolbar tab provides visualization (slab, volume, orthoplanes, surface),
-    binning, marker/axis/surface visibility, viewing directions, and particle picking and
-    manipulation mouse modes.
+    binning, marker/axis/surface visibility, viewing directions, and particle placement, manipulation and
+    deletion. A <b>Copick Edit</b> tab gathers the annotation tools: the Annotate window, new picks / filaments /
+    instance segmentations and Save All; the most used particle tools (place on the plane, select, move / rotate,
+    delete; the same as in the Copick tab); filament tracing (trace mode, cut mode, new, previous / next, reverse,
+    join, delete, save); instance editing (paint, erase, pick ID, new ID, undo, save); brush sizes; and colouring
+    particle lists by instance or object.
+    </p>
+
+    <h4>Filaments and instances</h4>
+    <p>
+    The <b>Filaments</b> tab lists the run's traced filament sets; double-click to show one. Below the table, a stepper (<b>&lt;&lt;</b> <i>k</i> of <i>N</i> <b>&gt;&gt;</b>, shortcuts <b>fp</b> / <b>fn</b>) steps through the filaments of the active set and focuses the view on each. The <b>Segmentations</b>
+    tab shows each segmentation's type (binary, multilabel, instance, panoptic); instance and panoptic segmentations
+    are drawn as one surface per instance or segment. Instance IDs share one colour per ID across picks, filaments and
+    segmentations.
+    </p>
+    <p>
+    Tracing, instance editing and instance browsing happen in a separate <b>Copick Annotate</b> window, so the copick
+    panel keeps its width and height. It opens when you start tracing or editing, from the <b>Annotate</b> button of
+    the Copick Edit toolbar, or with <b>copick annotate</b>. Its pages are <b>Filaments</b> (trace and cut modes, active
+    filament, insert mode, save, and a filament browser: step, focus, show / hide, reverse, delete), <b>Instances</b>
+    (edit, current ID, brush, background-only, save, and an instance / panoptic segment browser: step, focus,
+    show / hide / isolate, merge, delete) and <b>Pick instances</b> (the instance IDs of the current particle list).
+    The window is tabbed with the right-hand group (ArtiaX Options, Log, Models, ...) so it gets the full height.
+    ArtiaX raises its options panel whenever the current particle list or tomogram changes; if Copick Annotate was the
+    front tab at that moment, it raises itself back. Move it anywhere (ChimeraX remembers), float it, or use
+    <b>copick dock</b>.
+    See <a href="../commands/copick_filaments.html">copick filaments</a> and
+    <a href="../commands/copick_instance.html">copick instance</a>.
     </p>
 
     <h4>Attribution</h4>
