@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.15.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.14.0...chimerax-copick-v1.15.0) (2026-10-06)
+
+
+### ✨ Features
+
+* filaments, instance and panoptic segmentations, Copick Edit toolbar and Annotate window ([#111](https://github.com/copick/chimerax-copick/issues/111)) ([cf490fc](https://github.com/copick/chimerax-copick/commit/cf490fcc0cf5f41dd128a5c3088711862eb3d64c))
+
+
+### 🐞 Bug Fixes
+
+* keep pick shifts, and default score and id for new picks ([#108](https://github.com/copick/chimerax-copick/issues/108)) ([cc895d4](https://github.com/copick/chimerax-copick/commit/cc895d4b9f86cb7892b05c647bccbe21bffb0d73))
+
 ## [1.14.0](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v1.13.0...chimerax-copick-v1.14.0) (2026-10-02)
 
 
