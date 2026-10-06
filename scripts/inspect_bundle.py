@@ -17,8 +17,8 @@ from packaging.version import Version
 EXPECTED_REQUIREMENTS = {
     "chimerax-core": ">=1.13.dev202608172052",
     "chimerax-ome-zarr": ">=1.0.0a1,<2",
-    "copick": ">=2.0.0a1,<3",
-    "copick-shared-ui": ">=2.0.0a1,<3",
+    "copick": ">=2.0.0a3,<3",
+    "copick-shared-ui": ">=2.0.0a3,<3",
     "numpy": ">=2.0.2",
 }
 FORBIDDEN_DIRECT_REQUIREMENTS = {"aiohttp", "hatchling", "pydantic", "s3fs"}
