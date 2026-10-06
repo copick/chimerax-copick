@@ -9,8 +9,8 @@ dependencies = [
     "ChimeraX-Core>=1.13.dev202608172052",
     "ChimeraX-ArtiaX>=0.7.0",
     "ChimeraX-OME-Zarr>=1.0.0a1,<2",
-    "copick[all]>=2.0.0a2,<3",
-    "copick-shared-ui>=2.0.0a2,<3",
+    "copick[all]>=2.0.0a3,<3",
+    "copick-shared-ui>=2.0.0a3,<3",
     "numpy>=2.0.2",
 ]
 authors = [
