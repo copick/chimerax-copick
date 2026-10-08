@@ -23,6 +23,14 @@
     create a new one with <a href="../commands/copick_new.html"><b>copick new</b></a>.
     </p>
 
+    <h4>Storage compatibility</h4>
+    <p>
+    Copick 2.0 projects may contain OME-Zarr 0.4 / Zarr v2 images or OME-Zarr 0.5 / Zarr v3 images. Both are
+    displayed through ChimeraX-OME-Zarr without converting the source. Newly created or rebuilt volume stores use
+    OME-Zarr 0.5 / Zarr v3. Resolution paths, chunks, shards, key encodings and codecs are read from metadata and
+    the store rather than assumed by this tool.
+    </p>
+
     <h4>Layout</h4>
     <ul>
       <li><b>Gallery / Tree</b> &ndash; browse runs. Double-clicking a tomogram opens it (see
