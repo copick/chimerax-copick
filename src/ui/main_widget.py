@@ -568,6 +568,7 @@ class MainWidget(QWidget):
         self._filaments_table.get_table_view().clicked.connect(
             lambda i: self._copick.activate_filaments(self._map_index(self._filaments_table, i)),
         )
+        self._filaments_table.duplicateClicked.connect(self._copick.duplicate_filaments)
         self._filaments_table.newClicked.connect(self._on_new_filaments)
         self._filaments_table.deleteClicked.connect(self._copick.delete_filaments)
 
@@ -628,6 +629,12 @@ class MainWidget(QWidget):
         for key in list(ctl.entries):
             if not isinstance(key, type(ctl.entries[key][0])) and ctl.is_shown(key):
                 self._filaments_table.set_entity_active(key, True)
+
+    def update_meshes_table(self):
+        self._meshes_table.update()
+        for mesh, surf in list(self._copick.mesh_map.items()):
+            if getattr(surf, "display", False):
+                self._meshes_table.set_entity_active(mesh, True)
 
     def update_segmentations_table(self):
         self._segmentations_table.update()
