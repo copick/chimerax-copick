@@ -98,6 +98,33 @@ class FilamentController:
     def tube_scale(self) -> float:
         return float(getattr(self.tool.settings, "filament_tube_scale", 0.5))
 
+    def color_by_instance(self) -> bool:
+        return bool(getattr(self.tool.settings, "filament_color_by_instance", True))
+
+    def transparency(self) -> float:
+        return float(getattr(self.tool.settings, "filament_transparency", 0.0))
+
+    def _new_model(self, edit: FilamentEditSession) -> FilamentSetModel:
+        return FilamentSetModel(
+            self.session,
+            edit,
+            tube_scale=self.tube_scale(),
+            color_by_instance=self.color_by_instance(),
+            transparency=self.transparency(),
+        )
+
+    def set_style(self, color_by_instance: Optional[bool] = None, transparency: Optional[float] = None) -> None:
+        """Colour every filament set by instance or by object, and set the tubes' transparency (percent; saved)."""
+        settings = self.tool.settings
+        if color_by_instance is not None:
+            settings.filament_color_by_instance = bool(color_by_instance)
+        if transparency is not None:
+            settings.filament_transparency = min(max(float(transparency), 0.0), 100.0)
+        for _edit, model in list(self.entries.values()):
+            if not model.deleted:
+                model.set_style(self.color_by_instance(), self.transparency())
+        self.notify()
+
     # -- open / close ----------------------------------------------------------------------------------------------
 
     def show(self, copick_filaments: Any) -> FilamentSetModel:
@@ -107,7 +134,7 @@ class FilamentController:
             step = copick_filaments.voxel_spacing or self._tomogram_voxel_size() or 10.0
             edit = FilamentEditSession.from_filaments(copick_filaments, step=step)
             self._track_history(edit)
-            model = FilamentSetModel(self.session, edit, tube_scale=self.tube_scale())
+            model = self._new_model(edit)
             self.session.models.add([model])
             model.redraw()
             self.entries[copick_filaments] = (edit, model)
@@ -135,7 +162,7 @@ class FilamentController:
         step = self._tomogram_voxel_size() or 10.0
         edit = FilamentEditSession(run, object_name, user_id, session_id, step=step)
         self._track_history(edit)
-        model = FilamentSetModel(self.session, edit, tube_scale=self.tube_scale())
+        model = self._new_model(edit)
         self.session.models.add([model])
         self.entries[edit] = (edit, model)
         self.active_key = edit

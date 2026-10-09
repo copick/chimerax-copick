@@ -19,12 +19,23 @@
     <br><b>copick filament</b> (<b>new</b> | <b>select</b> | <b>focus</b> | <b>go</b> | <b>next</b> | <b>previous</b> |
       <b>reverse</b> | <b>delete</b> | <b>convert</b>) [ <i>filament-id</i> ]
     <br><b>copick filament save</b> [ <b>userId</b> <i>id</i> ] [ <b>sessionId</b> <i>id</i> ]
-      [ <b>pickSpacing</b> <i>Å</i> ]</h3>
+      [ <b>pickSpacing</b> <i>Å</i> ]
+    <br><b>copick filament style</b> [ <b>color</b> <b>instance</b> | <b>object</b> ]
+      [ <b>transparency</b> <i>percent</i> ]</h3>
 
     <p>
     <b>Filaments</b> are traced centrelines (e.g. microtubules, actin) of objects declared as filaments
     (<b>Edit Object Types</b> &rarr; <b>Is Filament</b>). Each filament set is drawn as one tube per filament,
     coloured by its filament ID; picks sampled from a filament carry the same ID and colour.
+    </p>
+    <p>
+    <b>Colour and transparency</b>: <b>copick filament style color object</b> draws all tubes in the object's colour
+    instead (<b>color instance</b> switches back), and <b>copick filament style transparency</b> <i>percent</i> makes
+    the tubes transparent. Instance colours take their alpha from the object's colour, so the transparency is the same
+    in both modes; it reduces the alpha of the object's colour (0 keeps it, 100 hides the tubes). Both settings apply
+    to all filament sets and are remembered; control points stay opaque. The Copick Annotate window has the same
+    controls (<b>Colour by instance</b> above the filament list, <b>Transparency</b>). Without options the command
+    reports the current style.
     </p>
     <p>
     <b>Tracing</b>: <b>copick filament trace on</b> binds the right mouse button to <em>trace copick filament</em>.
@@ -82,6 +93,8 @@
         <tr><td><b>reverse</b> [<i>id</i>]</td><td>Reverse the point order (polarity) of a filament.</td></tr>
         <tr><td><b>delete</b> [<i>id</i>]</td><td>Delete a filament.</td></tr>
         <tr><td><b>convert</b> [<i>id</i>]</td><td>Convert a B-spline fit to an editable Catmull-Rom curve.</td></tr>
+        <tr><td><b>style</b></td><td><b>copick filament style</b>: colour by instance or by object, and the tubes'
+          transparency (all sets, remembered).</td></tr>
         <tr><td><b>save</b></td><td>Save the active set. With <b>pickSpacing</b>, picks are also sampled every
           <i>Å</i> along each filament (+Z along the filament, instance ID = filament ID); they replace the whole
           picks set of the same object, user and session. Session 0 (tool output) cannot be written.</td></tr>
@@ -92,10 +105,11 @@
     <blockquote> <b>copick open filaments microtubule:tracer/1<br>
       copick new filaments microtubule<br>
       copick filament trace on<br>
-      copick filament save sessionId manual-2 pickSpacing 82</b> </blockquote>
+      copick filament save sessionId manual-2 pickSpacing 82<br>
+      copick filament style color object transparency 50</b> </blockquote>
 
     <p>The <b>Filaments</b> tab, the <b>Copick Edit</b> toolbar tab and the shortcuts
-      <b>tf nf fn fp rv xf</b> run the same commands.</p>
+      <b>tf cf nf fn fp rv jf xf</b> run the same commands.</p>
     <p>See also:
       <a href="copick_instance.html"><b>copick instance</b></a>,
       <a href="copick_open.html"><b>copick open / show / hide</b></a>,
