@@ -122,6 +122,7 @@ def tool_module(monkeypatch):
             "multilabel" if getattr(seg, "is_multilabel", False) else "binary",
         ),
         segmentation_type_flags=lambda kind, explicit=None: {"is_multilabel": kind == "multilabel"},
+        copick_object_type=lambda obj: None,
     )
     _module(
         monkeypatch,
