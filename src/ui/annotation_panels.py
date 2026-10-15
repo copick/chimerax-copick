@@ -146,12 +146,21 @@ class FilamentPanel(QWidget):
             lambda: self._cmd("copick filament convert"),
         )
         self.save_btn = _button("💾", "Save the filament set…", self._save)
+        self.transparency_spin = QSpinBox()
+        self.transparency_spin.setRange(0, 100)
+        self.transparency_spin.setSuffix(" %")
+        self.transparency_spin.setKeyboardTracking(False)  # one command per committed value
+        self.transparency_spin.setToolTip(
+            "Transparency of the filament tubes, whether coloured by instance or by object (all filament sets)",
+        )
+        self.transparency_spin.valueChanged.connect(lambda v: self._cmd(f"copick filament style transparency {v}"))
         layout.addWidget(
             _flow_row(
                 self.trace_btn,
                 self.cut_btn,
                 _labelled("Filament", self.active_spin),
                 _labelled("New points", self.mode_combo),
+                _labelled("Transparency", self.transparency_spin),
                 self.convert_btn,
                 self.save_btn,
             ),
@@ -164,6 +173,10 @@ class FilamentPanel(QWidget):
             reverse=True,
             merge=True,
             merge_tip="Join the selected filaments end to end (into the current one)",
+            color_toggle=True,
+        )
+        self.browser.color_by_instance_toggled.connect(
+            lambda on: self._cmd(f"copick filament style color {'instance' if on else 'object'}"),
         )
         self.browser.current_changed.connect(lambda k: self._cmd(f"copick filament select {k}"))
         self.browser.focus_requested.connect(lambda k: self._cmd(f"copick filament focus {k}"))
@@ -231,6 +244,10 @@ class FilamentPanel(QWidget):
         edit = self.ctl.edit_session
         from ..filaments.controller import CUT_MODE, TRACE_MODE
 
+        self.browser.set_color_by_instance(self.ctl.color_by_instance())
+        self.transparency_spin.blockSignals(True)
+        self.transparency_spin.setValue(round(self.ctl.transparency()))
+        self.transparency_spin.blockSignals(False)
         right = self.ctl.right_mode if self.ctl.editing else None
         for btn, mode in ((self.trace_btn, TRACE_MODE), (self.cut_btn, CUT_MODE)):
             btn.blockSignals(True)
@@ -261,6 +278,10 @@ class FilamentPanel(QWidget):
         from copick_shared_ui.util.instances import InstanceRow, rows_from_filaments
 
         rows = rows_from_filaments(edit.to_list())
+        if not self.ctl.color_by_instance():  # the swatches show what the tubes show
+            rgba = tuple(float(c) / 255 for c in (getattr(edit.object, "color", None) or (255, 255, 255, 255))[:4])
+            for r in rows:
+                r.color = rgba
         known = {r.instance_id for r in rows}
         rows += [InstanceRow(i, count=len(c), label="pending") for i, c in edit.pending.items() if i not in known]
         self.browser.set_rows(sorted(rows, key=lambda r: r.instance_id), kind="filaments")

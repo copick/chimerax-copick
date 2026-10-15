@@ -184,6 +184,10 @@ synopsis = "Join filaments end to end (default: those selected in the Annotate w
 category = "General"
 synopsis = "Cut mode on or off, or cut a filament in two at a point."
 
+[chimerax.command."copick filament style"]
+category = "General"
+synopsis = "Colour filaments by instance or object, and set their transparency."
+
 [chimerax.command."copick filament save"]
 category = "General"
 synopsis = "Save the active filament set, optionally with sampled picks."
