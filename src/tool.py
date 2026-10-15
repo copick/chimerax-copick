@@ -28,7 +28,7 @@ from copick.impl.filesystem import CopickTomogramFSSpec
 from copick.models import CopickMesh, CopickPicks, CopickSegmentation
 from copick.util.uri import serialize_copick_uri
 from copick_shared_ui.core.thumbnail_cache import set_global_cache_config, set_global_cache_image_interface
-from copick_shared_ui.core.types import segmentation_type_flags, segmentation_type_of
+from copick_shared_ui.core.types import copick_object_type, segmentation_type_flags, segmentation_type_of
 from copick_shared_ui.util.instances import instance_colors
 
 # Qt
@@ -1203,17 +1203,76 @@ class CopickTool(ToolInstance):
         # Set mouse mode to "mark plane" (pick on plane)
         run(self.session, "ui mousemode right 'mark plane'", log=False)
 
+    def _duplicate_entity(self, index: QModelIndex, user_id: str, session_id: str, object_type: str) -> Any:
+        """Copy the filament set, mesh or segmentation at ``index`` to a new user / session.
+
+        Empty user_id/session_id fall back to the root user and "<session>-copy-1". Returns the copy, or None (with a
+        warning in the log) if the target already exists or the copy failed.
+        """
+        if not index.isValid():
+            return None
+        entity = index.model().get_entity(index)
+        if entity is None or copick_object_type(entity) != object_type:
+            return None
+
+        self.store()  # write pending edits first, so the copy includes them
+
+        if not user_id:
+            user_id = self.root.user_id if self.root.user_id is not None else "ArtiaX"
+        if not session_id:
+            session_id = f"{entity.session_id}-copy-1"
+
+        from copick.ops.manage import copy_copick_objects
+
+        source = serialize_copick_uri(entity)
+        name, rest = source.split(":", 1)
+        suffix = rest[rest.index("@") :] if "@" in rest else ""  # voxel size and segmentation type
+        target = f"{name}:{user_id}/{session_id}{suffix}"
+        kind = {"mesh": "mesh", "segmentation": "segmentation", "filaments": "filament set"}[object_type]
+        try:
+            result = copy_copick_objects(self.root, object_type, source, target, run_name=entity.run.name)
+        except ValueError as e:
+            result = {"copied": 0, "errors": [str(e)]}
+        if not result["copied"]:
+            reason = "; ".join(result["errors"]) or "nothing was copied"
+            self.session.logger.warning(
+                f"Cannot duplicate the {kind} {source} as {target} ({reason}). Choose a different session ID.",
+            )
+            return None
+
+        run_ = entity.run
+        if object_type == "filaments":
+            copies = run_.get_filaments(object_name=name, user_id=user_id, session_id=session_id)
+        elif object_type == "mesh":
+            copies = run_.get_meshes(object_name=name, user_id=user_id, session_id=session_id)
+        else:
+            copies = [
+                s
+                for s in run_.get_segmentations(
+                    name=name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    is_instance=None,
+                    is_panoptic=None,
+                )
+                if s.voxel_size == entity.voxel_size and segmentation_type_of(s) == segmentation_type_of(entity)
+            ]
+        self.session.logger.info(f"copick: duplicated the {kind} {source} as {target}")
+        return copies[0] if copies else None
+
+    def duplicate_filaments(self, index: QModelIndex, user_id: str = "", session_id: str = ""):
+        """Duplicate a filament set to a new user / session, and show the copy."""
+        copy = self._duplicate_entity(index, user_id, session_id, "filaments")
+        self._mw.update_filaments_table()
+        if copy is not None:
+            self._show_filaments_entity(copy)
+
     def duplicate_mesh(self, index: QModelIndex, user_id: str = "", session_id: str = ""):
-        """Placeholder for mesh duplication"""
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickMesh):
-            return
-
-        # TODO: Implement mesh duplication logic
-        pass
+        """Duplicate a mesh to a new user / session, and show the copy."""
+        copy = self._duplicate_entity(index, user_id, session_id, "mesh")
+        self._mw.update_meshes_table()
+        if copy is not None:
+            self._show_mesh_entity(copy)
 
     def new_mesh(self, object_name: str, user_id: str, session_id: str):
         """Placeholder for new mesh creation"""
@@ -1221,16 +1280,11 @@ class CopickTool(ToolInstance):
         pass
 
     def duplicate_segmentation(self, index: QModelIndex, user_id: str = "", session_id: str = ""):
-        """Placeholder for segmentation duplication"""
-        # Get entity from unified table model
-        model = index.model()
-        entity = model.get_entity(index)
-
-        if not isinstance(entity, CopickSegmentation):
-            return
-
-        # TODO: Implement segmentation duplication logic
-        pass
+        """Duplicate a segmentation (keeping its type and voxel size) to a new user / session, and show the copy."""
+        copy = self._duplicate_entity(index, user_id, session_id, "segmentation")
+        self._mw.update_segmentations_table()
+        if copy is not None:
+            self._show_segmentation_entity(copy)
 
     def new_segmentation(self, object_name: str, user_id: str, session_id: str):
         """Start a new (empty) instance segmentation of ``object_name`` at the active tomogram's voxel spacing and
