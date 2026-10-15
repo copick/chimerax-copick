@@ -35,11 +35,20 @@ ARROW_MID_MIN_LENGTH = 8.0
 class FilamentSetModel(Model):
     """Tubes for the filaments of one ``FilamentEditSession``."""
 
-    def __init__(self, session, edit_session, tube_scale: float = 0.5):
+    def __init__(
+        self,
+        session,
+        edit_session,
+        tube_scale: float = 0.5,
+        color_by_instance: bool = True,
+        transparency: float = 0.0,
+    ):
         name = f"{edit_session.object_name} filaments ({edit_session.user_id}/{edit_session.session_id})"
         Model.__init__(self, name, session)
         self.edit_session = edit_session
         self.tube_scale = float(tube_scale)
+        self.color_by_instance = bool(color_by_instance)
+        self.transparency = min(max(float(transparency), 0.0), 100.0)
         self._tubes: Dict[int, Surface] = {}
         self._controls: Optional[Surface] = None
         self._handle_radius: Optional[float] = None
@@ -70,8 +79,30 @@ class FilamentSetModel(Model):
         tubes = [self.tube_radius(i) for i in self.edit_session.filaments] or [self.radius * self.tube_scale]
         return max(HANDLE_OVER_TUBE * max(tubes), HANDLE_MIN_STEPS * self.edit_session.step)
 
+    @property
+    def single_rgba(self) -> np.ndarray:
+        """The set's single colour: the object's colour, its alpha reduced by ``transparency`` (percent)."""
+        rgba = self.base_rgba.astype(float)
+        rgba[3] *= (100.0 - self.transparency) / 100.0
+        return np.round(rgba).astype(np.uint8)
+
     def color_of(self, instance_id: int) -> np.ndarray:
-        return instance_colors([instance_id], self.base_rgba, dtype=np.uint8)[0]
+        """A tube's colour: its instance colour, with the alpha of the single colour, or the single colour itself."""
+        single = self.single_rgba
+        if not self.color_by_instance:
+            return single
+        return instance_colors([instance_id], single, dtype=np.uint8)[0]
+
+    def set_style(self, color_by_instance: Optional[bool] = None, transparency: Optional[float] = None) -> None:
+        """Recolour the tubes (and handles) without rebuilding them."""
+        if color_by_instance is not None:
+            self.color_by_instance = bool(color_by_instance)
+        if transparency is not None:
+            self.transparency = min(max(float(transparency), 0.0), 100.0)
+        for instance_id, surf in self._tubes.items():
+            if not surf.deleted:
+                surf.color = self.color_of(instance_id)
+        self._draw_controls()
 
     # ----------------------------------------------------------------------------------------------------------------
     # Drawing
@@ -136,7 +167,12 @@ class FilamentSetModel(Model):
             k = ACTIVE_HANDLE_SCALE if i == active else 1.0
             places.append(Place(axes=np.eye(3) * k, origin=p))
         self._controls.positions = Places(places)
-        colors = instance_colors(ids, self.base_rgba, dtype=np.uint8)
+        opaque = self.base_rgba.copy()
+        opaque[3] = 255  # handles stay opaque, so editing stays readable on transparent tubes
+        if self.color_by_instance:
+            colors = instance_colors(ids, opaque, dtype=np.uint8)
+        else:
+            colors = np.tile(opaque, (len(ids), 1))
         colors[ids == active] = (255, 255, 255, 255)  # the active filament's handles are white
         self._controls.colors = colors
         self._controls.display = True

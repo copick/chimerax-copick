@@ -14,6 +14,8 @@ class CoPickSettings(Settings):
         "spotlight_particles": False,  # Also hide particles outside the spotlight sphere
         "filament_tube_scale": 0.5,  # Filament tube radius as a fraction of the object radius
         "filament_pick_spacing": 0.0,  # Default spacing of picks sampled along filaments (0 = object radius)
+        "filament_color_by_instance": True,  # Colour filament tubes by filament ID (False: the object's colour)
+        "filament_transparency": 0.0,  # Transparency of filament tubes, percent (0 = the object colour's alpha)
         "paint_radius": 50.0,  # Instance paint brush radius (Å)
         "color_picks_by_instance": False,  # Colour every particle list by instance ID (filaments always are)
     }

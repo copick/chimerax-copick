@@ -740,6 +740,22 @@ def copick_filament_cut(session, state: str = "toggle", at=None, instance_id: Op
         ctl.stop_tracing()
 
 
+def copick_filament_style(session, color: Optional[str] = None, transparency: Optional[float] = None):
+    """Colour filaments by instance ID or by their object's colour, and set their transparency (percent).
+
+    Applies to every filament set and is remembered. Instance colours take their alpha from the object's colour, so
+    the transparency is the same in both modes. Without options, reports the current style.
+    """
+    tool = _get_running_tool(session)
+    if tool is None:
+        return
+    ctl = tool.filaments
+    if color is not None or transparency is not None:
+        ctl.set_style(color_by_instance=None if color is None else color == "instance", transparency=transparency)
+    mode = "instance" if ctl.color_by_instance() else "object"
+    session.logger.info(f"copick: filaments coloured by {mode}, transparency {ctl.transparency():g}%")
+
+
 def copick_filament_save(
     session,
     user_id: Optional[str] = None,
@@ -1156,6 +1172,15 @@ def register_copick(logger):
                 url=entity_url,
             ),
             copick_filament_cut,
+        )
+        register(
+            "copick filament style",
+            CmdDesc(
+                keyword=[("color", EnumOf(["instance", "object"])), ("transparency", FloatArg)],
+                synopsis="Colour filaments by instance or object, and set their transparency.",
+                url=entity_url,
+            ),
+            copick_filament_style,
         )
         register(
             "copick filament save",
