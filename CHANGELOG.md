@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.0-alpha.7](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.6...chimerax-copick-v2.0.0-alpha.7) (2026-10-16)
+
+
+### ✨ Features
+
+* colour filaments by object, and filament transparency (v2.0) ([#126](https://github.com/copick/chimerax-copick/issues/126)) ([2d7821f](https://github.com/copick/chimerax-copick/commit/2d7821f27f624a7d0122f0b543886b0926fc17a5))
+
+
+### 🐞 Bug Fixes
+
+* duplicate filament sets, meshes and segmentations (v2.0) ([#124](https://github.com/copick/chimerax-copick/issues/124)) ([c323172](https://github.com/copick/chimerax-copick/commit/c32317211fe20d8ae9f7475acf4f09c9a241a0fc))
+* require copick-shared-ui 2.0.0a4 ([#132](https://github.com/copick/chimerax-copick/issues/132)) ([e358c24](https://github.com/copick/chimerax-copick/commit/e358c24a6469c29b1177204641eaf4e5f270eef0))
+
+
+### ⚙ Continuous Integration
+
+* v2.0 release PR titles without the branch scope ([#129](https://github.com/copick/chimerax-copick/issues/129)) ([644c279](https://github.com/copick/chimerax-copick/commit/644c279469d3f7334fd405c3f02dbb313de40e28))
+
 ## [2.0.0-alpha.6](https://github.com/copick/chimerax-copick/compare/chimerax-copick-v2.0.0-alpha.5...chimerax-copick-v2.0.0-alpha.6) (2026-10-06)
 
 
