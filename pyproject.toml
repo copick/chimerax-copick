@@ -13,7 +13,7 @@ dependencies = [
     "aiohttp>=3.13.0",
     "s3fs>=2024.3.1",
     "copick[all]>=1.28.0",
-    "copick-shared-ui>=0.8.0",
+    "copick-shared-ui>=0.8.1",
 ]
 authors = [
   {name = "Utz H. Ermel", email = "utz@ermel.me"},
