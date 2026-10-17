@@ -7,6 +7,11 @@
 
 ## Installation
 
+!!! warning "2.0 alpha"
+    The 2.0 alpha requires ChimeraX Daily 1.13 / Python 3.14 and exact prerelease dependencies. It is installed
+    from checksum-verified GitHub wheels, not from the public Toolshed. Follow the
+    [alpha installation instructions](README.md#20-alpha-installation) while the ecosystem migration is in alpha.
+
 ### 1. Download ChimeraX
 
 Download and install ChimeraX from the [official website](https://www.cgl.ucsf.edu/chimerax/){ target="_blank" }
@@ -17,6 +22,9 @@ Download and install ChimeraX from the [official website](https://www.cgl.ucsf.e
 2. Go to **Tools > More Tools...** to open the toolshed
 3. Search for `copick` in the search bar
 4. Download and install the copick plugin
+
+The Toolshed steps apply to stable releases. For `2.0.0-alpha.N`, install the exact reader and chimerax-copick
+wheels described above.
 
 <!-- Screenshot: ChimeraX toolshed with "copick" search results -->
 
@@ -193,6 +201,10 @@ A table showing all currently defined pickable objects:
 ---
 
 ## 3. Opening a Tomogram
+
+Both legacy OME-Zarr 0.4 / Zarr v2 projects and OME-Zarr 0.5 / Zarr v3 projects open through the same controls.
+Resolution levels come from OME metadata, so projects may use paths such as `s0` and `preview` instead of numeric
+array names. Opening a legacy project does not convert or rewrite its stored volumes.
 
 === "From the Gallery View"
 
